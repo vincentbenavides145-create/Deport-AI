@@ -961,11 +961,13 @@ def goal_probabilities(
     first_half_lambda = 0.45 * (lambda_home + lambda_away)
     first_half_over_05 = 1.0 - math.exp(-first_half_lambda)
     first_half_over_15 = 1.0 - math.exp(-first_half_lambda) * (1.0 + first_half_lambda)
+    first_half_under_15 = 1.0 - first_half_over_15
 
     # Goles en el 2do Tiempo (2T / 2H) - Mayor volumen histórico (55% de goles)
     second_half_lambda = 0.55 * (lambda_home + lambda_away)
     second_half_over_05 = 1.0 - math.exp(-second_half_lambda)
     second_half_over_15 = 1.0 - math.exp(-second_half_lambda) * (1.0 + second_half_lambda)
+    second_half_under_15 = 1.0 - second_half_over_15
 
     # Goles Over / Under 3.5
     over_35 = sum(matrix[h][a] for h in range(11) for a in range(11) if h + a >= 4)
@@ -1008,8 +1010,10 @@ def goal_probabilities(
         dnb_away=dnb_away,
         first_half_over_05=round(first_half_over_05, 4),
         first_half_over_15=round(first_half_over_15, 4),
+        first_half_under_15=round(first_half_under_15, 4),
         second_half_over_05=round(second_half_over_05, 4),
         second_half_over_15=round(second_half_over_15, 4),
+        second_half_under_15=round(second_half_under_15, 4),
         home_over_15=round(home_over_15, 4),
         home_over_25=round(home_over_25, 4),
         away_over_15=round(away_over_15, 4),
@@ -1097,6 +1101,30 @@ def expected_metrics(
         over_65_corners_away = round(1.0 - p_c_a_under_7, 4)
         under_35_corners_away = round(p_c_a_under_4, 4)
         under_45_corners_away = round(p_c_a_under_5, 4)
+
+    # Córners 1X2 mediante convolución discreta de la distribución binomial negativa
+    corners_1x2_home = None
+    corners_1x2_tie = None
+    corners_1x2_away = None
+    if corners_home is not None and corners_away is not None and corners_home > 0 and corners_away > 0:
+        p_c_h = sum(
+            _negative_binomial(h, corners_home, disp_corners) *
+            sum(_negative_binomial(a, corners_away, disp_corners) for a in range(h))
+            for h in range(1, 30)
+        )
+        p_c_tie = sum(
+            _negative_binomial(k, corners_home, disp_corners) *
+            _negative_binomial(k, corners_away, disp_corners)
+            for k in range(30)
+        )
+        p_c_a = sum(
+            _negative_binomial(a, corners_away, disp_corners) *
+            sum(_negative_binomial(h, corners_home, disp_corners) for h in range(a))
+            for a in range(1, 30)
+        )
+        corners_1x2_home = round(p_c_h, 4)
+        corners_1x2_tie = round(p_c_tie, 4)
+        corners_1x2_away = round(p_c_a, 4)
 
     # Remates Totales (Total Shots)
     total_shots_home = _expected_count(home_matches, away_matches, True, False, "total_shots")
@@ -1300,6 +1328,9 @@ def expected_metrics(
     return ExpectedMetrics(
         corners_home=corners_home,
         corners_away=corners_away,
+        corners_1x2_home=corners_1x2_home,
+        corners_1x2_tie=corners_1x2_tie,
+        corners_1x2_away=corners_1x2_away,
         over_75_corners=over_75_corners,
         over_85_corners=over_85_corners,
         over_95_corners=over_95_corners,

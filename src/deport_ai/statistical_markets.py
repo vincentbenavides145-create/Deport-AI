@@ -10,6 +10,16 @@ from .domain import ExpectedMetrics, ProbabilityReport, Team
 MINIMUM_PROBABILITY = 0.60
 
 
+def _safe_complement(p: float | None) -> float | None:
+    """Calcula el complemento (1.0 - p) distinguiendo estrictamente 'no disponible' (None) de 0.0.
+
+    Evita que valores no calculados o ausentes se transformen artificialmente en 100.0%.
+    """
+    if p is None:
+        return None
+    return round(max(0.0, min(1.0, 1.0 - p)), 4)
+
+
 def select_statistical_markets(
     home: Team,
     away: Team,
@@ -35,6 +45,7 @@ def select_statistical_markets(
         projection: float | None = None,
         *,
         starter_confirmation: bool = False,
+        basis: str | None = None,
     ) -> None:
         if probability is None or probability < minimum_probability:
             return
@@ -44,7 +55,7 @@ def select_statistical_markets(
             "market": market,
             "selection": selection,
             "probability": round(probability, 4),
-            "basis": "Proyección del modelo estadístico; no incluye cuota ni valoración frente a una casa.",
+            "basis": basis or "Proyección del modelo estadístico; no incluye cuota ni valoración frente a una casa.",
         }
         if projection is not None:
             item["projection"] = round(projection, 2)
@@ -61,9 +72,12 @@ def select_statistical_markets(
     add("Resultado", "1x2", "Resultado del partido", away.name, probabilities.away_win)
 
     # Doble Oportunidad (solo la más probable: 1X, X2 o 12)
-    add("Resultado", "double_chance", "Doble oportunidad", f"{home.name} o Empate (1X)", min(1.0, probabilities.home_win + probabilities.draw))
-    add("Resultado", "double_chance", "Doble oportunidad", f"{away.name} o Empate (X2)", min(1.0, probabilities.away_win + probabilities.draw))
-    add("Resultado", "double_chance", "Doble oportunidad", f"{home.name} o {away.name} (12)", min(1.0, probabilities.home_win + probabilities.away_win))
+    p_1x = min(1.0, probabilities.home_win + probabilities.draw) if (probabilities.home_win is not None and probabilities.draw is not None) else None
+    p_x2 = min(1.0, probabilities.away_win + probabilities.draw) if (probabilities.away_win is not None and probabilities.draw is not None) else None
+    p_12 = min(1.0, probabilities.home_win + probabilities.away_win) if (probabilities.home_win is not None and probabilities.away_win is not None) else None
+    add("Resultado", "double_chance", "Doble oportunidad", f"{home.name} o Empate (1X)", p_1x)
+    add("Resultado", "double_chance", "Doble oportunidad", f"{away.name} o Empate (X2)", p_x2)
+    add("Resultado", "double_chance", "Doble oportunidad", f"{home.name} o {away.name} (12)", p_12)
 
     # Empate Apuesta No Válida (DNB - solo la más probable)
     add("Resultado", "dnb", "Empate apuesta no válida", f"DNB {home.name}", probabilities.dnb_home)
@@ -89,23 +103,29 @@ def select_statistical_markets(
         add("Goles", "total_goals", "Goles totales", "Menos de 4.5 goles", 1.0 - over_45, total_goals)
 
     add("Goles", "both_score", "Ambos equipos marcan", "Sí", probabilities.btts)
-    add("Goles", "both_score", "Ambos equipos marcan", "No (BTTS No)", 1.0 - probabilities.btts)
+    add("Goles", "both_score", "Ambos equipos marcan", "No (BTTS No)", _safe_complement(probabilities.btts))
 
     # 3. Mercados por Mitad (1T y 2T - solo 1 línea por mitad)
+    p_1h_u15 = probabilities.first_half_under_15 if getattr(probabilities, "first_half_under_15", None) is not None else _safe_complement(probabilities.first_half_over_15)
+    p_2h_u15 = probabilities.second_half_under_15 if getattr(probabilities, "second_half_under_15", None) is not None else _safe_complement(probabilities.second_half_over_15)
+
     add("Mitades", "first_half", "Primer tiempo", "1T Más de 0.5 goles", probabilities.first_half_over_05)
-    add("Mitades", "first_half", "Primer tiempo", "1T Menos de 1.5 goles", 1.0 - probabilities.first_half_over_15)
+    add("Mitades", "first_half", "Primer tiempo", "1T Menos de 1.5 goles", p_1h_u15)
     add("Mitades", "first_half", "Primer tiempo", "1T Más de 1.5 goles", probabilities.first_half_over_15)
     add("Mitades", "second_half", "Segundo tiempo", "2T Más de 0.5 goles", probabilities.second_half_over_05)
-    add("Mitades", "second_half", "Segundo tiempo", "2T Menos de 1.5 goles", 1.0 - probabilities.second_half_over_15)
+    add("Mitades", "second_half", "Segundo tiempo", "2T Menos de 1.5 goles", p_2h_u15)
     add("Mitades", "second_half", "Segundo tiempo", "2T Más de 1.5 goles", probabilities.second_half_over_15)
 
     # 4. Goles por Equipo y Portería a Cero (solo 1 línea por equipo)
-    add("Goles", "home_goals", f"Goles de {home.name}", f"{home.name} Más de 0.5 goles", 1.0 - probabilities.clean_sheet_away, probabilities.expected_home_goals)
+    p_home_o05 = _safe_complement(probabilities.clean_sheet_away)
+    p_away_o05 = _safe_complement(probabilities.clean_sheet_home)
+
+    add("Goles", "home_goals", f"Goles de {home.name}", f"{home.name} Más de 0.5 goles", p_home_o05, probabilities.expected_home_goals)
     add("Goles", "home_goals", f"Goles de {home.name}", f"{home.name} Más de 1.5 goles", probabilities.home_over_15, probabilities.expected_home_goals)
     add("Goles", "home_goals", f"Goles de {home.name}", f"{home.name} Menos de 1.5 goles", probabilities.home_under_15, probabilities.expected_home_goals)
     add("Goles", "home_goals", f"Goles de {home.name}", f"{home.name} Más de 2.5 goles", getattr(probabilities, "home_over_25", None), probabilities.expected_home_goals)
 
-    add("Goles", "away_goals", f"Goles de {away.name}", f"{away.name} Más de 0.5 goles", 1.0 - probabilities.clean_sheet_home, probabilities.expected_away_goals)
+    add("Goles", "away_goals", f"Goles de {away.name}", f"{away.name} Más de 0.5 goles", p_away_o05, probabilities.expected_away_goals)
     add("Goles", "away_goals", f"Goles de {away.name}", f"{away.name} Menos de 1.5 goles", probabilities.away_under_15, probabilities.expected_away_goals)
     add("Goles", "away_goals", f"Goles de {away.name}", f"{away.name} Más de 1.5 goles", probabilities.away_over_15, probabilities.expected_away_goals)
 
@@ -116,14 +136,29 @@ def select_statistical_markets(
     if expected.over_05_woodwork is not None:
         add("Especiales", "woodwork", "Tiros al palo", "Tiro al palo en el partido", expected.over_05_woodwork)
 
-    # 6. Córners Totales, por Equipo y 1X2 (solo 1 línea por tipo)
-    if expected.corners_home is not None and expected.corners_away is not None:
-        c_diff = expected.corners_home - expected.corners_away
-        p_c_home = 1.0 / (1.0 + math.exp(-0.45 * c_diff))
-        if c_diff > 0.8:
-            add("Córners", "corners_1x2", "Córners 1X2", f"{home.name} saca más córners", p_c_home)
-        elif c_diff < -0.8:
-            add("Córners", "corners_1x2", "Córners 1X2", f"{away.name} saca más córners", 1.0 - p_c_home)
+    # 6. Córners 1X2 (Experimental - mediante convolución discreta binomial negativa con probabilidad explícita de empate)
+    p_c_home = getattr(expected, "corners_1x2_home", None)
+    p_c_away = getattr(expected, "corners_1x2_away", None)
+    if p_c_home is not None:
+        add(
+            "Córners",
+            "corners_1x2",
+            "Córners 1X2",
+            f"{home.name} saca más córners (Experimental)",
+            p_c_home,
+            expected.corners_home,
+            basis="Proyección experimental sujeta a calibración histórica; calculada con distribución binomial negativa y probabilidad explícita de empate.",
+        )
+    if p_c_away is not None:
+        add(
+            "Córners",
+            "corners_1x2",
+            "Córners 1X2",
+            f"{away.name} saca más córners (Experimental)",
+            p_c_away,
+            expected.corners_away,
+            basis="Proyección experimental sujeta a calibración histórica; calculada con distribución binomial negativa y probabilidad explícita de empate.",
+        )
 
     corner_total = _total(expected.corners_home, expected.corners_away)
     _add_lines(

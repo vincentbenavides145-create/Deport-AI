@@ -83,21 +83,21 @@ def format_report(report: AnalysisReport) -> str:
     fav_team = report.home if p.home_win >= 0.70 else (report.away if p.away_win >= 0.70 else None)
     und_team = report.away if p.home_win >= 0.70 else (report.home if p.away_win >= 0.70 else None)
 
-    if p.over_15 >= 0.60:
+    if p.over_15 is not None and p.over_15 >= 0.60:
         lines.append(f"- Goles Totales: Más de 1.5 goles ({_pct(p.over_15)})")
-    if p.over_25 >= 0.60:
+    if p.over_25 is not None and p.over_25 >= 0.60:
         lines.append(f"- Goles Totales: Más de 2.5 goles ({_pct(p.over_25)})")
-    elif p.under_25 >= 0.60:
+    elif p.under_25 is not None and p.under_25 >= 0.60:
         lines.append(f"- Goles Totales: Menos de 2.5 goles ({_pct(p.under_25)})")
-    if p.second_half_over_05 >= 0.60:
+    if p.second_half_over_05 is not None and p.second_half_over_05 >= 0.60:
         lines.append(f"- 2do Tiempo: Más de 0.5 goles 2T ({_pct(p.second_half_over_05)})")
-    if p.first_half_over_05 >= 0.60 and not is_heavy_fav:
+    if p.first_half_over_05 is not None and p.first_half_over_05 >= 0.60 and not is_heavy_fav:
         lines.append(f"- 1er Tiempo: Más de 0.5 goles 1T ({_pct(p.first_half_over_05)})")
 
     # Mercados de Underdog Inteligente y DNB
     if is_heavy_fav and fav_team and und_team:
         und_under_15_goals = p.away_under_15 if und_team == report.away else p.home_under_15
-        if und_under_15_goals >= 0.65:
+        if und_under_15_goals is not None and und_under_15_goals >= 0.65:
             lines.append(f"- Under Goles Underdog: {und_team.name} Menos de 1.5 goles ({_pct(und_under_15_goals)})")
         und_corners_under_35 = expected.under_35_corners_away if und_team == report.away else expected.under_35_corners_home
         if und_corners_under_35 is not None and und_corners_under_35 >= 0.65:
@@ -106,9 +106,9 @@ def format_report(report: AnalysisReport) -> str:
         if und_cards_over_15 is not None and und_cards_over_15 >= 0.65:
             lines.append(f"- Tarjetas Underdog: {und_team.name} Más de 1.5 tarjetas ({_pct(und_cards_over_15)})")
     else:
-        if p.dnb_home >= 0.60:
+        if p.dnb_home is not None and p.dnb_home >= 0.60:
             lines.append(f"- Empate Apuesta No Válida: DNB {report.home.name} ({_pct(p.dnb_home)})")
-        elif p.dnb_away >= 0.60:
+        elif p.dnb_away is not None and p.dnb_away >= 0.60:
             lines.append(f"- Empate Apuesta No Válida: DNB {report.away.name} ({_pct(p.dnb_away)})")
 
     if is_heavy_fav and und_team:
@@ -474,9 +474,9 @@ def _build_decisive_ticket(report: AnalysisReport) -> list[str]:
         # Underdog inteligente en partido desbalanceado (NUNCA Over Córners ni Over Remates):
         und_u15 = p.away_under_15 if und_team == report.away else p.home_under_15
         und_u05 = p.clean_sheet_home if und_team == report.away else p.clean_sheet_away
-        if SWEET_MIN <= und_u15 <= SWEET_MAX:
+        if und_u15 is not None and SWEET_MIN <= und_u15 <= SWEET_MAX:
             market_checks.append((f"{und_team.name} Menos de 1.5 Goles Totales", und_u15))
-        elif SWEET_MIN <= und_u05 <= SWEET_MAX:
+        elif und_u05 is not None and SWEET_MIN <= und_u05 <= SWEET_MAX:
             market_checks.append((f"{fav_team.name} Gana a Cero / {und_team.name} No Marca", und_u05))
 
         und_c_under_35 = expected.under_35_corners_away if und_team == report.away else expected.under_35_corners_home
@@ -505,34 +505,34 @@ def _build_decisive_ticket(report: AnalysisReport) -> list[str]:
         for name, prob in [
             (f"Victoria {report.home.name}", p.home_win),
             (f"Victoria {report.away.name}", p.away_win),
-            (f"Doble Oportunidad 1X ({report.home.name} o empate)", min(1.0, p.home_win + p.draw)),
-            (f"Doble Oportunidad X2 ({report.away.name} o empate)", min(1.0, p.away_win + p.draw)),
+            (f"Doble Oportunidad 1X ({report.home.name} o empate)", min(1.0, p.home_win + p.draw) if (p.home_win is not None and p.draw is not None) else None),
+            (f"Doble Oportunidad X2 ({report.away.name} o empate)", min(1.0, p.away_win + p.draw) if (p.away_win is not None and p.draw is not None) else None),
             (f"Empate Apuesta No Válida (DNB {report.home.name})", p.dnb_home),
             (f"Empate Apuesta No Válida (DNB {report.away.name})", p.dnb_away),
         ]:
-            if SWEET_MIN <= prob <= SWEET_MAX:
+            if prob is not None and SWEET_MIN <= prob <= SWEET_MAX:
                 market_checks.append((name, prob))
 
     # 2. Goles Totales (Escalado Dinámico al Sweet Spot):
-    if SWEET_MIN <= p.over_35 <= SWEET_MAX:
+    if p.over_35 is not None and SWEET_MIN <= p.over_35 <= SWEET_MAX:
         market_checks.append(("Más de 3.5 goles totales", p.over_35))
-    elif SWEET_MIN <= p.over_25 <= SWEET_MAX:
+    elif p.over_25 is not None and SWEET_MIN <= p.over_25 <= SWEET_MAX:
         market_checks.append(("Más de 2.5 goles totales", p.over_25))
-    elif SWEET_MIN <= p.over_15 <= SWEET_MAX:
+    elif p.over_15 is not None and SWEET_MIN <= p.over_15 <= SWEET_MAX:
         market_checks.append(("Más de 1.5 goles totales", p.over_15))
 
-    if SWEET_MIN <= p.under_25 <= SWEET_MAX:
+    if p.under_25 is not None and SWEET_MIN <= p.under_25 <= SWEET_MAX:
         market_checks.append(("Menos de 2.5 goles totales", p.under_25))
-    elif SWEET_MIN <= p.under_35 <= SWEET_MAX:
+    elif p.under_35 is not None and SWEET_MIN <= p.under_35 <= SWEET_MAX:
         market_checks.append(("Menos de 3.5 goles totales", p.under_35))
 
-    if SWEET_MIN <= p.btts <= SWEET_MAX:
+    if p.btts is not None and SWEET_MIN <= p.btts <= SWEET_MAX:
         market_checks.append(("Ambos Equipos Marcan (BTTS)", p.btts))
 
     # Goles por Mitad:
-    if SWEET_MIN <= p.second_half_over_05 <= SWEET_MAX:
+    if p.second_half_over_05 is not None and SWEET_MIN <= p.second_half_over_05 <= SWEET_MAX:
         market_checks.append(("Más de 0.5 goles en 2do Tiempo", p.second_half_over_05))
-    if not is_heavy_fav and SWEET_MIN <= p.first_half_over_05 <= SWEET_MAX:
+    if not is_heavy_fav and p.first_half_over_05 is not None and SWEET_MIN <= p.first_half_over_05 <= SWEET_MAX:
         market_checks.append(("Más de 0.5 goles en 1er Tiempo", p.first_half_over_05))
 
     # 3. Córners Totales y por Equipo (Escalado Dinámico):
@@ -979,7 +979,7 @@ def _build_unexploited_section(report: AnalysisReport) -> list[str]:
     if disallow_away_ha and alt_impact:
         lines.append("4. 🛡️/🏔️ Hándicap y Factor Altitud Extrema:")
         lines.append(f"   • VETO ESTRATÉGICO: Descartado {report.away.name} (+1.5 HA) debido al choque fisiológico a {alt_impact['home_altitude']:,} m.s.n.m.")
-        if p.ah_home_minus_15 >= 0.60:
+        if p.ah_home_minus_15 is not None and p.ah_home_minus_15 >= 0.60:
             lines.append(f"   • Hándicap Valor Local: {report.home.name} (-1.5 HA) — {_pct(p.ah_home_minus_15)} (Riesgo justificado por asfixia del visitante).")
         else:
             lines.append(f"   • Alternativa Segura: Priorizar mercados de asedio ({report.home.name} Más Córners / Remates) antes que cubrir al visitante.")
@@ -989,21 +989,21 @@ def _build_unexploited_section(report: AnalysisReport) -> list[str]:
         und_cards_o15 = expected.over_15_cards_away if und_team == report.away else expected.over_15_cards_home
 
         lines.append("4. 🛡️/⚔️ Hándicap de Valor y Props Inteligentes de Underdog:")
-        if fav_ah_m15 >= 0.60:
+        if fav_ah_m15 is not None and fav_ah_m15 >= 0.60:
             lines.append(f"   • Hándicap Valor Favorito: {fav_team.name} (-1.5 HA) — {_pct(fav_ah_m15)} (Evita cuotas ínfimas ~1.02 de victoria directa o +1.5).")
-        if und_u15 >= 0.65:
+        if und_u15 is not None and und_u15 >= 0.65:
             lines.append(f"   • Prop Inteligente Underdog: {und_team.name} Menos de 1.5 Goles Totales ({_pct(und_u15)}) — Bloqueo ofensivo y contención esperada.")
         elif und_cards_o15 is not None and und_cards_o15 >= 0.65:
             lines.append(f"   • Prop Inteligente Underdog: {und_team.name} Más de 1.5 Tarjetas Amarillas ({_pct(und_cards_o15)}) — Faltas tácticas obligadas ante el asedio.")
     else:
         best_ah = None
-        if p.ah_away_plus_15 >= 0.70:
+        if p.ah_away_plus_15 is not None and p.ah_away_plus_15 >= 0.70:
             best_ah = (report.away.name, "+1.5", p.ah_away_plus_15)
-        elif p.ah_home_plus_15 >= 0.70:
+        elif p.ah_home_plus_15 is not None and p.ah_home_plus_15 >= 0.70:
             best_ah = (report.home.name, "+1.5", p.ah_home_plus_15)
-        elif p.ah_away_plus_15 >= 0.60:
+        elif p.ah_away_plus_15 is not None and p.ah_away_plus_15 >= 0.60:
             best_ah = (report.away.name, "+1.5", p.ah_away_plus_15)
-        elif p.ah_home_plus_15 >= 0.60:
+        elif p.ah_home_plus_15 is not None and p.ah_home_plus_15 >= 0.60:
             best_ah = (report.home.name, "+1.5", p.ah_home_plus_15)
 
         if best_ah:
@@ -1012,8 +1012,10 @@ def _build_unexploited_section(report: AnalysisReport) -> list[str]:
             lines.append("4. 🛡️ Hándicap Protector: Partido sin sesgo asimétrico claro para +1.5.")
 
     # 5. Dinámica de 2do Tiempo (2T)
+    p_2t = _pct(p.second_half_over_05) if p.second_half_over_05 is not None else "N/D"
+    p_1t = _pct(p.first_half_over_05) if p.first_half_over_05 is not None else "N/D"
     lines.append(
-        f"5. ⏱️ Dinámica de 2T: Más de 0.5 goles en 2T ({_pct(p.second_half_over_05)}) vs 1T ({_pct(p.first_half_over_05)}) "
+        f"5. ⏱️ Dinámica de 2T: Más de 0.5 goles en 2T ({p_2t}) vs 1T ({p_1t}) "
         f"— El 2T presenta mayor seguridad estadística ante repliegues iniciales."
     )
 

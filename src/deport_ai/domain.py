@@ -86,29 +86,31 @@ class ProbabilityReport:
     expected_away_goals: float
     shared_goal_component: float
     score_matrix: list[list[float]] = field(repr=False)
-    ah_home_minus_15: float = 0.0
-    ah_away_plus_15: float = 0.0
-    ah_home_plus_15: float = 0.0
-    ah_away_minus_15: float = 0.0
-    ah_home_minus_25: float = 0.0
-    ah_away_plus_25: float = 0.0
-    ah_home_plus_25: float = 0.0
-    ah_away_minus_25: float = 0.0
-    dnb_home: float = 0.0
-    dnb_away: float = 0.0
-    first_half_over_05: float = 0.0
-    first_half_over_15: float = 0.0
-    second_half_over_05: float = 0.0
-    second_half_over_15: float = 0.0
-    over_35: float = 0.0
-    under_35: float = 0.0
-    home_over_15: float = 0.0
-    home_over_25: float = 0.0
-    away_over_15: float = 0.0
-    home_under_15: float = 0.0
-    away_under_15: float = 0.0
-    clean_sheet_home: float = 0.0
-    clean_sheet_away: float = 0.0
+    ah_home_minus_15: float | None = None
+    ah_away_plus_15: float | None = None
+    ah_home_plus_15: float | None = None
+    ah_away_minus_15: float | None = None
+    ah_home_minus_25: float | None = None
+    ah_away_plus_25: float | None = None
+    ah_home_plus_25: float | None = None
+    ah_away_minus_25: float | None = None
+    dnb_home: float | None = None
+    dnb_away: float | None = None
+    first_half_over_05: float | None = None
+    first_half_over_15: float | None = None
+    first_half_under_15: float | None = None
+    second_half_over_05: float | None = None
+    second_half_over_15: float | None = None
+    second_half_under_15: float | None = None
+    over_35: float | None = None
+    under_35: float | None = None
+    home_over_15: float | None = None
+    home_over_25: float | None = None
+    away_over_15: float | None = None
+    home_under_15: float | None = None
+    away_under_15: float | None = None
+    clean_sheet_home: float | None = None
+    clean_sheet_away: float | None = None
     attribution_home: FactorAttribution | None = None
     attribution_away: FactorAttribution | None = None
 
@@ -117,6 +119,9 @@ class ProbabilityReport:
 class ExpectedMetrics:
     corners_home: float | None = None
     corners_away: float | None = None
+    corners_1x2_home: float | None = None
+    corners_1x2_tie: float | None = None
+    corners_1x2_away: float | None = None
     over_75_corners: float | None = None
     over_85_corners: float | None = None
     over_95_corners: float | None = None

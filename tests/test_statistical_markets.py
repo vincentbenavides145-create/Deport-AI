@@ -108,3 +108,51 @@ def test_extended_betano_markets_are_included_and_adaptive():
     cat_counts = Counter(m["category"] for m in markets)
     assert all(count <= 4 for count in cat_counts.values())
 
+
+def test_uncalculated_fields_do_not_produce_artificial_100_percent():
+    home = Team(1, "Local")
+    away = Team(2, "Visitante")
+    # Instanciación básica con campos de mitad y portería a cero en None
+    probs = ProbabilityReport(
+        home_win=0.55,
+        draw=0.25,
+        away_win=0.20,
+        over_15=0.70,
+        over_25=0.50,
+        under_25=0.50,
+        btts=0.50,
+        expected_home_goals=1.5,
+        expected_away_goals=1.0,
+        shared_goal_component=0.0,
+        score_matrix=[[1.0]],
+        first_half_over_15=None,  # No calculado / No disponible
+        clean_sheet_away=None,    # No calculado / No disponible
+    )
+    expected = ExpectedMetrics()
+
+    markets = select_statistical_markets(home, away, probs, expected)
+    # No debe existir ninguna apuesta con 100.0% artificial
+    assert not any(m["probability"] >= 1.0 for m in markets)
+    # "1T Menos de 1.5 goles" no debe generarse falsamente porque su complemento no estaba disponible
+    assert not any("1T Menos de 1.5 goles" in m["selection"] for m in markets)
+    # "Local Más de 0.5 goles" no debe generarse falsamente desde clean_sheet_away en None
+    assert not any(f"{home.name} Más de 0.5 goles" in m["selection"] for m in markets)
+
+
+def test_corners_1x2_is_experimental_and_requires_valid_metrics():
+    home = Team(1, "Local")
+    away = Team(2, "Visitante")
+    probs = _probabilities()
+    expected = ExpectedMetrics(
+        corners_home=6.5,
+        corners_away=3.2,
+        corners_1x2_home=0.64,
+        corners_1x2_tie=0.11,
+        corners_1x2_away=0.25,
+    )
+    markets = select_statistical_markets(home, away, probs, expected)
+    corner_1x2 = next((m for m in markets if m["market"] == "Córners 1X2"), None)
+    assert corner_1x2 is not None
+    assert "(Experimental)" in corner_1x2["selection"]
+    assert "calibración histórica" in corner_1x2["basis"]
+

@@ -236,8 +236,8 @@ def select_opportunities(
     candidates: list[dict[str, Any]] = []
     for market, probability in model.items():
         price = odds.get(odds_keys[market])
-        edge = probability - 1.0 / price if price else None
-        if price and edge is not None and edge >= 0.02 and probability >= 0.60:
+        edge = (probability - 1.0 / price) if (price and probability is not None) else None
+        if price and edge is not None and edge >= 0.02 and probability is not None and probability >= 0.60:
             candidates.append(
                 {
                     "market": market,
@@ -256,7 +256,7 @@ def select_opportunities(
     fallback = [
         (market, probability)
         for market, probability in model.items()
-        if market not in {"Empate"} and probability >= 0.60
+        if market not in {"Empate"} and probability is not None and probability >= 0.60
     ]
     # Si aparecen dos mercados de goles opuestos (ej. +1.5 y -2.5), nos quedamos con el más fuerte
     filtered_fallback: list[tuple[str, float]] = []
