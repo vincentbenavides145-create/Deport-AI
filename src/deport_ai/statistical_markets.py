@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from typing import Any
 
@@ -51,7 +52,10 @@ def select_statistical_markets(
             item["requires_starter_confirmation"] = True
         candidates.append(item)
 
+    matrix = probabilities.score_matrix if getattr(probabilities, "score_matrix", None) and len(probabilities.score_matrix) > 1 else None
     total_goals = probabilities.expected_home_goals + probabilities.expected_away_goals
+
+    # 1. Resultado y Gana a Cero
     add("Resultado", "1x2", "Resultado del partido", home.name, probabilities.home_win)
     add("Resultado", "1x2", "Resultado del partido", "Empate", probabilities.draw)
     add("Resultado", "1x2", "Resultado del partido", away.name, probabilities.away_win)
@@ -63,31 +67,71 @@ def select_statistical_markets(
     add("Resultado", "dnb_home", "Empate apuesta no válida", f"DNB {home.name}", probabilities.dnb_home)
     add("Resultado", "dnb_away", "Empate apuesta no válida", f"DNB {away.name}", probabilities.dnb_away)
 
-    # Hándicaps Asiáticos
+    if matrix:
+        win_to_nil_h = sum(matrix[h][0] for h in range(1, len(matrix)))
+        win_to_nil_a = sum(matrix[0][a] for a in range(1, len(matrix[0])))
+        add("Resultado", "win_to_nil_home", "Gana a cero", f"{home.name} gana a cero", win_to_nil_h)
+        add("Resultado", "win_to_nil_away", "Gana a cero", f"{away.name} gana a cero", win_to_nil_a)
+
+    # 2. Hándicaps Asiáticos
     add("Hándicap", "asian_handicap_home_m15", "Hándicap asiático", f"{home.name} (-1.5)", probabilities.ah_home_minus_15)
     add("Hándicap", "asian_handicap_away_p15", "Hándicap asiático", f"{away.name} (+1.5)", probabilities.ah_away_plus_15)
     add("Hándicap", "asian_handicap_home_p15", "Hándicap asiático", f"{home.name} (+1.5)", probabilities.ah_home_plus_15)
     add("Hándicap", "asian_handicap_away_m15", "Hándicap asiático", f"{away.name} (-1.5)", probabilities.ah_away_minus_15)
     add("Hándicap", "asian_handicap_home_m25", "Hándicap asiático", f"{home.name} (-2.5)", probabilities.ah_home_minus_25)
     add("Hándicap", "asian_handicap_away_p25", "Hándicap asiático", f"{away.name} (+2.5)", probabilities.ah_away_plus_25)
+    add("Hándicap", "asian_handicap_home_p25", "Hándicap asiático", f"{home.name} (+2.5)", probabilities.ah_home_plus_25)
+    add("Hándicap", "asian_handicap_away_m25", "Hándicap asiático", f"{away.name} (-2.5)", probabilities.ah_away_minus_25)
 
-    # Goles y Mitades
-    add("Goles", "total_goals", "Goles totales", "Más de 1.5 goles", probabilities.over_15, total_goals)
-    add("Goles", "total_goals", "Goles totales", "Más de 2.5 goles", probabilities.over_25, total_goals)
-    add("Goles", "total_goals", "Goles totales", "Más de 3.5 goles", probabilities.over_35, total_goals)
-    add("Goles", "total_goals", "Goles totales", "Menos de 2.5 goles", probabilities.under_25, total_goals)
-    add("Goles", "total_goals", "Goles totales", "Menos de 3.5 goles", probabilities.under_35, total_goals)
+    # 3. Goles Totales y Alternativos
+    add("Goles", "total_goals_o15", "Goles totales", "Más de 1.5 goles", probabilities.over_15, total_goals)
+    add("Goles", "total_goals_o25", "Goles totales", "Más de 2.5 goles", probabilities.over_25, total_goals)
+    add("Goles", "total_goals_o35", "Goles totales", "Más de 3.5 goles", probabilities.over_35, total_goals)
+    add("Goles", "total_goals_u25", "Goles totales", "Menos de 2.5 goles", probabilities.under_25, total_goals)
+    add("Goles", "total_goals_u35", "Goles totales", "Menos de 3.5 goles", probabilities.under_35, total_goals)
+
+    if matrix:
+        over_05 = 1.0 - matrix[0][0]
+        over_45 = sum(matrix[h][a] for h in range(len(matrix)) for a in range(len(matrix[h])) if h + a >= 5)
+        add("Goles", "total_goals_o05", "Goles totales", "Más de 0.5 goles", over_05, total_goals)
+        add("Goles", "total_goals_u45", "Goles totales", "Menos de 4.5 goles", 1.0 - over_45, total_goals)
+
     add("Goles", "both_score", "Ambos equipos marcan", "Sí", probabilities.btts)
-    add("Mitades", "first_half", "Primer tiempo", "Más de 0.5 goles en 1T", probabilities.first_half_over_05)
-    add("Mitades", "second_half", "Segundo tiempo", "Más de 0.5 goles en 2T", probabilities.second_half_over_05)
-    add("Goles", "home_goals", f"Goles de {home.name}", "Más de 1.5 goles", probabilities.home_over_15, probabilities.expected_home_goals)
-    add("Goles", "away_goals", f"Goles de {away.name}", "Más de 1.5 goles", probabilities.away_over_15, probabilities.expected_away_goals)
+    add("Goles", "both_score_no", "Ambos equipos marcan", "No (BTTS No)", 1.0 - probabilities.btts)
+
+    # 4. Mercados por Mitad (1T y 2T)
+    add("Mitades", "first_half_o05", "Primer tiempo", "1T Más de 0.5 goles", probabilities.first_half_over_05)
+    add("Mitades", "first_half_u15", "Primer tiempo", "1T Menos de 1.5 goles", 1.0 - probabilities.first_half_over_15)
+    add("Mitades", "first_half_o15", "Primer tiempo", "1T Más de 1.5 goles", probabilities.first_half_over_15)
+    add("Mitades", "second_half_o05", "Segundo tiempo", "2T Más de 0.5 goles", probabilities.second_half_over_05)
+    add("Mitades", "second_half_u15", "Segundo tiempo", "2T Menos de 1.5 goles", 1.0 - probabilities.second_half_over_15)
+    add("Mitades", "second_half_o15", "Segundo tiempo", "2T Más de 1.5 goles", probabilities.second_half_over_15)
+
+    # 5. Goles por Equipo y Portería a Cero
+    add("Goles", "home_goals_o05", f"Goles de {home.name}", f"{home.name} Más de 0.5 goles", 1.0 - probabilities.clean_sheet_away, probabilities.expected_home_goals)
+    add("Goles", "home_goals_o15", f"Goles de {home.name}", f"{home.name} Más de 1.5 goles", probabilities.home_over_15, probabilities.expected_home_goals)
+    add("Goles", "home_goals_u15", f"Goles de {home.name}", f"{home.name} Menos de 1.5 goles", probabilities.home_under_15, probabilities.expected_home_goals)
+    add("Goles", "home_goals_o25", f"Goles de {home.name}", f"{home.name} Más de 2.5 goles", getattr(probabilities, "home_over_25", None), probabilities.expected_home_goals)
+
+    add("Goles", "away_goals_o05", f"Goles de {away.name}", f"{away.name} Más de 0.5 goles", 1.0 - probabilities.clean_sheet_home, probabilities.expected_away_goals)
+    add("Goles", "away_goals_u15", f"Goles de {away.name}", f"{away.name} Menos de 1.5 goles", probabilities.away_under_15, probabilities.expected_away_goals)
+    add("Goles", "away_goals_o15", f"Goles de {away.name}", f"{away.name} Más de 1.5 goles", probabilities.away_over_15, probabilities.expected_away_goals)
+
     add("Goles", "clean_sheet_home", f"Portería a cero de {home.name}", f"{home.name} no recibe gol", probabilities.clean_sheet_home)
     add("Goles", "clean_sheet_away", f"Portería a cero de {away.name}", f"{away.name} no recibe gol", probabilities.clean_sheet_away)
 
-    # Especiales / Postes
+    # 6. Especiales / Postes
     if expected.over_05_woodwork is not None:
         add("Especiales", "woodwork", "Tiros al palo", "Tiro al palo en el partido", expected.over_05_woodwork)
+
+    # 7. Córners Totales, por Equipo y 1X2
+    if expected.corners_home is not None and expected.corners_away is not None:
+        c_diff = expected.corners_home - expected.corners_away
+        p_c_home = 1.0 / (1.0 + math.exp(-0.45 * c_diff))
+        if c_diff > 0.8:
+            add("Córners", "corners_1x2", "Córners 1X2", f"{home.name} saca más córners", p_c_home)
+        elif c_diff < -0.8:
+            add("Córners", "corners_1x2", "Córners 1X2", f"{away.name} saca más córners", 1.0 - p_c_home)
 
     corner_total = _total(expected.corners_home, expected.corners_away)
     _add_lines(
