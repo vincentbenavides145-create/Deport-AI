@@ -75,3 +75,30 @@ def test_extended_statistical_markets_are_model_only_and_deduplicated():
 
     player_market = next(item for item in markets if item["category"] == "Jugadores")
     assert player_market["requires_starter_confirmation"] is True
+
+
+def test_extended_betano_markets_are_included_and_adaptive():
+    home = Team(1, "Alianza")
+    away = Team(2, "Comerciantes")
+    probs = _probabilities()
+    probs.dnb_home = 0.84
+    probs.ah_away_plus_25 = 0.75
+    expected = ExpectedMetrics(
+        over_05_woodwork=0.74,
+        corners_home=None,
+        corners_away=None,
+    )
+
+    markets = select_statistical_markets(home, away, probs, expected)
+    categories = {m["category"] for m in markets}
+
+    # Verifica mercados tipo Betano
+    assert any("Doble oportunidad" in m["market"] for m in markets)
+    assert any("Empate apuesta no válida" in m["market"] for m in markets)
+    assert any(m["category"] == "Mitades" for m in markets)
+    assert any(m["category"] == "Especiales" for m in markets)
+
+    # Verifica adaptabilidad: si no hay métricas de córners >= 60%, NO debe figurar Córners
+    assert "Córners" not in categories
+    assert all(m["probability"] >= 0.60 for m in markets)
+

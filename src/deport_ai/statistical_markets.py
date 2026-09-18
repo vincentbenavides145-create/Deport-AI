@@ -56,16 +56,38 @@ def select_statistical_markets(
     add("Resultado", "1x2", "Resultado del partido", "Empate", probabilities.draw)
     add("Resultado", "1x2", "Resultado del partido", away.name, probabilities.away_win)
 
+    # Doble Oportunidad y DNB (estilo Betano)
+    add("Resultado", "double_chance_1x", "Doble oportunidad", f"{home.name} o Empate (1X)", min(1.0, probabilities.home_win + probabilities.draw))
+    add("Resultado", "double_chance_x2", "Doble oportunidad", f"{away.name} o Empate (X2)", min(1.0, probabilities.away_win + probabilities.draw))
+    add("Resultado", "double_chance_12", "Doble oportunidad", f"{home.name} o {away.name} (12)", min(1.0, probabilities.home_win + probabilities.away_win))
+    add("Resultado", "dnb_home", "Empate apuesta no válida", f"DNB {home.name}", probabilities.dnb_home)
+    add("Resultado", "dnb_away", "Empate apuesta no válida", f"DNB {away.name}", probabilities.dnb_away)
+
+    # Hándicaps Asiáticos
+    add("Hándicap", "asian_handicap_home_m15", "Hándicap asiático", f"{home.name} (-1.5)", probabilities.ah_home_minus_15)
+    add("Hándicap", "asian_handicap_away_p15", "Hándicap asiático", f"{away.name} (+1.5)", probabilities.ah_away_plus_15)
+    add("Hándicap", "asian_handicap_home_p15", "Hándicap asiático", f"{home.name} (+1.5)", probabilities.ah_home_plus_15)
+    add("Hándicap", "asian_handicap_away_m15", "Hándicap asiático", f"{away.name} (-1.5)", probabilities.ah_away_minus_15)
+    add("Hándicap", "asian_handicap_home_m25", "Hándicap asiático", f"{home.name} (-2.5)", probabilities.ah_home_minus_25)
+    add("Hándicap", "asian_handicap_away_p25", "Hándicap asiático", f"{away.name} (+2.5)", probabilities.ah_away_plus_25)
+
+    # Goles y Mitades
     add("Goles", "total_goals", "Goles totales", "Más de 1.5 goles", probabilities.over_15, total_goals)
     add("Goles", "total_goals", "Goles totales", "Más de 2.5 goles", probabilities.over_25, total_goals)
     add("Goles", "total_goals", "Goles totales", "Más de 3.5 goles", probabilities.over_35, total_goals)
     add("Goles", "total_goals", "Goles totales", "Menos de 2.5 goles", probabilities.under_25, total_goals)
     add("Goles", "total_goals", "Goles totales", "Menos de 3.5 goles", probabilities.under_35, total_goals)
     add("Goles", "both_score", "Ambos equipos marcan", "Sí", probabilities.btts)
-    add("Goles", "first_half", "Primer tiempo", "Más de 0.5 goles", probabilities.first_half_over_05)
-    add("Goles", "second_half", "Segundo tiempo", "Más de 0.5 goles", probabilities.second_half_over_05)
+    add("Mitades", "first_half", "Primer tiempo", "Más de 0.5 goles en 1T", probabilities.first_half_over_05)
+    add("Mitades", "second_half", "Segundo tiempo", "Más de 0.5 goles en 2T", probabilities.second_half_over_05)
     add("Goles", "home_goals", f"Goles de {home.name}", "Más de 1.5 goles", probabilities.home_over_15, probabilities.expected_home_goals)
     add("Goles", "away_goals", f"Goles de {away.name}", "Más de 1.5 goles", probabilities.away_over_15, probabilities.expected_away_goals)
+    add("Goles", "clean_sheet_home", f"Portería a cero de {home.name}", f"{home.name} no recibe gol", probabilities.clean_sheet_home)
+    add("Goles", "clean_sheet_away", f"Portería a cero de {away.name}", f"{away.name} no recibe gol", probabilities.clean_sheet_away)
+
+    # Especiales / Postes
+    if expected.over_05_woodwork is not None:
+        add("Especiales", "woodwork", "Tiros al palo", "Tiro al palo en el partido", expected.over_05_woodwork)
 
     corner_total = _total(expected.corners_home, expected.corners_away)
     _add_lines(
