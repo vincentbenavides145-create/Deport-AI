@@ -1,0 +1,209 @@
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass, field
+from typing import Any
+
+
+@dataclass(frozen=True)
+class Team:
+    id: int
+    name: str
+    country: str | None = None
+
+
+@dataclass(frozen=True)
+class MatchRef:
+    fixture_id: int
+    home: Team
+    away: Team
+    date: str
+    league_id: int | None
+    league_name: str | None
+    season: int | None
+    status: str
+    home_goals: int | None = None
+    away_goals: int | None = None
+
+
+@dataclass(frozen=True)
+class TeamMatch:
+    fixture_id: int
+    date: str
+    team_id: int
+    opponent_id: int
+    is_home: bool
+    goals_for: int
+    goals_against: int
+    result: str
+    opponent_name: str = ""
+    stats_for: dict[str, float] = field(default_factory=dict)
+    stats_against: dict[str, float] = field(default_factory=dict)
+    competition_weight: float = 1.0
+    league_id: int | None = None
+
+
+@dataclass(frozen=True)
+class PlayerShot:
+    player_id: int
+    name: str
+    team_id: int
+    shots_on_target: float
+    minutes: float
+    total_shots: float = 0.0
+    goals: float = 0.0
+
+
+@dataclass
+class ProbabilityReport:
+    home_win: float
+    draw: float
+    away_win: float
+    over_15: float
+    over_25: float
+    under_25: float
+    btts: float
+    expected_home_goals: float
+    expected_away_goals: float
+    shared_goal_component: float
+    score_matrix: list[list[float]] = field(repr=False)
+    ah_home_minus_15: float = 0.0
+    ah_away_plus_15: float = 0.0
+    ah_home_plus_15: float = 0.0
+    ah_away_minus_15: float = 0.0
+    ah_home_minus_25: float = 0.0
+    ah_away_plus_25: float = 0.0
+    ah_home_plus_25: float = 0.0
+    ah_away_minus_25: float = 0.0
+    dnb_home: float = 0.0
+    dnb_away: float = 0.0
+    first_half_over_05: float = 0.0
+    first_half_over_15: float = 0.0
+    second_half_over_05: float = 0.0
+    second_half_over_15: float = 0.0
+    over_35: float = 0.0
+    under_35: float = 0.0
+    home_over_15: float = 0.0
+    home_over_25: float = 0.0
+    away_over_15: float = 0.0
+    home_under_15: float = 0.0
+    away_under_15: float = 0.0
+    clean_sheet_home: float = 0.0
+    clean_sheet_away: float = 0.0
+
+
+@dataclass
+class ExpectedMetrics:
+    corners_home: float | None = None
+    corners_away: float | None = None
+    over_75_corners: float | None = None
+    over_85_corners: float | None = None
+    over_95_corners: float | None = None
+    over_105_corners: float | None = None
+    over_115_corners: float | None = None
+    under_105_corners: float | None = None
+    over_45_corners_home: float | None = None
+    over_45_corners_away: float | None = None
+    under_35_corners_home: float | None = None
+    under_35_corners_away: float | None = None
+    under_45_corners_home: float | None = None
+    under_45_corners_away: float | None = None
+    over_55_corners_home: float | None = None
+    over_55_corners_away: float | None = None
+    over_65_corners_home: float | None = None
+    over_65_corners_away: float | None = None
+    over_25_cards_home: float | None = None
+    over_25_cards_away: float | None = None
+    total_shots_home: float | None = None
+    total_shots_away: float | None = None
+    over_215_total_shots: float | None = None
+    over_235_total_shots: float | None = None
+    over_255_total_shots: float | None = None
+    over_275_total_shots: float | None = None
+    over_295_total_shots: float | None = None
+    under_245_total_shots: float | None = None
+    under_265_total_shots: float | None = None
+    over_115_shots_home: float | None = None
+    over_135_shots_home: float | None = None
+    over_155_shots_home: float | None = None
+    over_175_shots_home: float | None = None
+    over_115_shots_away: float | None = None
+    over_135_shots_away: float | None = None
+    under_85_shots_home: float | None = None
+    under_95_shots_home: float | None = None
+    under_85_shots_away: float | None = None
+    under_95_shots_away: float | None = None
+    shots_on_home: float | None = None
+    shots_on_away: float | None = None
+    over_75_shots_on: float | None = None
+    over_85_shots_on: float | None = None
+    over_95_shots_on: float | None = None
+    over_105_shots_on: float | None = None
+    under_85_shots_on: float | None = None
+    under_95_shots_on: float | None = None
+    over_45_shots_on_home: float | None = None
+    over_55_shots_on_home: float | None = None
+    over_65_shots_on_home: float | None = None
+    over_75_shots_on_home: float | None = None
+    under_25_shots_on_home: float | None = None
+    under_35_shots_on_home: float | None = None
+    over_35_shots_on_away: float | None = None
+    over_45_shots_on_away: float | None = None
+    under_25_shots_on_away: float | None = None
+    under_35_shots_on_away: float | None = None
+    woodwork_home: float | None = None
+    woodwork_away: float | None = None
+    over_05_woodwork: float | None = None
+    cards_home: float | None = None
+    cards_away: float | None = None
+    over_35_cards: float | None = None
+    over_45_cards: float | None = None
+    over_15_cards_home: float | None = None
+    over_15_cards_away: float | None = None
+    over_25_cards_home: float | None = None
+    over_25_cards_away: float | None = None
+    offsides_home: float | None = None
+    offsides_away: float | None = None
+    over_25_offsides: float | None = None
+    over_35_offsides: float | None = None
+    under_25_offsides: float | None = None
+    under_35_offsides: float | None = None
+    under_45_offsides: float | None = None
+    over_15_offsides_home: float | None = None
+    over_15_offsides_away: float | None = None
+    under_15_offsides_home: float | None = None
+    under_15_offsides_away: float | None = None
+    player_shots: dict[int, list[dict[str, Any]]] = field(default_factory=dict)
+    anytime_goalscorers: dict[int, list[dict[str, Any]]] = field(default_factory=dict)
+
+
+@dataclass
+class AnalysisReport:
+    home: Team
+    away: Team
+    fixture: MatchRef | None
+    recent_home: list[TeamMatch]
+    recent_away: list[TeamMatch]
+    h2h: list[MatchRef]
+    probabilities: ProbabilityReport
+    expected: ExpectedMetrics
+    elo_home: float
+    elo_away: float
+    injuries: list[dict[str, Any]]
+    lineups: list[dict[str, Any]]
+    odds: dict[str, float]
+    opportunities: list[dict[str, Any]]
+    risks: list[str]
+    sources: list[str]
+    generated_at: str
+    common_opponents: list[dict[str, Any]] = field(default_factory=list)
+    narrative: str | None = None
+
+    def llm_payload(self) -> dict[str, Any]:
+        """Datos cerrados: el LLM puede explicarlos, no recalcularlos."""
+        payload = asdict(self)
+        payload.pop("narrative", None)
+        payload["probabilities"].pop("score_matrix", None)
+        payload["recent_home"] = payload["recent_home"][:5]
+        payload["recent_away"] = payload["recent_away"][:5]
+        payload["h2h"] = payload["h2h"][:5]
+        return payload
