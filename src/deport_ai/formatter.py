@@ -94,11 +94,8 @@ def format_report(report: AnalysisReport) -> str:
     if p.first_half_over_05 >= 0.60 and not is_heavy_fav:
         lines.append(f"- 1er Tiempo: Más de 0.5 goles 1T ({_pct(p.first_half_over_05)})")
 
-    # Mercados de Hándicap y Underdog Inteligente
+    # Mercados de Underdog Inteligente y DNB
     if is_heavy_fav and fav_team and und_team:
-        fav_ah_minus_15 = p.ah_home_minus_15 if fav_team == report.home else p.ah_away_minus_15
-        if fav_ah_minus_15 >= 0.60:
-            lines.append(f"- Hándicap Asiático de Valor: {fav_team.name} (-1.5) ({_pct(fav_ah_minus_15)})")
         und_under_15_goals = p.away_under_15 if und_team == report.away else p.home_under_15
         if und_under_15_goals >= 0.65:
             lines.append(f"- Under Goles Underdog: {und_team.name} Menos de 1.5 goles ({_pct(und_under_15_goals)})")
@@ -108,16 +105,7 @@ def format_report(report: AnalysisReport) -> str:
         und_cards_over_15 = expected.over_15_cards_away if und_team == report.away else expected.over_15_cards_home
         if und_cards_over_15 is not None and und_cards_over_15 >= 0.65:
             lines.append(f"- Tarjetas Underdog: {und_team.name} Más de 1.5 tarjetas ({_pct(und_cards_over_15)})")
-        und_ah_plus_25 = p.ah_away_plus_25 if und_team == report.away else p.ah_home_plus_25
-        if 0.65 <= und_ah_plus_25 <= 0.90:
-            lines.append(f"- Hándicap Amplio Underdog: {und_team.name} (+2.5) ({_pct(und_ah_plus_25)})")
     else:
-        if p.ah_away_plus_15 >= 0.60:
-            lines.append(f"- Hándicap Asiático: {report.away.name} (+1.5) ({_pct(p.ah_away_plus_15)})")
-        elif p.ah_home_plus_15 >= 0.60:
-            lines.append(f"- Hándicap Asiático: {report.home.name} (+1.5) ({_pct(p.ah_home_plus_15)})")
-        if p.ah_home_minus_15 >= 0.60:
-            lines.append(f"- Hándicap Asiático: {report.home.name} (-1.5) ({_pct(p.ah_home_minus_15)})")
         if p.dnb_home >= 0.60:
             lines.append(f"- Empate Apuesta No Válida: DNB {report.home.name} ({_pct(p.dnb_home)})")
         elif p.dnb_away >= 0.60:
@@ -483,14 +471,6 @@ def _build_decisive_ticket(report: AnalysisReport) -> list[str]:
 
     # 1. 1X2, Doble Oportunidad y Hándicaps:
     if is_heavy_fav and fav_team and und_team:
-        # Favorito pesado: evitar victoria directa (1.05) y escalar a Hándicap Asiático
-        fav_ah_m15 = p.ah_home_minus_15 if fav_team == report.home else p.ah_away_minus_15
-        fav_ah_m25 = p.ah_home_minus_25 if fav_team == report.home else p.ah_away_minus_25
-        if SWEET_MIN <= fav_ah_m25 <= SWEET_MAX:
-            market_checks.append((f"{fav_team.name} (-2.5 Hándicap Asiático)", fav_ah_m25))
-        elif SWEET_MIN <= fav_ah_m15 <= SWEET_MAX:
-            market_checks.append((f"{fav_team.name} (-1.5 Hándicap Asiático)", fav_ah_m15))
-
         # Underdog inteligente en partido desbalanceado (NUNCA Over Córners ni Over Remates):
         und_u15 = p.away_under_15 if und_team == report.away else p.home_under_15
         und_u05 = p.clean_sheet_home if und_team == report.away else p.clean_sheet_away
@@ -520,11 +500,6 @@ def _build_decisive_ticket(report: AnalysisReport) -> list[str]:
         und_son_u25 = expected.under_25_shots_on_away if und_team == report.away else expected.under_25_shots_on_home
         if und_son_u25 is not None and SWEET_MIN <= und_son_u25 <= SWEET_MAX:
             market_checks.append((f"{und_team.name} Menos de 2.5 Tiros al Arco", und_son_u25))
-
-        if not disallow_away_ha:
-            und_ah_plus_25 = p.ah_away_plus_25 if und_team == report.away else p.ah_home_plus_25
-            if SWEET_MIN <= und_ah_plus_25 <= SWEET_MAX:
-                market_checks.append((f"{und_team.name} (+2.5 Hándicap Asiático)", und_ah_plus_25))
     else:
         # Partidos equilibrados:
         for name, prob in [
@@ -534,14 +509,9 @@ def _build_decisive_ticket(report: AnalysisReport) -> list[str]:
             (f"Doble Oportunidad X2 ({report.away.name} o empate)", min(1.0, p.away_win + p.draw)),
             (f"Empate Apuesta No Válida (DNB {report.home.name})", p.dnb_home),
             (f"Empate Apuesta No Válida (DNB {report.away.name})", p.dnb_away),
-            (f"{report.home.name} (+1.5 Hándicap Asiático)", p.ah_home_plus_15),
-            (f"{report.home.name} (-1.5 Hándicap Asiático)", p.ah_home_minus_15),
-            (f"{report.away.name} (-1.5 Hándicap Asiático)", p.ah_away_minus_15),
         ]:
             if SWEET_MIN <= prob <= SWEET_MAX:
                 market_checks.append((name, prob))
-        if not disallow_away_ha and SWEET_MIN <= p.ah_away_plus_15 <= SWEET_MAX:
-            market_checks.append((f"{report.away.name} (+1.5 Hándicap Asiático)", p.ah_away_plus_15))
 
     # 2. Goles Totales (Escalado Dinámico al Sweet Spot):
     if SWEET_MIN <= p.over_35 <= SWEET_MAX:

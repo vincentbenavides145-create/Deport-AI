@@ -101,4 +101,10 @@ def test_extended_betano_markets_are_included_and_adaptive():
     # Verifica adaptabilidad: si no hay métricas de córners >= 60%, NO debe figurar Córners
     assert "Córners" not in categories
     assert all(m["probability"] >= 0.60 for m in markets)
+    # Verifica que NO existan apuestas de hándicap bajo ninguna circunstancia
+    assert not any("hándicap" in m["market"].lower() or "handicap" in m["market"].lower() or "Hándicap" in m["category"] for m in markets)
+    # Verifica que cada categoría tenga como máximo 4 apuestas
+    from collections import Counter
+    cat_counts = Counter(m["category"] for m in markets)
+    assert all(count <= 4 for count in cat_counts.values())
 

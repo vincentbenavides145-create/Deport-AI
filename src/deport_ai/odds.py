@@ -209,11 +209,6 @@ def select_opportunities(
         "Local más de 1.5 goles": probabilities.home_over_15,
         "Local menos de 1.5 goles": probabilities.home_under_15,
         "Visitante menos de 1.5 goles": probabilities.away_under_15,
-        "Local (-1.5) Hándicap Asiático": probabilities.ah_home_minus_15,
-        "Visitante (+1.5) Hándicap Asiático": probabilities.ah_away_plus_15,
-        "Local (+1.5) Hándicap Asiático": probabilities.ah_home_plus_15,
-        "Visitante (-1.5) Hándicap Asiático": probabilities.ah_away_minus_15,
-        "Visitante (+2.5) Hándicap Asiático": probabilities.ah_away_plus_25,
         "Portería a cero Local": probabilities.clean_sheet_home,
     }
     odds_keys: dict[str, str] = {
@@ -236,11 +231,6 @@ def select_opportunities(
         "Local más de 1.5 goles": "home_over_15",
         "Local menos de 1.5 goles": "home_under_15",
         "Visitante menos de 1.5 goles": "away_under_15",
-        "Local (-1.5) Hándicap Asiático": "ah_home_minus_15",
-        "Visitante (+1.5) Hándicap Asiático": "ah_away_plus_15",
-        "Local (+1.5) Hándicap Asiático": "ah_home_plus_15",
-        "Visitante (-1.5) Hándicap Asiático": "ah_away_minus_15",
-        "Visitante (+2.5) Hándicap Asiático": "ah_away_plus_25",
         "Portería a cero Local": "clean_sheet_home",
     }
     candidates: list[dict[str, Any]] = []

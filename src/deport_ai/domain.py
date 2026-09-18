@@ -228,6 +228,16 @@ class AnalysisReport:
         """Datos cerrados: el LLM puede explicarlos, no recalcularlos."""
         payload = asdict(self)
         payload.pop("narrative", None)
+        if self.probabilities.score_matrix:
+            scores = [
+                (f"{h}-{a}", self.probabilities.score_matrix[h][a])
+                for h in range(len(self.probabilities.score_matrix))
+                for a in range(len(self.probabilities.score_matrix[h]))
+            ]
+            if scores:
+                best_score, best_prob = max(scores, key=lambda x: x[1])
+                payload["probabilities"]["most_likely_score"] = best_score
+                payload["probabilities"]["score_prob"] = round(best_prob, 4)
         payload["probabilities"].pop("score_matrix", None)
         payload["recent_home"] = payload["recent_home"][:5]
         payload["recent_away"] = payload["recent_away"][:5]
