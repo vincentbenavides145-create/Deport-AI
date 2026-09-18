@@ -1,11 +1,14 @@
-from deport_ai.domain import PlayerShot, TeamMatch
+from deport_ai.domain import ConfidenceScore, FactorAttribution, PlayerShot, TeamMatch
 from deport_ai.formatter import _observed_stats, _venue_form
 from deport_ai.stats_engine import (
     _bivariate_poisson,
+    _negative_binomial,
     _poisson,
     _robust_count_mean,
+    calculate_confidence_score,
     calculate_elo,
     expected_metrics,
+    get_competition_profile,
     goal_probabilities,
 )
 
@@ -393,6 +396,107 @@ def test_smart_player_prop_and_line_escalation_for_heavy_favorites():
     if p_player_match:
         pp_val = float(p_player_match.group(2))
         assert 58.0 <= pp_val <= 80.0, f"Jugador del partido {pp_val}% fuera del sweet spot 58-80%"
+
+
+def test_negative_binomial_vs_poisson():
+    import math
+    rate = 4.2
+    # Cuando alpha = 0, coincide exactamente con Poisson
+    for k in range(8):
+        nb_zero = _negative_binomial(k, rate, alpha=0.0)
+        poisson_val = math.exp(-rate) * (rate**k) / math.factorial(k)
+        assert abs(nb_zero - poisson_val) < 1e-7
+
+    # Con alpha > 0 (sobre-dispersión), las colas son más pesadas que Poisson
+    alpha = 0.20
+    # Cola alta (ej. k = 10 corners) debe tener mayor probabilidad en Binomial Negativa
+    p_high_nb = _negative_binomial(10, rate, alpha=alpha)
+    p_high_poisson = _negative_binomial(10, rate, alpha=0.0)
+    assert p_high_nb > p_high_poisson
+
+    # Suma de probabilidades debe converger a ~1.0
+    total_nb = sum(_negative_binomial(k, rate, alpha=alpha) for k in range(35))
+    assert abs(total_nb - 1.0) < 0.001
+
+
+def test_competition_profiles():
+    premier = get_competition_profile(8, "Premier League")
+    assert premier.home_advantage == 1.09
+    assert premier.base_goals == 2.85
+
+    laliga = get_competition_profile(564, "La Liga")
+    assert laliga.home_advantage == 1.12
+    assert laliga.base_goals == 2.52
+
+    libertadores = get_competition_profile(None, "Copa Libertadores")
+    assert libertadores.home_advantage == 1.24
+    assert libertadores.away_advantage == 0.76
+
+    default_prof = get_competition_profile(99999, "Liga Desconocida")
+    assert default_prof.home_advantage == 1.12
+    assert default_prof.base_goals == 2.60
+
+
+def test_calculate_confidence_score():
+    # 1. Alta confianza: 20 partidos, todos con tiros/córners, alineación confirmada
+    high_conf = calculate_confidence_score(
+        HOME + HOME, AWAY + AWAY, lineups_confirmed=True, odds_available=True
+    )
+    assert high_conf.score >= 75
+    assert high_conf.level == "ALTA"
+    assert high_conf.lineups_confirmed is True
+
+    # 2. Baja/Media confianza: pocos partidos y alineación sin confirmar
+    low_conf = calculate_confidence_score(
+        HOME[:3], AWAY[:3], lineups_confirmed=False, odds_available=False
+    )
+    assert low_conf.score < high_conf.score
+    assert low_conf.level in ("MEDIA", "BAJA")
+    assert low_conf.lineups_confirmed is False
+
+
+def test_factor_attribution_waterfall():
+    prob = goal_probabilities(
+        HOME, AWAY, 1750.0, 1450.0, league_id=8, rest_days_home=4.0, rest_days_away=2.0
+    )
+    ah = prob.attribution_home
+    aa = prob.attribution_away
+    assert ah is not None
+    assert aa is not None
+
+    # Verificar que los sumandos del waterfall de home reconstruyen el xG final (margen de redondeo <= 0.05)
+    sum_h = ah.base_league_goals + ah.venue_impact + ah.elo_impact + ah.recent_form_impact + ah.rest_impact
+    assert abs(sum_h - ah.final_expected_goals) <= 0.05
+
+    # Para away, rest_days < 3 debe aplicar penalización de fatiga negativa
+    assert aa.rest_impact < 0.0
+
+
+def test_starter_and_expected_minutes_scaling():
+    players = [
+        PlayerShot(10, "Delantero Estrella", 1, 5, 90, 3.5),
+        PlayerShot(10, "Delantero Estrella", 1, 4, 90, 3.5),
+    ]
+
+    # Proyección con titular confirmado (75 min)
+    starters_map = {10: {"is_starter": True, "expected_minutes": 75.0}}
+    metrics_starter = expected_metrics(
+        HOME, AWAY, players, 1, 2, starter_info=starters_map
+    )
+    pl_starter = metrics_starter.player_shots[1][0]
+
+    # Proyección con suplente confirmado (22 min)
+    bench_map = {10: {"is_starter": False, "expected_minutes": 22.0}}
+    metrics_bench = expected_metrics(
+        HOME, AWAY, players, 1, 2, starter_info=bench_map
+    )
+    pl_bench = metrics_bench.player_shots[1][0]
+
+    # El suplente debe tener sustancialmente menos tiros esperados y menor probabilidad
+    assert pl_bench["expected_total_shots"] < pl_starter["expected_total_shots"]
+    assert pl_bench["probability_one_plus"] < pl_starter["probability_one_plus"]
+    assert pl_bench["expected_minutes"] == 22.0
+    assert pl_starter["expected_minutes"] == 75.0
 
 
 

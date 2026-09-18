@@ -28,6 +28,17 @@ def format_report(report: AnalysisReport) -> str:
             ]
         )
 
+    if report.confidence:
+        c_badge = "🟢" if report.confidence.level == "ALTA" else "🟡" if report.confidence.level == "MEDIA" else "🔴"
+        lineup_str = "Once confirmado oficialmente" if report.confidence.lineups_confirmed else "Alineaciones no confirmadas (sujeto a rotación)"
+        lines.extend(
+            [
+                f"{c_badge} CONFIANZA EPISTÉMICA: {report.confidence.level} ({report.confidence.score}/100)",
+                f"  • Muestra empírica: {report.confidence.sample_size} partidos analizados | {report.confidence.detailed_matches} con métricas avanzadas completas | {lineup_str}",
+                "",
+            ]
+        )
+
     lines.extend(_build_decisive_ticket(report))
     lines.extend(_build_unexploited_section(report))
 
@@ -48,6 +59,20 @@ def format_report(report: AnalysisReport) -> str:
             f"Victoria visitante: {_pct(p.away_win)}",
             "",
             f"Goles esperados: {report.home.name} {p.expected_home_goals:.2f} — {report.away.name} {p.expected_away_goals:.2f} (Total: {p.expected_home_goals + p.expected_away_goals:.2f})",
+        ]
+    )
+    if report.attribution_home and report.attribution_away:
+        ah = report.attribution_home
+        aa = report.attribution_away
+        lines.extend(
+            [
+                "Auditoría de Goles Esperados (Waterfall Attribution):",
+                f"  • {report.home.name} (xG {ah.final_expected_goals:.2f}): Base Liga {ah.base_league_goals:+.2f} | Ventaja Local {ah.venue_impact:+.2f} | Impacto Elo {ah.elo_impact:+.2f} | Forma {ah.recent_form_impact:+.2f} | Descanso {ah.rest_impact:+.2f}",
+                f"  • {report.away.name} (xG {aa.final_expected_goals:.2f}): Base Liga {aa.base_league_goals:+.2f} | Factor Visita {aa.venue_impact:+.2f} | Impacto Elo {aa.elo_impact:+.2f} | Forma {aa.recent_form_impact:+.2f} | Descanso {aa.rest_impact:+.2f}",
+            ]
+        )
+    lines.extend(
+        [
             f"Marcador Exacto Oficial (Resultado #1): {top_scores(p)[0][0]} ({_pct(top_scores(p)[0][1])})",
             "",
             "Líneas de Apuesta Destacadas (≥ 60%):",

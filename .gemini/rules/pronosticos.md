@@ -24,7 +24,9 @@ Cuando el usuario pida analizar un partido, pronósticos o predicciones de fútb
 
 # ⚽ Pronóstico Oficial: <Equipo 1> vs. <Equipo 2>
 **Competición:** <Nombre de Liga / Torneo> • <Estadio>  
-**xG Proyectado:** <Equipo 1> X.XX — <Equipo 2> X.XX (Total: X.XX goles)
+**Confianza Epistémica:** <🟢 ALTA / 🟡 MEDIA / 🔴 BAJA (XX/100)> • <Muestra: XX partidos, alineación confirmada/proyectada>  
+**xG Proyectado:** <Equipo 1> X.XX — <Equipo 2> X.XX (Total: X.XX goles)  
+**Auditoría xG (Waterfall):** Base Liga: ±X.XX | Ventaja Sede: ±X.XX | Impacto Elo: ±X.XX | Forma Reciente: ±X.XX | Descanso: ±X.XX
 
 ---
 

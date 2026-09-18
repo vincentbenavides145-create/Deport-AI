@@ -15,6 +15,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 # Asegurar que src esté en el path
 _src = str(Path(__file__).resolve().parent / "src")
 if _src not in sys.path:
@@ -147,6 +150,7 @@ def evaluate_match_sequence(matches: list[TeamMatch], min_history: int = 6) -> d
             history_away,
             elo_h,
             elo_a,
+            league_id=target_h.league_id,
         )
 
         actual_hg = target_h.goals_for

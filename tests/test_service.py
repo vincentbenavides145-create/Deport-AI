@@ -89,8 +89,13 @@ def test_full_service_flow_without_network_or_persistence():
     ) < 1e-9
     assert report.narrative.startswith("Explicación")
     assert any("cruce hipotético" in risk for risk in report.risks)
+    assert report.confidence is not None
+    assert report.attribution_home is not None
+    assert report.attribution_away is not None
     rendered = format_report(report)
     assert "PARTIDO:\nLocal vs Visitante" in rendered
+    assert "CONFIANZA EPISTÉMICA" in rendered
+    assert "Auditoría de Goles Esperados (Waterfall Attribution):" in rendered
     assert "Victoria local:" in rendered
     assert "Córners esperados:" in rendered
     assert "Riesgos del análisis:" in rendered

@@ -4,13 +4,14 @@ from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
 
-from .domain import AnalysisReport, MatchRef, Team
+from .domain import AnalysisReport, ConfidenceScore, FactorAttribution, MatchRef, Team
 from .errors import LiveMatchError
 from .fixture_contract import FINISHED_STATUSES, to_match_ref
 from .llm import LLMExplainer
 from .odds import normalize_odds, select_opportunities
 from .parser import parse_match_query
 from .stats_engine import (
+    calculate_confidence_score,
     calculate_elo,
     classify_competition,
     detect_altitude_impact,
@@ -89,8 +90,63 @@ class AnalysisService:
             home_season = self.api.team_season_statistics(home.id, context.league_id, context.season)
             away_season = self.api.team_season_statistics(away.id, context.league_id, context.season)
 
+        fixture_accessible = bool(
+            fixture and (fixture.season is None or fixture.season <= max_season)
+        )
+        fixture_id = fixture.fixture_id if fixture_accessible and fixture else None
+        injuries_supported = bool(coverage.get("injuries"))
+        fixture_coverage = coverage.get("fixtures", {}) or {}
+        lineups_supported = bool(fixture_coverage.get("lineups"))
+        odds_supported = bool(coverage.get("odds"))
+        injuries = self.api.injuries(fixture_id) if injuries_supported else []
+        lineups = self.api.lineups(fixture_id) if lineups_supported else []
+        odds = normalize_odds(self.api.odds(fixture_id)) if odds_supported else {}
+
+        # Días de descanso confirmados (cero especulación - regla contextual estricta)
+        rest_days_home: float | None = None
+        rest_days_away: float | None = None
+        if fixture and fixture.date:
+            if home_matches and home_matches[0].date:
+                try:
+                    dt_f = datetime.fromisoformat(fixture.date.replace("Z", "+00:00"))
+                    dt_h = datetime.fromisoformat(home_matches[0].date.replace("Z", "+00:00"))
+                    diff_h = (dt_f - dt_h).total_seconds() / 86400.0
+                    if diff_h >= 0:
+                        rest_days_home = round(diff_h, 1)
+                except Exception:
+                    pass
+            if away_matches and away_matches[0].date:
+                try:
+                    dt_f = datetime.fromisoformat(fixture.date.replace("Z", "+00:00"))
+                    dt_a = datetime.fromisoformat(away_matches[0].date.replace("Z", "+00:00"))
+                    diff_a = (dt_f - dt_a).total_seconds() / 86400.0
+                    if diff_a >= 0:
+                        rest_days_away = round(diff_a, 1)
+                except Exception:
+                    pass
+
+        # Titularidad y minutos esperados desde alineación confirmada
+        starter_info: dict[int, dict[str, Any]] = {}
+        lineups_confirmed = False
+        if lineups:
+            for team_info in lineups:
+                starters = team_info.get("startXI", [])
+                if starters:
+                    lineups_confirmed = True
+                for p in starters:
+                    pid = p.get("player", {}).get("id")
+                    if pid is not None:
+                        starter_info[int(pid)] = {"is_starter": True, "expected_minutes": 75.0}
+                for p in team_info.get("substitutes", []):
+                    pid = p.get("player", {}).get("id")
+                    if pid is not None:
+                        starter_info[int(pid)] = {"is_starter": False, "expected_minutes": 22.0}
+
         home_league = _primary_league_id(home_rows)
         away_league = _primary_league_id(away_rows)
+        target_league_id = fixture.league_id if fixture and fixture.league_id else home_league
+        target_league_name = fixture.league_name if fixture else None
+
         elo_home, elo_away = calculate_elo(
             home_matches,
             away_matches,
@@ -110,6 +166,10 @@ class AnalysisService:
             home_season,
             away_season,
             altitude_impact=altitude_impact,
+            league_id=target_league_id,
+            league_name=target_league_name,
+            rest_days_home=rest_days_home,
+            rest_days_away=rest_days_away,
         )
         player_rows = extract_player_shots(details.values())
         expected = expected_metrics(
@@ -121,18 +181,11 @@ class AnalysisService:
             elo_home=elo_home,
             elo_away=elo_away,
             altitude_impact=altitude_impact,
+            league_id=target_league_id,
+            league_name=target_league_name,
+            starter_info=starter_info if starter_info else None,
         )
 
-        fixture_accessible = bool(
-            fixture and (fixture.season is None or fixture.season <= max_season)
-        )
-        fixture_id = fixture.fixture_id if fixture_accessible and fixture else None
-        injuries_supported = bool(coverage.get("injuries"))
-        fixture_coverage = coverage.get("fixtures", {}) or {}
-        lineups_supported = bool(fixture_coverage.get("lineups"))
-        odds_supported = bool(coverage.get("odds"))
-        injuries = self.api.injuries(fixture_id) if injuries_supported else []
-        lineups = self.api.lineups(fixture_id) if lineups_supported else []
         if lineups:
             starter_names: dict[int, set[str]] = {
                 int(team_info["team"]["id"]): {
@@ -162,7 +215,13 @@ class AnalysisService:
                     if filtered_scorers:
                         expected.anytime_goalscorers[team_id] = filtered_scorers
 
-        odds = normalize_odds(self.api.odds(fixture_id)) if odds_supported else {}
+        confidence = calculate_confidence_score(
+            home_matches=home_matches,
+            away_matches=away_matches,
+            expected=expected,
+            lineups_confirmed=lineups_confirmed,
+            odds_available=bool(odds),
+        )
         opportunities = select_opportunities(probabilities, odds)
         risks = sample_risks(home_matches, away_matches, expected)
         if altitude_impact:
@@ -211,6 +270,9 @@ class AnalysisService:
             ),
             generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
             common_opponents=extract_common_opponents(home_matches, away_matches),
+            confidence=confidence,
+            attribution_home=probabilities.attribution_home,
+            attribution_away=probabilities.attribution_away,
         )
         report.narrative = self.explainer.explain(report)
         return report

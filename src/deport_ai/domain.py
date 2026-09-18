@@ -53,6 +53,26 @@ class PlayerShot:
     goals: float = 0.0
 
 
+@dataclass(frozen=True)
+class ConfidenceScore:
+    score: int          # 0 a 100
+    level: str          # "ALTA", "MEDIA", "BAJA"
+    sample_size: int
+    detailed_matches: int
+    lineups_confirmed: bool
+    reasons: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class FactorAttribution:
+    base_league_goals: float
+    elo_impact: float
+    venue_impact: float
+    recent_form_impact: float
+    rest_impact: float
+    final_expected_goals: float
+
+
 @dataclass
 class ProbabilityReport:
     home_win: float
@@ -89,6 +109,8 @@ class ProbabilityReport:
     away_under_15: float = 0.0
     clean_sheet_home: float = 0.0
     clean_sheet_away: float = 0.0
+    attribution_home: FactorAttribution | None = None
+    attribution_away: FactorAttribution | None = None
 
 
 @dataclass
@@ -196,6 +218,9 @@ class AnalysisReport:
     sources: list[str]
     generated_at: str
     common_opponents: list[dict[str, Any]] = field(default_factory=list)
+    confidence: ConfidenceScore | None = None
+    attribution_home: FactorAttribution | None = None
+    attribution_away: FactorAttribution | None = None
     narrative: str | None = None
 
     def llm_payload(self) -> dict[str, Any]:
