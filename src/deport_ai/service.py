@@ -10,6 +10,7 @@ from .fixture_contract import FINISHED_STATUSES, to_match_ref
 from .llm import LLMExplainer
 from .odds import normalize_odds, select_opportunities
 from .parser import parse_match_query
+from .statistical_markets import select_statistical_markets
 from .stats_engine import (
     calculate_confidence_score,
     calculate_elo,
@@ -223,6 +224,7 @@ class AnalysisService:
             odds_available=bool(odds),
         )
         opportunities = select_opportunities(probabilities, odds)
+        statistical_markets = select_statistical_markets(home, away, probabilities, expected)
         risks = sample_risks(home_matches, away_matches, expected)
         if altitude_impact:
             risks.insert(0, f"🏔️ FACTOR ALTITUD ({altitude_impact['home_altitude']} m.s.n.m.): {altitude_impact['description']}")
@@ -258,6 +260,7 @@ class AnalysisService:
             lineups=_compact_lineups(lineups),
             odds=odds,
             opportunities=opportunities,
+            statistical_markets=statistical_markets,
             risks=list(dict.fromkeys(risks)),
             sources=_sources(
                 getattr(self.api, "provider_label", "Proveedor deportivo"),
@@ -440,4 +443,3 @@ def _primary_league_id(rows: list[dict[str, Any]]) -> int | None:
         if lid:
             counts[int(lid)] += 1
     return counts.most_common(1)[0][0] if counts else None
-

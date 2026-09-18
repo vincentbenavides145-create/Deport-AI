@@ -92,10 +92,14 @@ def test_full_service_flow_without_network_or_persistence():
     assert report.confidence is not None
     assert report.attribution_home is not None
     assert report.attribution_away is not None
+    assert report.statistical_markets
+    assert report.llm_payload()["statistical_markets"] == report.statistical_markets
+    assert all("odds" not in item and "edge" not in item for item in report.statistical_markets)
     rendered = format_report(report)
     assert "PARTIDO:\nLocal vs Visitante" in rendered
     assert "CONFIANZA EPISTÉMICA" in rendered
     assert "Auditoría de Goles Esperados (Waterfall Attribution):" in rendered
+    assert "MERCADOS ESTADÍSTICOS AMPLIADOS" in rendered
     assert "Victoria local:" in rendered
     assert "Córners esperados:" in rendered
     assert "Riesgos del análisis:" in rendered
@@ -117,5 +121,4 @@ def test_live_match_handled_gracefully():
     report = service.analyze("Local vs Visitante")
     assert any("en vivo" in risk.lower() for risk in report.risks)
     assert report.probabilities.home_win > 0
-
 

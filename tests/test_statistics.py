@@ -320,7 +320,7 @@ def test_smart_player_prop_and_line_escalation_for_heavy_favorites():
     assert smart_prop["is_escalated"] is True
     assert "Tiros al Arco" in smart_prop["prop_desc"] or "4+ Remates" in smart_prop["prop_desc"]
     assert smart_prop["probability"] < 0.85
-    assert smart_prop["probability"] >= 0.58
+    assert smart_prop["probability"] >= 0.60
 
     # 2. Test para jugador de volumen regular (p2 en sweet spot)
     regular_pl = {
@@ -381,7 +381,7 @@ def test_smart_player_prop_and_line_escalation_for_heavy_favorites():
     assert "Rayo Vallecano Más de 4.5 Córners" not in rendered
     assert "Rayo Vallecano Más de 13.5 remates" not in rendered
 
-    # Verificar que el ticket decisivo respeta el sweet spot global (58% a 80%)
+    # Verificar que el ticket decisivo respeta el sweet spot global (60% a 80%)
     import re
     p1_match = re.search(r"PICK PRINCIPAL: (.*?) — (\d+\.\d+)%", rendered)
     p2_match = re.search(r"PICK SECUNDARIO: (.*?) — (\d+\.\d+)%", rendered)
@@ -389,13 +389,13 @@ def test_smart_player_prop_and_line_escalation_for_heavy_favorites():
 
     if p1_match:
         p1_val = float(p1_match.group(2))
-        assert 58.0 <= p1_val <= 80.0, f"Pick principal {p1_val}% fuera del sweet spot 58-80%"
+        assert 60.0 <= p1_val <= 80.0, f"Pick principal {p1_val}% fuera del sweet spot 60-80%"
     if p2_match:
         p2_val = float(p2_match.group(2))
-        assert 58.0 <= p2_val <= 80.0, f"Pick secundario {p2_val}% fuera del sweet spot 58-80%"
+        assert 60.0 <= p2_val <= 80.0, f"Pick secundario {p2_val}% fuera del sweet spot 60-80%"
     if p_player_match:
         pp_val = float(p_player_match.group(2))
-        assert 58.0 <= pp_val <= 80.0, f"Jugador del partido {pp_val}% fuera del sweet spot 58-80%"
+        assert 60.0 <= pp_val <= 80.0, f"Jugador del partido {pp_val}% fuera del sweet spot 60-80%"
 
 
 def test_negative_binomial_vs_poisson():
@@ -497,6 +497,123 @@ def test_starter_and_expected_minutes_scaling():
     assert pl_bench["probability_one_plus"] < pl_starter["probability_one_plus"]
     assert pl_bench["expected_minutes"] == 22.0
     assert pl_starter["expected_minutes"] == 75.0
+
+
+def test_strict_minimum_60_percent_across_all_markets():
+    from deport_ai.domain import AnalysisReport, ExpectedMetrics, ProbabilityReport, Team
+    from deport_ai.formatter import format_report
+    from deport_ai.odds import select_opportunities
+
+    home = Team(1, "Equipo Local")
+    away = Team(2, "Equipo Visitante")
+
+    # Probabilidades con valores menores a 0.60
+    prob = ProbabilityReport(
+        home_win=0.58,  # < 0.60
+        draw=0.22,
+        away_win=0.20,
+        over_15=0.75,   # >= 0.60
+        over_25=0.55,   # < 0.60
+        under_25=0.45,  # < 0.60
+        btts=0.58,      # < 0.60
+        expected_home_goals=1.6,
+        expected_away_goals=1.0,
+        shared_goal_component=0.0,
+        score_matrix=[[1.0]],
+        first_half_over_05=0.55,  # < 0.60
+        second_half_over_05=0.62, # >= 0.60
+    )
+
+    # Expected metrics con líneas alrededor del 55-59%
+    expected = ExpectedMetrics(
+        corners_home=5.1,
+        corners_away=4.2,
+        over_45_corners_home=0.58,  # < 0.60 -> debe eliminarse
+        over_55_corners_home=0.45,
+        over_45_corners_away=0.52,
+        over_75_corners=0.59,       # < 0.60 -> debe eliminarse
+        over_85_corners=0.48,
+        cards_home=2.0,
+        cards_away=2.1,
+        over_15_cards_home=0.59,    # < 0.60 -> debe eliminarse
+        over_35_cards=0.54,         # < 0.60 -> debe eliminarse
+        total_shots_home=12.0,
+        total_shots_away=10.0,
+        over_115_shots_home=0.59,   # < 0.60 -> debe eliminarse
+        over_215_total_shots=0.58,  # < 0.60 -> debe eliminarse
+        shots_on_home=4.2,
+        shots_on_away=3.5,
+        over_45_shots_on_home=0.59, # < 0.60 -> debe eliminarse
+        over_75_shots_on=0.58,      # < 0.60 -> debe eliminarse
+        over_05_woodwork=0.38,      # < 0.60 -> debe eliminarse
+        offsides_home=1.5,
+        offsides_away=1.2,
+        over_25_offsides=0.58,      # < 0.60 -> debe eliminarse
+        under_35_offsides=0.59,     # < 0.60 -> debe eliminarse
+        player_shots={
+            1: [{
+                "name": "Jugador Borde",
+                "appearances": 10,
+                "expected_per_match": 1.8,
+                "probability_two_plus": 0.58,  # < 0.60 -> debe eliminarse
+                "probability_three_plus": 0.30,
+                "probability_sot_one_plus": 0.55,
+                "probability_sot_two_plus": 0.20,
+            }]
+        },
+        anytime_goalscorers={
+            1: [{
+                "name": "Goleador Moderado",
+                "appearances": 10,
+                "probability_goal": 0.38,  # < 0.60 -> debe eliminarse
+            }]
+        },
+    )
+
+    report = AnalysisReport(
+        home=home,
+        away=away,
+        fixture=None,
+        recent_home=HOME,
+        recent_away=AWAY,
+        h2h=[],
+        probabilities=prob,
+        expected=expected,
+        elo_home=1500.0,
+        elo_away=1500.0,
+        injuries=[],
+        lineups=[],
+        odds={"home_win": 2.20},  # Implied prob 45.4%, model 58% -> edge > 0.02 pero prob < 0.60
+        opportunities=[],
+        risks=["Sin novedades."],
+        sources=["Sportmonks"],
+        generated_at="2026-03-01T00:00:00",
+    )
+
+    rendered = format_report(report)
+
+    # Verificar que NINGUNA línea destacada de apuesta tenga < 60%
+    import re
+    # Buscar cualquier porcentaje en el bloque de Líneas Destacadas
+    if "Líneas de Apuesta Destacadas (≥ 60%):" in rendered:
+        destacadas_part = rendered.split("Líneas de Apuesta Destacadas (≥ 60%):")[1].split("Jugadores con mayor probabilidad")[0]
+        percentages = [float(p) for p in re.findall(r"\((\d+\.\d+)%\)", destacadas_part)]
+        for p in percentages:
+            assert p >= 60.0, f"Encontrada probabilidad {p}% < 60.0% en líneas destacadas"
+
+    # Verificar que el prop de jugador con 58% fue descartado
+    assert "Jugador Borde: 2+ Remates" not in rendered
+    assert "No hay jugadores que superen el umbral de remates totales (≥60%)" in rendered
+
+    # Verificar que el goleador con 38% fue descartado
+    assert "Goleador Moderado" not in rendered
+
+    # Verificar select_opportunities en odds.py con edge positivo pero prob < 0.60
+    opps = select_opportunities(prob, {"home_win": 2.20})
+    # Debe ser filtrado porque prob.home_win = 0.58 < 0.60
+    assert not any(o["market"] == "Victoria local" for o in opps)
+    assert all(o["probability"] >= 0.60 for o in opps)
+
 
 
 

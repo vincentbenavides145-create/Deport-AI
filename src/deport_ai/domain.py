@@ -217,6 +217,7 @@ class AnalysisReport:
     risks: list[str]
     sources: list[str]
     generated_at: str
+    statistical_markets: list[dict[str, Any]] = field(default_factory=list)
     common_opponents: list[dict[str, Any]] = field(default_factory=list)
     confidence: ConfidenceScore | None = None
     attribution_home: FactorAttribution | None = None

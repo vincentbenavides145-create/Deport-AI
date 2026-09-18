@@ -11,6 +11,7 @@ Cuando el usuario pida analizar un partido, pronósticos o predicciones de fútb
 > 1. **ESTÁ ESTRICTAMENTE PROHIBIDO incluir la sección de 'MERCADOS A EVITAR', 'MERCADOS PROHIBIDOS' o 'TRAMPAS'.** No generes ninguna sección ni viñeta de mercados a evitar.
 > 2. **ESTÁ ESTRICTAMENTE PROHIBIDO usar etiquetas como '(Nivel Oro)', '(Nivel Plata)' o '(Banker)'.** Usa únicamente los títulos limpios: `🟢 1. PICK PRINCIPAL`, `🔵 2. PICK SECUNDARIO / VALOR`.
 > 3. **ESTÁ ESTRICTAMENTE PROHIBIDO inventar o alterar el formato.**
+> 4. **ESTÁ ESTRICTAMENTE PROHIBIDO incluir apuestas, líneas o selecciones con probabilidad inferior al 60.0% (< 60.0%).** Ningún mercado, pick, bet builder, prop de jugador o métrica de volumen en ninguna sección puede mostrarse con una probabilidad menor al 60.0%. Si una opción o línea proyectada no alcanza el 60.0%, queda descartada de forma tajante.
 
 > ⚡ **MANEJO DE PARTIDOS EN VIVO:** Si un equipo está jugando un partido en directo en este momento, el motor **calcula el análisis con todos los partidos finalizados previos**, excluyendo de forma automática los datos incompletos del partido en vivo para preservar la precisión matemática del modelo.
 

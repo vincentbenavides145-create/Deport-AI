@@ -39,6 +39,7 @@ def format_report(report: AnalysisReport) -> str:
             ]
         )
 
+    lines.extend(_build_statistical_markets_section(report))
     lines.extend(_build_decisive_ticket(report))
     lines.extend(_build_unexploited_section(report))
 
@@ -124,26 +125,26 @@ def format_report(report: AnalysisReport) -> str:
 
     if is_heavy_fav and und_team:
         if fav_team == report.home:
-            if expected.over_65_corners_home is not None and expected.over_65_corners_home >= 0.58:
+            if expected.over_65_corners_home is not None and expected.over_65_corners_home >= 0.60:
                 lines.append(f"- Córners Equipo: {report.home.name} Más de 6.5 córners ({_pct(expected.over_65_corners_home)})")
-            elif expected.over_55_corners_home is not None and expected.over_55_corners_home >= 0.58:
+            elif expected.over_55_corners_home is not None and expected.over_55_corners_home >= 0.60:
                 lines.append(f"- Córners Equipo: {report.home.name} Más de 5.5 córners ({_pct(expected.over_55_corners_home)})")
             elif expected.over_45_corners_home is not None and expected.over_45_corners_home >= 0.60:
                 lines.append(f"- Córners Equipo: {report.home.name} Más de 4.5 córners ({_pct(expected.over_45_corners_home)})")
         elif fav_team == report.away:
-            if expected.over_65_corners_away is not None and expected.over_65_corners_away >= 0.58:
+            if expected.over_65_corners_away is not None and expected.over_65_corners_away >= 0.60:
                 lines.append(f"- Córners Equipo: {report.away.name} Más de 6.5 córners ({_pct(expected.over_65_corners_away)})")
-            elif expected.over_55_corners_away is not None and expected.over_55_corners_away >= 0.58:
+            elif expected.over_55_corners_away is not None and expected.over_55_corners_away >= 0.60:
                 lines.append(f"- Córners Equipo: {report.away.name} Más de 5.5 córners ({_pct(expected.over_55_corners_away)})")
             elif expected.over_45_corners_away is not None and expected.over_45_corners_away >= 0.60:
                 lines.append(f"- Córners Equipo: {report.away.name} Más de 4.5 córners ({_pct(expected.over_45_corners_away)})")
     else:
-        if expected.over_55_corners_home is not None and expected.over_55_corners_home >= 0.58:
+        if expected.over_55_corners_home is not None and expected.over_55_corners_home >= 0.60:
             lines.append(f"- Córners Equipo: {report.home.name} Más de 5.5 córners ({_pct(expected.over_55_corners_home)})")
         elif expected.over_45_corners_home is not None and expected.over_45_corners_home >= 0.60:
             lines.append(f"- Córners Equipo: {report.home.name} Más de 4.5 córners ({_pct(expected.over_45_corners_home)})")
 
-        if expected.over_55_corners_away is not None and expected.over_55_corners_away >= 0.58:
+        if expected.over_55_corners_away is not None and expected.over_55_corners_away >= 0.60:
             lines.append(f"- Córners Equipo: {report.away.name} Más de 5.5 córners ({_pct(expected.over_55_corners_away)})")
         elif expected.over_45_corners_away is not None and expected.over_45_corners_away >= 0.60:
             lines.append(f"- Córners Equipo: {report.away.name} Más de 4.5 córners ({_pct(expected.over_45_corners_away)})")
@@ -157,9 +158,9 @@ def format_report(report: AnalysisReport) -> str:
         lines.append(f"- Fueras de Juego: Menos de 4.5 Offsides ({_pct(expected.under_45_offsides)})")
 
     # Remates Totales y Tiros al Arco por Equipo y Totales
-    if expected.over_295_total_shots is not None and expected.over_295_total_shots >= 0.58:
+    if expected.over_295_total_shots is not None and expected.over_295_total_shots >= 0.60:
         lines.append(f"- Remates Totales: Más de 29.5 remates ({_pct(expected.over_295_total_shots)})")
-    elif expected.over_275_total_shots is not None and expected.over_275_total_shots >= 0.58:
+    elif expected.over_275_total_shots is not None and expected.over_275_total_shots >= 0.60:
         lines.append(f"- Remates Totales: Más de 27.5 remates ({_pct(expected.over_275_total_shots)})")
     elif expected.over_235_total_shots is not None and expected.over_235_total_shots >= 0.60:
         lines.append(f"- Remates Totales: Más de 23.5 remates ({_pct(expected.over_235_total_shots)})")
@@ -168,9 +169,9 @@ def format_report(report: AnalysisReport) -> str:
     elif expected.under_245_total_shots is not None and expected.under_245_total_shots >= 0.60:
         lines.append(f"- Remates Totales: Menos de 24.5 remates ({_pct(expected.under_245_total_shots)})")
 
-    if expected.over_175_shots_home is not None and expected.over_175_shots_home >= 0.58:
+    if expected.over_175_shots_home is not None and expected.over_175_shots_home >= 0.60:
         lines.append(f"- Remates Equipo: {report.home.name} Más de 17.5 remates ({_pct(expected.over_175_shots_home)})")
-    elif expected.over_155_shots_home is not None and expected.over_155_shots_home >= 0.58:
+    elif expected.over_155_shots_home is not None and expected.over_155_shots_home >= 0.60:
         lines.append(f"- Remates Equipo: {report.home.name} Más de 15.5 remates ({_pct(expected.over_155_shots_home)})")
     elif expected.over_135_shots_home is not None and expected.over_135_shots_home >= 0.60:
         lines.append(f"- Remates Equipo: {report.home.name} Más de 13.5 remates ({_pct(expected.over_135_shots_home)})")
@@ -186,14 +187,14 @@ def format_report(report: AnalysisReport) -> str:
         elif expected.under_85_shots_away is not None and expected.under_85_shots_away >= 0.65:
             lines.append(f"- Remates Equipo: {report.away.name} Menos de 8.5 remates ({_pct(expected.under_85_shots_away)})")
 
-    if expected.over_105_shots_on is not None and expected.over_105_shots_on >= 0.58:
+    if expected.over_105_shots_on is not None and expected.over_105_shots_on >= 0.60:
         lines.append(f"- Tiros al Arco: Más de 10.5 tiros a puerta ({_pct(expected.over_105_shots_on)})")
     elif expected.over_85_shots_on is not None and expected.over_85_shots_on >= 0.60:
         lines.append(f"- Tiros al Arco: Más de 8.5 tiros a puerta ({_pct(expected.over_85_shots_on)})")
     elif expected.over_75_shots_on is not None and expected.over_75_shots_on >= 0.60:
         lines.append(f"- Tiros al Arco: Más de 7.5 tiros a puerta ({_pct(expected.over_75_shots_on)})")
 
-    if expected.over_65_shots_on_home is not None and expected.over_65_shots_on_home >= 0.58:
+    if expected.over_65_shots_on_home is not None and expected.over_65_shots_on_home >= 0.60:
         lines.append(f"- Tiros al Arco: {report.home.name} Más de 6.5 al arco ({_pct(expected.over_65_shots_on_home)})")
     elif expected.over_55_shots_on_home is not None and expected.over_55_shots_on_home >= 0.60:
         lines.append(f"- Tiros al Arco: {report.home.name} Más de 5.5 al arco ({_pct(expected.over_55_shots_on_home)})")
@@ -209,7 +210,7 @@ def format_report(report: AnalysisReport) -> str:
         elif expected.under_25_shots_on_away is not None and expected.under_25_shots_on_away >= 0.65:
             lines.append(f"- Tiros al Arco: {report.away.name} Menos de 2.5 al arco ({_pct(expected.under_25_shots_on_away)})")
 
-    if expected.over_05_woodwork is not None and expected.over_05_woodwork >= 0.35:
+    if expected.over_05_woodwork is not None and expected.over_05_woodwork >= 0.60:
         lines.append(f"- Tiros al Palo: Probabilidad de Tiro al Palo en el partido ({_pct(expected.over_05_woodwork)})")
 
     cards_total = _sum_optional(expected.cards_home, expected.cards_away)
@@ -223,7 +224,7 @@ def format_report(report: AnalysisReport) -> str:
     if tot_shots_on is not None:
         lines.append(f"Tiros al Arco esperados: {_number_or_na(tot_shots_on)} ({report.home.name}: {_number_or_na(expected.shots_on_home)}, {report.away.name}: {_number_or_na(expected.shots_on_away)})")
     if tot_woodwork is not None and tot_woodwork > 0:
-        wood_prob_str = f" [Prob. ≥1 al palo: {_pct(expected.over_05_woodwork)}]" if expected.over_05_woodwork else ""
+        wood_prob_str = f" [Prob. ≥1 al palo: {_pct(expected.over_05_woodwork)}]" if expected.over_05_woodwork and expected.over_05_woodwork >= 0.60 else ""
         lines.append(f"Tiros al Palo (Woodwork) esperados: {_number_or_na(tot_woodwork)} ({report.home.name}: {_number_or_na(expected.woodwork_home)}, {report.away.name}: {_number_or_na(expected.woodwork_away)}){wood_prob_str}")
     lines.append(f"Córners esperados: {_number_or_na(corner_total)} ({report.home.name}: {_number_or_na(expected.corners_home)}, {report.away.name}: {_number_or_na(expected.corners_away)})")
     lines.append(f"Tarjetas amarillas esperadas: {_number_or_na(cards_total)} ({report.home.name}: {_number_or_na(expected.cards_home)}, {report.away.name}: {_number_or_na(expected.cards_away)})")
@@ -348,29 +349,29 @@ def _select_smart_player_prop(pl: dict[str, Any], team_name: str) -> dict[str, A
     sot2 = pl.get("probability_sot_two_plus", 0.0)
     sot3 = pl.get("probability_sot_three_plus", 0.0)
 
-    # Colectar todas las opciones disponibles de props para este jugador
+    # Colectar todas las opciones disponibles de props para este jugador (estrictamente >= 60%)
     candidates: list[dict[str, Any]] = []
 
     # 1. Tiros al arco (Shots on Target - máxima liquidez y valor)
-    if sot3 >= 0.50:
+    if sot3 >= 0.60:
         candidates.append({"desc": "3+ Tiros al Arco (a puerta)", "prob": sot3, "short": f"{name} 3+ Tiros al Arco", "priority": 1})
-    if sot2 >= 0.50:
+    if sot2 >= 0.60:
         candidates.append({"desc": "2+ Tiros al Arco (a puerta)", "prob": sot2, "short": f"{name} 2+ Tiros al Arco", "priority": 2})
-    if sot1 >= 0.55:
+    if sot1 >= 0.60:
         candidates.append({"desc": "1+ Tiro al Arco (a puerta)", "prob": sot1, "short": f"{name} 1+ Tiro al Arco", "priority": 3})
 
     # 2. Remates totales escalados (5+, 4+, 3+, 2+)
-    if p5 >= 0.50:
+    if p5 >= 0.60:
         candidates.append({"desc": "5+ Remates Totales", "prob": p5, "short": f"{name} 5+ Remates", "priority": 4})
-    if p4 >= 0.50:
+    if p4 >= 0.60:
         candidates.append({"desc": "4+ Remates Totales", "prob": p4, "short": f"{name} 4+ Remates", "priority": 5})
-    if p3 >= 0.50:
+    if p3 >= 0.60:
         candidates.append({"desc": "3+ Remates Totales", "prob": p3, "short": f"{name} 3+ Remates", "priority": 6})
-    if p2 >= 0.50:
+    if p2 >= 0.60:
         candidates.append({"desc": "2+ Remates Totales", "prob": p2, "short": f"{name} 2+ Remates", "priority": 7})
 
-    # Filtro del Sweet Spot Estricto: 58% <= P <= 79% (Cuotas 1.27 a 1.72)
-    sweet_candidates = [c for c in candidates if 0.58 <= c["prob"] <= 0.79]
+    # Filtro del Sweet Spot Estricto: 60% <= P <= 79% (Cuotas 1.27 a 1.66)
+    sweet_candidates = [c for c in candidates if 0.60 <= c["prob"] <= 0.79]
     if sweet_candidates:
         sweet_candidates.sort(key=lambda c: (c["priority"] > 3, abs(c["prob"] - 0.70)))
         best = sweet_candidates[0]
@@ -383,8 +384,8 @@ def _select_smart_player_prop(pl: dict[str, Any], team_name: str) -> dict[str, A
             "is_escalated": best["desc"] != "2+ Remates Totales",
         }
 
-    # Rango ampliado si no hay en rango estricto: [0.55, 0.82]
-    extended = [c for c in candidates if 0.55 <= c["prob"] <= 0.82]
+    # Rango ampliado si no hay en rango estricto: [0.60, 0.82]
+    extended = [c for c in candidates if 0.60 <= c["prob"] <= 0.82]
     if extended:
         extended.sort(key=lambda c: (c["priority"] > 3, abs(c["prob"] - 0.70)))
         best = extended[0]
@@ -397,16 +398,27 @@ def _select_smart_player_prop(pl: dict[str, Any], team_name: str) -> dict[str, A
             "is_escalated": best["desc"] != "2+ Remates Totales",
         }
 
-    # Fallback más cercano al 70%
-    candidates.sort(key=lambda c: abs(c["prob"] - 0.70))
-    best = candidates[0] if candidates else {"desc": "2+ Remates Totales", "prob": p2, "short": f"{name} 2+ Remates"}
+    # Fallback más cercano al 70% (solo si cumple >= 0.60)
+    valid_candidates = [c for c in candidates if c["prob"] >= 0.60]
+    if valid_candidates:
+        valid_candidates.sort(key=lambda c: abs(c["prob"] - 0.70))
+        best = valid_candidates[0]
+        return {
+            "name": name,
+            "team": team_name,
+            "prop_desc": best["desc"],
+            "probability": best["prob"],
+            "short_desc": best["short"],
+            "is_escalated": best["desc"] != "2+ Remates Totales",
+        }
+
     return {
         "name": name,
         "team": team_name,
-        "prop_desc": best["desc"],
-        "probability": best["prob"],
-        "short_desc": best["short"],
-        "is_escalated": best["desc"] != "2+ Remates Totales",
+        "prop_desc": "2+ Remates Totales",
+        "probability": p2,
+        "short_desc": f"{name} 2+ Remates",
+        "is_escalated": False,
     }
 
 
@@ -429,6 +441,28 @@ def _market_category(market_name: str) -> str:
     return "OTHER"
 
 
+def _build_statistical_markets_section(report: AnalysisReport) -> list[str]:
+    """Render the structured model markets without implying bookmaker availability."""
+    if not report.statistical_markets:
+        return []
+
+    lines = [
+        "============================================================",
+        "MERCADOS ESTADÍSTICOS AMPLIADOS (proyecciones del modelo):",
+        "Sin cuotas, sin comparación con casas y sin afirmar disponibilidad en una casa concreta.",
+        "============================================================",
+    ]
+    for item in report.statistical_markets:
+        detail = f"{item['market']}: {item['selection']} ({_pct(item['probability'])})"
+        if "projection" in item:
+            detail += f" | Proyección: {item['projection']:.2f}"
+        if item.get("requires_starter_confirmation"):
+            detail += " | Requiere confirmar titularidad"
+        lines.append(f"- {item['category']} — {detail}")
+    lines.append("")
+    return lines
+
+
 def _build_decisive_ticket(report: AnalysisReport) -> list[str]:
     p = report.probabilities
     expected = report.expected
@@ -440,9 +474,9 @@ def _build_decisive_ticket(report: AnalysisReport) -> list[str]:
     fav_team = report.home if p.home_win >= 0.70 else (report.away if p.away_win >= 0.70 else None)
     und_team = report.away if p.home_win >= 0.70 else (report.home if p.away_win >= 0.70 else None)
 
-    # Sweet Spot Global Estricto (58% <= P <= 80% -> Cuotas 1.25 a 1.72)
+    # Sweet Spot Global Estricto (60% <= P <= 80% -> Cuotas 1.25 a 1.66)
     # Ninguna apuesta fuera de este rango puede ser Pick Principal o Pick Secundario
-    SWEET_MIN = 0.58
+    SWEET_MIN = 0.60
     SWEET_MAX = 0.80
 
     market_checks: list[tuple[str, float]] = []
@@ -686,11 +720,11 @@ def _build_decisive_ticket(report: AnalysisReport) -> list[str]:
         if expected.over_35_shots_on_away is not None and SWEET_MIN <= expected.over_35_shots_on_away <= SWEET_MAX:
             market_checks.append((f"{report.away.name} Más de 3.5 Tiros al Arco", expected.over_35_shots_on_away))
 
-    # Si por alguna rareza de datos no hay candidatos en [0.58, 0.80], recurrir a [0.55, 0.84]
+    # Si por alguna rareza de datos no hay candidatos en [0.60, 0.80], recurrir a líneas con prob >= 0.60
     if not market_checks:
-        if p.over_25 >= 0.55:
+        if p.over_25 >= 0.60:
             market_checks.append(("Más de 2.5 goles totales", p.over_25))
-        elif p.under_25 >= 0.55:
+        elif p.under_25 >= 0.60:
             market_checks.append(("Menos de 2.5 goles totales", p.under_25))
 
     banker_candidates: list[tuple[str, float]] = []
@@ -728,7 +762,7 @@ def _build_decisive_ticket(report: AnalysisReport) -> list[str]:
         team_name = report.home.name if team_id == report.home.id else report.away.name
         for pl in expected.player_shots.get(team_id, []):
             sp = _select_smart_player_prop(pl, team_name)
-            if sp["probability"] >= 0.55:
+            if sp.get("probability", 0.0) >= 0.60:
                 smart_players.append(sp)
 
     sweet_players = [p for p in smart_players if SWEET_MIN <= p["probability"] <= SWEET_MAX]
@@ -763,7 +797,7 @@ def _build_decisive_ticket(report: AnalysisReport) -> list[str]:
     builder_items: list[str] = []
     if pick_principal:
         builder_items.append(pick_principal[0])
-    if top_player and top_player["probability"] >= 0.58 and top_player["name"] not in str(builder_items):
+    if top_player and top_player["probability"] >= 0.60 and top_player["name"] not in str(builder_items):
         builder_items.append(f"{top_player['short_desc']} [⚠️ Titular]")
 
     if is_heavy_fav and und_team:
@@ -828,10 +862,10 @@ def _build_unexploited_section(report: AnalysisReport) -> list[str]:
         team_name = report.home.name if team_id == report.home.id else report.away.name
         for pl in expected.player_shots.get(team_id, []):
             sp = _select_smart_player_prop(pl, team_name)
-            if sp["probability"] >= 0.55:
+            if sp.get("probability", 0.0) >= 0.60:
                 top_smart_players.append(sp)
 
-    sweet_p = [p for p in top_smart_players if 0.58 <= p["probability"] <= 0.84]
+    sweet_p = [p for p in top_smart_players if 0.60 <= p["probability"] <= 0.84]
     if is_heavy_fav and fav_team:
         sweet_p.sort(key=lambda x: (x["team"] != fav_team.name, abs(x["probability"] - 0.70)))
     else:
@@ -862,16 +896,16 @@ def _build_unexploited_section(report: AnalysisReport) -> list[str]:
     team_shot_highlights: list[str] = []
     shot_fav = fav_team if (is_heavy_fav and fav_team) else report.home
     if shot_fav == report.home:
-        if expected.over_175_shots_home is not None and expected.over_175_shots_home >= 0.58:
+        if expected.over_175_shots_home is not None and expected.over_175_shots_home >= 0.60:
             team_shot_highlights.append(f"{report.home.name} >17.5 Remates ({_pct(expected.over_175_shots_home)})")
-        elif expected.over_155_shots_home is not None and expected.over_155_shots_home >= 0.58:
+        elif expected.over_155_shots_home is not None and expected.over_155_shots_home >= 0.60:
             team_shot_highlights.append(f"{report.home.name} >15.5 Remates ({_pct(expected.over_155_shots_home)})")
         elif expected.over_135_shots_home is not None and expected.over_135_shots_home >= 0.60:
             team_shot_highlights.append(f"{report.home.name} >13.5 Remates ({_pct(expected.over_135_shots_home)})")
         elif expected.over_115_shots_home is not None and expected.over_115_shots_home >= 0.60:
             team_shot_highlights.append(f"{report.home.name} >11.5 Remates ({_pct(expected.over_115_shots_home)})")
 
-        if expected.over_65_shots_on_home is not None and expected.over_65_shots_on_home >= 0.58:
+        if expected.over_65_shots_on_home is not None and expected.over_65_shots_on_home >= 0.60:
             team_shot_highlights.append(f"{report.home.name} >6.5 Tiros al Arco ({_pct(expected.over_65_shots_on_home)})")
         elif expected.over_55_shots_on_home is not None and expected.over_55_shots_on_home >= 0.60:
             team_shot_highlights.append(f"{report.home.name} >5.5 Tiros al Arco ({_pct(expected.over_55_shots_on_home)})")
@@ -891,7 +925,7 @@ def _build_unexploited_section(report: AnalysisReport) -> list[str]:
         if und_s_u85 is not None and und_s_u85 >= 0.65:
             team_shot_highlights.append(f"{und_team.name} <8.5 Remates ({_pct(und_s_u85)})")
 
-    if expected.over_05_woodwork is not None and expected.over_05_woodwork >= 0.35:
+    if expected.over_05_woodwork is not None and expected.over_05_woodwork >= 0.60:
         team_shot_highlights.append(f"Tiro al Palo ({_pct(expected.over_05_woodwork)})")
 
     if team_shot_highlights:
@@ -916,23 +950,23 @@ def _build_unexploited_section(report: AnalysisReport) -> list[str]:
     best_corner_team = None
     if is_heavy_fav and fav_team:
         if fav_team == report.home:
-            if expected.over_65_corners_home is not None and expected.over_65_corners_home >= 0.58:
+            if expected.over_65_corners_home is not None and expected.over_65_corners_home >= 0.60:
                 best_corner_team = (report.home.name, "6.5", expected.over_65_corners_home, expected.corners_home)
-            elif expected.over_55_corners_home is not None and expected.over_55_corners_home >= 0.58:
+            elif expected.over_55_corners_home is not None and expected.over_55_corners_home >= 0.60:
                 best_corner_team = (report.home.name, "5.5", expected.over_55_corners_home, expected.corners_home)
             elif expected.over_45_corners_home is not None and expected.over_45_corners_home >= 0.60:
                 best_corner_team = (report.home.name, "4.5", expected.over_45_corners_home, expected.corners_home)
         else:
-            if expected.over_65_corners_away is not None and expected.over_65_corners_away >= 0.58:
+            if expected.over_65_corners_away is not None and expected.over_65_corners_away >= 0.60:
                 best_corner_team = (report.away.name, "6.5", expected.over_65_corners_away, expected.corners_away)
-            elif expected.over_55_corners_away is not None and expected.over_55_corners_away >= 0.58:
+            elif expected.over_55_corners_away is not None and expected.over_55_corners_away >= 0.60:
                 best_corner_team = (report.away.name, "5.5", expected.over_55_corners_away, expected.corners_away)
             elif expected.over_45_corners_away is not None and expected.over_45_corners_away >= 0.60:
                 best_corner_team = (report.away.name, "4.5", expected.over_45_corners_away, expected.corners_away)
     else:
-        if expected.over_55_corners_home is not None and expected.over_55_corners_home >= 0.58:
+        if expected.over_55_corners_home is not None and expected.over_55_corners_home >= 0.60:
             best_corner_team = (report.home.name, "5.5", expected.over_55_corners_home, expected.corners_home)
-        elif expected.over_55_corners_away is not None and expected.over_55_corners_away >= 0.58:
+        elif expected.over_55_corners_away is not None and expected.over_55_corners_away >= 0.60:
             best_corner_team = (report.away.name, "5.5", expected.over_55_corners_away, expected.corners_away)
         elif expected.over_45_corners_home is not None and expected.over_45_corners_home >= 0.60:
             best_corner_team = (report.home.name, "4.5", expected.over_45_corners_home, expected.corners_home)
@@ -945,7 +979,7 @@ def _build_unexploited_section(report: AnalysisReport) -> list[str]:
         und_c_exp = expected.corners_away if und_team == report.away else expected.corners_home
 
         und_c_prop = None
-        if und_c_under_35 is not None and und_c_under_35 >= 0.58:
+        if und_c_under_35 is not None and und_c_under_35 >= 0.60:
             und_c_prop = ("3.5", und_c_under_35)
         elif und_c_under_45 is not None and und_c_under_45 >= 0.65:
             und_c_prop = ("4.5", und_c_under_45)
@@ -975,7 +1009,7 @@ def _build_unexploited_section(report: AnalysisReport) -> list[str]:
     if disallow_away_ha and alt_impact:
         lines.append("4. 🛡️/🏔️ Hándicap y Factor Altitud Extrema:")
         lines.append(f"   • VETO ESTRATÉGICO: Descartado {report.away.name} (+1.5 HA) debido al choque fisiológico a {alt_impact['home_altitude']:,} m.s.n.m.")
-        if p.ah_home_minus_15 >= 0.50:
+        if p.ah_home_minus_15 >= 0.60:
             lines.append(f"   • Hándicap Valor Local: {report.home.name} (-1.5 HA) — {_pct(p.ah_home_minus_15)} (Riesgo justificado por asfixia del visitante).")
         else:
             lines.append(f"   • Alternativa Segura: Priorizar mercados de asedio ({report.home.name} Más Córners / Remates) antes que cubrir al visitante.")
@@ -1025,27 +1059,31 @@ def _player_lines(report: AnalysisReport) -> list[str]:
     for team in (report.home, report.away):
         for item in report.expected.player_shots.get(team.id, []):
             p2 = item.get("probability_two_plus", item.get("probability_one_plus", 0.0))
-            if p2 >= 0.50:
+            p3 = item.get("probability_three_plus", 0.0)
+            p4 = item.get("probability_four_plus", 0.0)
+            sot2 = item.get("probability_sot_two_plus", 0.0)
+            sot1 = item.get("probability_sot_one_plus", 0.0)
+
+            parts: list[str] = []
+            if p2 >= 0.60:
+                parts.append(f"2+ Remates Totales {_pct(p2)}")
+            if p3 >= 0.60:
+                parts.append(f"3+ Remates Totales {_pct(p3)}")
+            if p4 >= 0.60:
+                parts.append(f"4+ Remates Totales {_pct(p4)}")
+            if sot2 >= 0.60:
+                parts.append(f"🎯 2+ al Arco {_pct(sot2)}")
+            elif sot1 >= 0.60:
+                parts.append(f"🎯 1+ al Arco {_pct(sot1)}")
+
+            if parts:
                 found = True
-                p3 = item.get("probability_three_plus", 0.0)
-                p4 = item.get("probability_four_plus", 0.0)
-                sot2 = item.get("probability_sot_two_plus", 0.0)
-                sot1 = item.get("probability_sot_one_plus", 0.0)
-
-                parts = [f"2+ Remates Totales {_pct(p2)}", f"3+ Remates Totales {_pct(p3)}"]
-                if p2 >= 0.85 and p4 >= 0.45:
-                    parts.append(f"4+ Remates Totales {_pct(p4)}")
-                if sot2 >= 0.50:
-                    parts.append(f"🎯 2+ al Arco {_pct(sot2)}")
-                elif sot1 >= 0.65:
-                    parts.append(f"🎯 1+ al Arco {_pct(sot1)}")
-
                 desc = " | ".join(parts)
                 lines.append(
                     f"- {item['name']} ({team.name}): {desc} "
                     f"[{item['appearances']} apariciones] [⚠️ Sujeto a Titularidad Oficial]"
                 )
-    return lines if found else ["- No hay jugadores que superen el umbral de remates totales para este encuentro."]
+    return lines if found else ["- No hay jugadores que superen el umbral de remates totales (≥60%) para este encuentro."]
 
 
 def _goalscorer_lines(report: AnalysisReport) -> list[str]:
@@ -1053,13 +1091,14 @@ def _goalscorer_lines(report: AnalysisReport) -> list[str]:
     found = False
     for team in (report.home, report.away):
         for item in report.expected.anytime_goalscorers.get(team.id, []):
-            if item.get("probability_goal", 0.0) >= 0.20:
+            prob = item.get("probability_goal", 0.0)
+            if prob >= 0.60:
                 found = True
                 lines.append(
-                    f"- {item['name']} ({team.name}): Anota en cualquier momento {_pct(item['probability_goal'])} "
+                    f"- {item['name']} ({team.name}): Anota en cualquier momento {_pct(prob)} "
                     f"[{item['appearances']} apariciones]"
                 )
-    return lines if found else ["- No hay jugadores con alta probabilidad de gol para este encuentro."]
+    return lines if found else ["- No hay jugadores con alta probabilidad de gol (≥60%) para este encuentro."]
 
 
 def _deterministic_narrative(report: AnalysisReport) -> str:
@@ -1092,4 +1131,3 @@ def _number_or_na(value: float | None) -> str:
 
 def _pct_or_na(value: float | None) -> str:
     return "No disponible" if value is None else f"{value * 100:.1f}%"
-
