@@ -1246,11 +1246,17 @@ def expected_metrics(
     cards_home = _expected_count(home_matches, away_matches, True, False, "yellow_cards")
     cards_away = _expected_count(away_matches, home_matches, False, True, "yellow_cards")
     total_cards = (cards_home + cards_away) if (cards_home is not None and cards_away is not None) else None
+    over_15_cards = None
+    over_25_cards = None
     over_35_cards = None
     over_45_cards = None
     if total_cards is not None and total_cards > 0:
+        p_under_2 = sum(_negative_binomial(k, total_cards, disp_cards) for k in range(2))
+        p_under_3 = sum(_negative_binomial(k, total_cards, disp_cards) for k in range(3))
         p_under_4 = sum(_negative_binomial(k, total_cards, disp_cards) for k in range(4))
         p_under_5 = sum(_negative_binomial(k, total_cards, disp_cards) for k in range(5))
+        over_15_cards = round(1.0 - p_under_2, 4)
+        over_25_cards = round(1.0 - p_under_3, 4)
         over_35_cards = round(1.0 - p_under_4, 4)
         over_45_cards = round(1.0 - p_under_5, 4)
 
@@ -1389,12 +1395,18 @@ def expected_metrics(
         over_05_woodwork=over_05_woodwork,
         cards_home=cards_home,
         cards_away=cards_away,
+        over_15_cards=over_15_cards,
+        over_25_cards=over_25_cards,
         over_35_cards=over_35_cards,
         over_45_cards=over_45_cards,
         over_15_cards_home=over_15_cards_home,
         over_15_cards_away=over_15_cards_away,
         over_25_cards_home=over_25_cards_home,
         over_25_cards_away=over_25_cards_away,
+        dispersion_corners=disp_corners,
+        dispersion_cards=disp_cards,
+        dispersion_shots=disp_shots,
+        dispersion_offsides=disp_offsides,
         offsides_home=offsides_home,
         offsides_away=offsides_away,
         over_25_offsides=over_25_offsides,
@@ -1502,6 +1514,9 @@ def _negative_binomial(k: int, rate: float, alpha: float = 0.0) -> float:
         + k * math.log(1.0 - p)
     )
     return math.exp(log_p)
+
+
+negative_binomial_pmf = _negative_binomial
 
 
 def _poisson(k: int, rate: float) -> float:

@@ -156,3 +156,259 @@ def test_corners_1x2_is_experimental_and_requires_valid_metrics():
     assert "(Experimental)" in corner_1x2["selection"]
     assert "calibración histórica" in corner_1x2["basis"]
 
+
+def test_cards_valid_presentation_lines_used_and_trivial_15_excluded():
+    """Verifica que Más de 1.5 tarjetas totales quede excluida por trivial y se seleccione una línea válida del catálogo."""
+    home = Team(3608, "Racing Club")
+    away = Team(9931, "Sarmiento")
+    probs = _probabilities()
+    # Caso real de Racing vs Sarmiento: 1.67 tarjetas local + 1.53 visitante = 3.20 tarjetas
+    expected = ExpectedMetrics(
+        cards_home=1.67,
+        cards_away=1.53,
+        dispersion_cards=0.27,
+    )
+
+    markets = select_statistical_markets(home, away, probs, expected)
+    card_markets = [m for m in markets if m["category"] == "Tarjetas"]
+
+    assert card_markets, "Debe existir al menos un mercado de tarjetas seleccionado"
+    total_card = next((m for m in card_markets if m["market"] == "Tarjetas totales"), None)
+    assert total_card is not None, "Debe seleccionarse una línea de Tarjetas totales"
+    # No debe ser la línea trivial (+1.5), sino una línea válida del catálogo (Menos de 3.5 tarjetas)
+    assert "Más de 1.5 tarjetas" not in total_card["selection"]
+    assert "Menos de 3.5 tarjetas" in total_card["selection"]
+    assert total_card["probability"] >= 0.60
+    assert "3.20" in total_card["explanation"]
+
+
+def test_metric_families_evaluate_low_medium_high_lines():
+    """Verifica que todas las familias de métricas de conteo evalúen líneas bajas, medias y altas."""
+    home = Team(1, "Equipo A")
+    away = Team(2, "Equipo B")
+    probs = _probabilities()
+    expected = ExpectedMetrics(
+        cards_home=2.5,
+        cards_away=2.5,
+        corners_home=5.5,
+        corners_away=4.5,
+        total_shots_home=16.0,
+        total_shots_away=12.0,
+        shots_on_home=6.0,
+        shots_on_away=4.0,
+        offsides_home=2.5,
+        offsides_away=2.0,
+    )
+
+    from deport_ai.statistical_markets import calculate_candidate_markets
+
+    candidates = calculate_candidate_markets(home, away, probs, expected)
+
+    # Tarjetas: debe evaluar +1.5 (baja), +3.5 (media), +5.5 (alta)
+    card_lines = {c["selection"] for c in candidates if c["category"] == "Tarjetas" and "totales" in c["market"]}
+    assert "Más de 1.5 tarjetas" in card_lines
+    assert "Más de 3.5 tarjetas" in card_lines
+    assert "Más de 5.5 tarjetas" in card_lines
+
+    # Córners: debe evaluar +3.5 (baja), +7.5 (media), +11.5 (alta)
+    corner_lines = {c["selection"] for c in candidates if c["category"] == "Córners" and "totales" in c["market"]}
+    assert "Más de 3.5 córners" in corner_lines
+    assert "Más de 7.5 córners" in corner_lines
+    assert "Más de 11.5 córners" in corner_lines
+
+    # Remates: debe evaluar +15.5 (baja), +21.5 (media), +29.5 (alta)
+    shot_lines = {c["selection"] for c in candidates if c["category"] == "Remates" and "totales" in c["market"]}
+    assert "Más de 15.5 remates" in shot_lines
+    assert "Más de 21.5 remates" in shot_lines
+    assert "Más de 29.5 remates" in shot_lines
+
+    # Tiros a puerta: debe evaluar +4.5 (baja), +7.5 (media), +10.5 (alta)
+    sot_lines = {c["selection"] for c in candidates if c["category"] == "Tiros a puerta" and "totales" in c["market"]}
+    assert "Más de 4.5 tiros a puerta" in sot_lines
+    assert "Más de 7.5 tiros a puerta" in sot_lines
+    assert "Más de 10.5 tiros a puerta" in sot_lines
+
+    # Offsides: debe evaluar +1.5 (baja), +3.5 (media), +5.5 (alta)
+    offside_lines = {c["selection"] for c in candidates if c["category"] == "Fueras de juego" and "totales" in c["market"]}
+    assert "Más de 1.5 fueras de juego" in offside_lines
+    assert "Más de 3.5 fueras de juego" in offside_lines
+    assert "Más de 5.5 fueras de juego" in offside_lines
+
+
+def test_no_conflicting_or_redundant_markets_in_same_subgroup():
+    """Verifica que no aparezcan mercados contradictorios o múltiples en el mismo subgrupo."""
+    home = Team(1, "Equipo A")
+    away = Team(2, "Equipo B")
+    probs = _probabilities()
+    expected = ExpectedMetrics(
+        cards_home=2.0,
+        cards_away=2.0,
+        corners_home=6.0,
+        corners_away=5.0,
+    )
+
+    markets = select_statistical_markets(home, away, probs, expected)
+
+    # Solo una línea de tarjetas totales
+    assert sum(m["market"] == "Tarjetas totales" for m in markets) <= 1
+    # Solo una línea de córners totales
+    assert sum(m["market"] == "Córners totales" for m in markets) <= 1
+    # Solo una línea de goles totales
+    assert sum(m["market"] == "Goles totales" for m in markets) <= 1
+    # Solo una línea de doble oportunidad
+    assert sum(m["market"] == "Doble oportunidad" for m in markets) <= 1
+
+
+def test_complete_independence_from_commercial_bookmakers_and_odds():
+    """Verifica que ningún mercado contenga referencias a cuotas, edge, valor o filtros de casas comerciales."""
+    home = Team(1, "Local")
+    away = Team(2, "Visitante")
+    probs = _probabilities()
+    expected = ExpectedMetrics(
+        cards_home=2.0,
+        cards_away=2.0,
+        corners_home=5.0,
+        corners_away=5.0,
+    )
+
+    markets = select_statistical_markets(home, away, probs, expected)
+
+    for m in markets:
+        assert "odds" not in m
+        assert "cuota" not in m
+        assert "edge" not in m
+        assert "value" not in m
+        assert "betano" not in str(m).lower()
+        assert m["probability"] >= 0.60
+
+
+def test_trivial_lines_blocked_even_with_high_probability():
+    """Verifica que líneas triviales (+3.5 córners, +0.5 tarjetas equipo, etc.) no se muestren aunque tengan 90%+."""
+    home = Team(1, "Local")
+    away = Team(2, "Visitante")
+    probs = _probabilities()
+    # Métricas altas que generarían altísima probabilidad en líneas triviales
+    expected = ExpectedMetrics(
+        corners_home=6.0,
+        corners_away=5.0,  # Total 11.0 córners -> +3.5 tiene >95%
+        cards_home=3.0,
+        cards_away=2.5,   # +0.5 tarjetas tiene >90%
+        offsides_home=2.5,
+        offsides_away=2.0, # +0.5 fueras de juego tiene >90%
+        total_shots_home=18.0,
+        total_shots_away=12.0, # +7.5 remates tiene >95%
+    )
+
+    markets = select_statistical_markets(home, away, probs, expected)
+    selections = [m["selection"] for m in markets]
+
+    # Córners totales triviales no permitidos
+    assert "Más de 3.5 córners" not in selections
+    assert "Más de 4.5 córners" not in selections
+    assert "Más de 5.5 córners" not in selections
+    assert "Más de 6.5 córners" not in selections
+
+    # Córners de equipo triviales no permitidos (+1.5, +2.5)
+    assert not any(s.endswith("Más de 1.5 córners") for s in selections)
+    assert not any(s.endswith("Más de 2.5 córners") for s in selections)
+
+    # Tarjetas de equipo triviales (+0.5) no permitidas
+    assert not any(s.endswith("Más de 0.5 tarjetas") for s in selections)
+
+    # Tarjetas totales triviales (+1.5, +2.5) no permitidas
+    assert "Más de 1.5 tarjetas" not in selections
+    assert "Más de 2.5 tarjetas" not in selections
+
+    # Fueras de juego de equipo triviales (+0.5) no permitidas
+    assert not any(s.endswith("Más de 0.5 fueras de juego") for s in selections)
+
+    # Fueras de juego totales triviales (+1.5) no permitidas
+    assert "Más de 1.5 fueras de juego" not in selections
+
+    # Remates triviales no permitidos
+    assert "Más de 7.5 remates" not in selections
+    assert "Más de 9.5 remates" not in selections
+    assert "Más de 15.5 remates" not in selections
+    assert "Más de 17.5 remates" not in selections
+    assert "Más de 19.5 remates" not in selections
+    assert not any(s.endswith("Más de 7.5 remates") for s in selections)
+    assert not any(s.endswith("Más de 9.5 remates") for s in selections)
+
+
+def test_selector_picks_most_demanding_valid_line_over_highest_probability():
+    """Verifica que entre varias líneas válidas con >=60%, el selector elija la MÁS EXIGENTE y no la más probable."""
+    home = Team(1, "Local")
+    away = Team(2, "Visitante")
+    probs = _probabilities()
+    # Con 11.5 córners proyectados: +7.5 tiene prob ~72.7% y +8.5 tiene prob ~65.5% (ambas >=60%)
+    expected = ExpectedMetrics(
+        corners_home=6.5,
+        corners_away=5.0,
+        dispersion_corners=0.18,
+    )
+
+    markets = select_statistical_markets(home, away, probs, expected)
+    corner_total = next((m for m in markets if m["market"] == "Córners totales"), None)
+
+    assert corner_total is not None
+    # Debe escoger Más de 8.5 córners (~65.5%) en lugar de Más de 7.5 córners (~72.7%) o triviales
+    assert "Más de 8.5 córners" in corner_total["selection"]
+    assert corner_total["probability"] >= 0.60
+    assert corner_total["probability"] < 0.70  # Confirma que eligió la línea exigente y no la de 72.7%+
+
+
+def test_category_hidden_if_no_valid_line_reaches_60_percent():
+    """Verifica que si ninguna línea válida de una categoría llega a 60%, la categoría se oculte completamente."""
+    home = Team(1, "Local")
+    away = Team(2, "Visitante")
+    probs = _probabilities()
+    # Sin estadísticas de tarjetas en ExpectedMetrics (None), ninguna línea alcanza 60%
+    expected = ExpectedMetrics(
+        cards_home=None,
+        cards_away=None,
+        corners_home=6.0,
+        corners_away=5.0,
+    )
+
+    markets = select_statistical_markets(home, away, probs, expected)
+    categories = {m["category"] for m in markets}
+
+    # "Tarjetas" debe quedar totalmente oculta
+    assert "Tarjetas" not in categories
+
+
+def test_uncatalogued_line_with_99_percent_is_discarded():
+    """Verifica que una línea con 99% que no esté en MarketPresentationCatalog sea descartada."""
+    from deport_ai.presentation_catalog import MarketPresentationCatalog
+
+    # Línea fuera de catálogo con 99% (ej: +2.5 córners totales o +0.5 tarjetas equipo)
+    fake_candidate = {
+        "id": "uncatalogued_corners_over_25",
+        "category": "Córners",
+        "group": "corners_total",
+        "market": "Córners totales",
+        "selection": "Más de 2.5 córners",
+        "line": 2.5,
+        "side": "over",
+        "probability": 0.99,
+        "basis": "Test",
+        "explanation": "Test",
+    }
+    assert MarketPresentationCatalog.is_presentable(fake_candidate) is False
+
+    fake_card = {
+        "id": "uncatalogued_cards_home_over_05",
+        "category": "Tarjetas",
+        "group": "cards_home",
+        "market": "Tarjetas de Local",
+        "selection": "Local Más de 0.5 tarjetas",
+        "line": 0.5,
+        "side": "over",
+        "probability": 0.99,
+        "basis": "Test",
+        "explanation": "Test",
+    }
+    assert MarketPresentationCatalog.is_presentable(fake_card) is False
+
+
+

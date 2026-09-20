@@ -5,6 +5,13 @@ from collections import defaultdict
 from typing import Any
 
 from .domain import ExpectedMetrics, ProbabilityReport, Team
+from .markets_catalog import (
+    MINIMUM_INFORMATIVE_LINES,
+    MarketDefinition,
+    build_declarative_catalog,
+)
+from .presentation_catalog import MarketPresentationCatalog, get_exigence_score
+from .stats_engine import negative_binomial_pmf
 
 
 MINIMUM_PROBABILITY = 0.60
@@ -20,288 +27,444 @@ def _safe_complement(p: float | None) -> float | None:
     return round(max(0.0, min(1.0, 1.0 - p)), 4)
 
 
+def _calc_count_over(rate: float | None, alpha: float, line: float) -> float | None:
+    """Calcula P(Conteo > line) mediante distribución Binomial Negativa: 1 - sum(P(k) para k <= line)."""
+    if rate is None or rate <= 0.0:
+        return None
+    k_max = int(math.floor(line))
+    p_under = sum(negative_binomial_pmf(k, rate, alpha) for k in range(k_max + 1))
+    return round(max(0.0, min(1.0, 1.0 - p_under)), 4)
+
+
+def _calc_count_under(rate: float | None, alpha: float, line: float) -> float | None:
+    """Calcula P(Conteo < line) mediante distribución Binomial Negativa: sum(P(k) para k <= line)."""
+    if rate is None or rate <= 0.0:
+        return None
+    k_max = int(math.floor(line))
+    p_under = sum(negative_binomial_pmf(k, rate, alpha) for k in range(k_max + 1))
+    return round(max(0.0, min(1.0, p_under)), 4)
+
+
+def calculate_candidate_markets(
+    home: Team,
+    away: Team,
+    probabilities: ProbabilityReport,
+    expected: ExpectedMetrics,
+) -> list[dict[str, Any]]:
+    """Genera sistemáticamente todos los mercados declarativos evaluados por las distribuciones del modelo."""
+    catalog = build_declarative_catalog(home.name, away.name)
+    candidates: list[dict[str, Any]] = []
+
+    # Métricas agregadas y dispersiones
+    disp_cards = getattr(expected, "dispersion_cards", 0.27)
+    disp_corners = getattr(expected, "dispersion_corners", 0.18)
+    disp_shots = getattr(expected, "dispersion_shots", 0.10)
+    disp_offsides = getattr(expected, "dispersion_offsides", 0.16)
+
+    total_cards = (
+        expected.cards_home + expected.cards_away
+        if (expected.cards_home is not None and expected.cards_away is not None)
+        else None
+    )
+    total_corners = (
+        expected.corners_home + expected.corners_away
+        if (expected.corners_home is not None and expected.corners_away is not None)
+        else None
+    )
+    total_shots = (
+        expected.total_shots_home + expected.total_shots_away
+        if (expected.total_shots_home is not None and expected.total_shots_away is not None)
+        else None
+    )
+    total_shots_on = (
+        expected.shots_on_home + expected.shots_on_away
+        if (expected.shots_on_home is not None and expected.shots_on_away is not None)
+        else None
+    )
+    total_offsides = (
+        expected.offsides_home + expected.offsides_away
+        if (expected.offsides_home is not None and expected.offsides_away is not None)
+        else None
+    )
+    total_goals = (
+        (probabilities.expected_home_goals + probabilities.expected_away_goals)
+        if (probabilities.expected_home_goals is not None and probabilities.expected_away_goals is not None)
+        else None
+    )
+    tot_woodwork = (
+        expected.woodwork_home + expected.woodwork_away
+        if (expected.woodwork_home is not None and expected.woodwork_away is not None)
+        else None
+    )
+
+    matrix = (
+        probabilities.score_matrix
+        if getattr(probabilities, "score_matrix", None) and len(probabilities.score_matrix) > 1
+        else None
+    )
+
+    projections_map: dict[str, float | None] = {
+        "total_cards": total_cards,
+        "cards_home": expected.cards_home,
+        "cards_away": expected.cards_away,
+        "total_corners": total_corners,
+        "corners_home": expected.corners_home,
+        "corners_away": expected.corners_away,
+        "total_shots": total_shots,
+        "total_shots_home": expected.total_shots_home,
+        "total_shots_away": expected.total_shots_away,
+        "total_shots_on": total_shots_on,
+        "shots_on_home": expected.shots_on_home,
+        "shots_on_away": expected.shots_on_away,
+        "total_offsides": total_offsides,
+        "offsides_home": expected.offsides_home,
+        "offsides_away": expected.offsides_away,
+        "total_goals": total_goals,
+        "expected_home_goals": probabilities.expected_home_goals,
+        "expected_away_goals": probabilities.expected_away_goals,
+        "tot_woodwork": tot_woodwork,
+    }
+
+    for defn in catalog:
+        prob: float | None = None
+        proj_val = projections_map.get(defn.projection_source) if defn.projection_source else None
+
+        # 1. Tarjetas
+        if defn.probability_source == "neg_bin_cards_total":
+            if total_cards is not None and total_cards > 0:
+                prob = _calc_count_over(total_cards, disp_cards, defn.line) if defn.side == "over" else _calc_count_under(total_cards, disp_cards, defn.line)
+            else:
+                attr_name = f"{'over' if defn.side == 'over' else 'under'}_{int(defn.line * 10)}_cards"
+                prob = getattr(expected, attr_name, None)
+        elif defn.probability_source == "neg_bin_cards_home":
+            if expected.cards_home is not None and expected.cards_home > 0:
+                prob = _calc_count_over(expected.cards_home, disp_cards, defn.line) if defn.side == "over" else _calc_count_under(expected.cards_home, disp_cards, defn.line)
+            else:
+                attr_name = f"{'over' if defn.side == 'over' else 'under'}_{int(defn.line * 10)}_cards_home"
+                prob = getattr(expected, attr_name, None)
+        elif defn.probability_source == "neg_bin_cards_away":
+            if expected.cards_away is not None and expected.cards_away > 0:
+                prob = _calc_count_over(expected.cards_away, disp_cards, defn.line) if defn.side == "over" else _calc_count_under(expected.cards_away, disp_cards, defn.line)
+            else:
+                attr_name = f"{'over' if defn.side == 'over' else 'under'}_{int(defn.line * 10)}_cards_away"
+                prob = getattr(expected, attr_name, None)
+
+        # 2. Córners
+        elif defn.probability_source == "neg_bin_corners_total":
+            if total_corners is not None and total_corners > 0:
+                prob = _calc_count_over(total_corners, disp_corners, defn.line) if defn.side == "over" else _calc_count_under(total_corners, disp_corners, defn.line)
+            else:
+                attr_name = f"{'over' if defn.side == 'over' else 'under'}_{int(defn.line * 10)}_corners"
+                prob = getattr(expected, attr_name, None)
+        elif defn.probability_source == "neg_bin_corners_home":
+            if expected.corners_home is not None and expected.corners_home > 0:
+                prob = _calc_count_over(expected.corners_home, disp_corners, defn.line) if defn.side == "over" else _calc_count_under(expected.corners_home, disp_corners, defn.line)
+            else:
+                attr_name = f"{'over' if defn.side == 'over' else 'under'}_{int(defn.line * 10)}_corners_home"
+                prob = getattr(expected, attr_name, None)
+        elif defn.probability_source == "neg_bin_corners_away":
+            if expected.corners_away is not None and expected.corners_away > 0:
+                prob = _calc_count_over(expected.corners_away, disp_corners, defn.line) if defn.side == "over" else _calc_count_under(expected.corners_away, disp_corners, defn.line)
+            else:
+                attr_name = f"{'over' if defn.side == 'over' else 'under'}_{int(defn.line * 10)}_corners_away"
+                prob = getattr(expected, attr_name, None)
+        elif defn.probability_source == "corners_1x2_home":
+            prob = getattr(expected, "corners_1x2_home", None)
+        elif defn.probability_source == "corners_1x2_away":
+            prob = getattr(expected, "corners_1x2_away", None)
+
+        # 3. Remates
+        elif defn.probability_source == "neg_bin_shots_total":
+            if total_shots is not None and total_shots > 0:
+                prob = _calc_count_over(total_shots, disp_shots, defn.line) if defn.side == "over" else _calc_count_under(total_shots, disp_shots, defn.line)
+            else:
+                attr_name = f"{'over' if defn.side == 'over' else 'under'}_{int(defn.line * 10)}_total_shots"
+                prob = getattr(expected, attr_name, None)
+        elif defn.probability_source == "neg_bin_shots_home":
+            if expected.total_shots_home is not None and expected.total_shots_home > 0:
+                prob = _calc_count_over(expected.total_shots_home, disp_shots, defn.line) if defn.side == "over" else _calc_count_under(expected.total_shots_home, disp_shots, defn.line)
+            else:
+                attr_name = f"{'over' if defn.side == 'over' else 'under'}_{int(defn.line * 10)}_shots_home"
+                prob = getattr(expected, attr_name, None)
+        elif defn.probability_source == "neg_bin_shots_away":
+            if expected.total_shots_away is not None and expected.total_shots_away > 0:
+                prob = _calc_count_over(expected.total_shots_away, disp_shots, defn.line) if defn.side == "over" else _calc_count_under(expected.total_shots_away, disp_shots, defn.line)
+            else:
+                attr_name = f"{'over' if defn.side == 'over' else 'under'}_{int(defn.line * 10)}_shots_away"
+                prob = getattr(expected, attr_name, None)
+
+        # 4. Tiros a puerta
+        elif defn.probability_source == "neg_bin_shots_on_total":
+            if total_shots_on is not None and total_shots_on > 0:
+                prob = _calc_count_over(total_shots_on, disp_shots, defn.line) if defn.side == "over" else _calc_count_under(total_shots_on, disp_shots, defn.line)
+            else:
+                attr_name = f"{'over' if defn.side == 'over' else 'under'}_{int(defn.line * 10)}_shots_on"
+                prob = getattr(expected, attr_name, None)
+        elif defn.probability_source == "neg_bin_shots_on_home":
+            if expected.shots_on_home is not None and expected.shots_on_home > 0:
+                prob = _calc_count_over(expected.shots_on_home, disp_shots, defn.line) if defn.side == "over" else _calc_count_under(expected.shots_on_home, disp_shots, defn.line)
+            else:
+                attr_name = f"{'over' if defn.side == 'over' else 'under'}_{int(defn.line * 10)}_shots_on_home"
+                prob = getattr(expected, attr_name, None)
+        elif defn.probability_source == "neg_bin_shots_on_away":
+            if expected.shots_on_away is not None and expected.shots_on_away > 0:
+                prob = _calc_count_over(expected.shots_on_away, disp_shots, defn.line) if defn.side == "over" else _calc_count_under(expected.shots_on_away, disp_shots, defn.line)
+            else:
+                attr_name = f"{'over' if defn.side == 'over' else 'under'}_{int(defn.line * 10)}_shots_on_away"
+                prob = getattr(expected, attr_name, None)
+
+        # 5. Fueras de juego
+        elif defn.probability_source == "neg_bin_offsides_total":
+            if total_offsides is not None and total_offsides > 0:
+                prob = _calc_count_over(total_offsides, disp_offsides, defn.line) if defn.side == "over" else _calc_count_under(total_offsides, disp_offsides, defn.line)
+            else:
+                attr_name = f"{'over' if defn.side == 'over' else 'under'}_{int(defn.line * 10)}_offsides"
+                prob = getattr(expected, attr_name, None)
+        elif defn.probability_source == "neg_bin_offsides_home":
+            if expected.offsides_home is not None and expected.offsides_home > 0:
+                prob = _calc_count_over(expected.offsides_home, disp_offsides, defn.line) if defn.side == "over" else _calc_count_under(expected.offsides_home, disp_offsides, defn.line)
+            else:
+                attr_name = f"{'over' if defn.side == 'over' else 'under'}_{int(defn.line * 10)}_offsides_home"
+                prob = getattr(expected, attr_name, None)
+        elif defn.probability_source == "neg_bin_offsides_away":
+            if expected.offsides_away is not None and expected.offsides_away > 0:
+                prob = _calc_count_over(expected.offsides_away, disp_offsides, defn.line) if defn.side == "over" else _calc_count_under(expected.offsides_away, disp_offsides, defn.line)
+            else:
+                attr_name = f"{'over' if defn.side == 'over' else 'under'}_{int(defn.line * 10)}_offsides_away"
+                prob = getattr(expected, attr_name, None)
+
+        # 6. Goles
+        elif defn.probability_source == "matrix_goals_total":
+            if matrix:
+                k_line = int(math.floor(defn.line))
+                if defn.side == "over":
+                    prob = round(sum(matrix[h][a] for h in range(len(matrix)) for a in range(len(matrix[h])) if h + a > k_line), 4)
+                else:
+                    prob = round(sum(matrix[h][a] for h in range(len(matrix)) for a in range(len(matrix[h])) if h + a <= k_line), 4)
+            else:
+                attr_name = f"{'over' if defn.side == 'over' else 'under'}_{int(defn.line * 10)}"
+                prob = getattr(probabilities, attr_name, None)
+        elif defn.probability_source == "btts_yes":
+            prob = probabilities.btts
+        elif defn.probability_source == "btts_no":
+            prob = _safe_complement(probabilities.btts)
+        elif defn.probability_source == "matrix_home_goals":
+            if matrix:
+                k_line = int(math.floor(defn.line))
+                if defn.side == "over":
+                    prob = round(sum(matrix[h][a] for h in range(len(matrix)) for a in range(len(matrix[h])) if h > k_line), 4)
+                else:
+                    prob = round(sum(matrix[h][a] for h in range(len(matrix)) for a in range(len(matrix[h])) if h <= k_line), 4)
+            else:
+                if defn.line == 0.5 and defn.side == "over":
+                    prob = _safe_complement(probabilities.clean_sheet_away)
+                elif defn.line == 1.5 and defn.side == "over":
+                    prob = probabilities.home_over_15
+                elif defn.line == 1.5 and defn.side == "under":
+                    prob = probabilities.home_under_15
+                elif defn.line == 2.5 and defn.side == "over":
+                    prob = getattr(probabilities, "home_over_25", None)
+        elif defn.probability_source == "matrix_away_goals":
+            if matrix:
+                k_line = int(math.floor(defn.line))
+                if defn.side == "over":
+                    prob = round(sum(matrix[h][a] for h in range(len(matrix)) for a in range(len(matrix[h])) if a > k_line), 4)
+                else:
+                    prob = round(sum(matrix[h][a] for h in range(len(matrix)) for a in range(len(matrix[h])) if a <= k_line), 4)
+            else:
+                if defn.line == 0.5 and defn.side == "over":
+                    prob = _safe_complement(probabilities.clean_sheet_home)
+                elif defn.line == 1.5 and defn.side == "over":
+                    prob = probabilities.away_over_15
+                elif defn.line == 1.5 and defn.side == "under":
+                    prob = probabilities.away_under_15
+        elif defn.probability_source == "clean_sheet_home":
+            prob = probabilities.clean_sheet_home
+        elif defn.probability_source == "clean_sheet_away":
+            prob = probabilities.clean_sheet_away
+
+        # 7. Mitades
+        elif defn.probability_source == "first_half_over_05":
+            prob = probabilities.first_half_over_05
+        elif defn.probability_source == "first_half_under_15":
+            prob = probabilities.first_half_under_15 if getattr(probabilities, "first_half_under_15", None) is not None else _safe_complement(probabilities.first_half_over_15)
+        elif defn.probability_source == "first_half_over_15":
+            prob = probabilities.first_half_over_15
+        elif defn.probability_source == "second_half_over_05":
+            prob = probabilities.second_half_over_05
+        elif defn.probability_source == "second_half_under_15":
+            prob = probabilities.second_half_under_15 if getattr(probabilities, "second_half_under_15", None) is not None else _safe_complement(probabilities.second_half_over_15)
+        elif defn.probability_source == "second_half_over_15":
+            prob = probabilities.second_half_over_15
+
+        # 8. Resultado
+        elif defn.probability_source == "match_1x2_home":
+            prob = probabilities.home_win
+        elif defn.probability_source == "match_1x2_draw":
+            prob = probabilities.draw
+        elif defn.probability_source == "match_1x2_away":
+            prob = probabilities.away_win
+        elif defn.probability_source == "double_chance_1x":
+            prob = min(1.0, round(probabilities.home_win + probabilities.draw, 4)) if (probabilities.home_win is not None and probabilities.draw is not None) else None
+        elif defn.probability_source == "double_chance_x2":
+            prob = min(1.0, round(probabilities.away_win + probabilities.draw, 4)) if (probabilities.away_win is not None and probabilities.draw is not None) else None
+        elif defn.probability_source == "double_chance_12":
+            prob = min(1.0, round(probabilities.home_win + probabilities.away_win, 4)) if (probabilities.home_win is not None and probabilities.away_win is not None) else None
+        elif defn.probability_source == "dnb_home":
+            prob = probabilities.dnb_home
+        elif defn.probability_source == "dnb_away":
+            prob = probabilities.dnb_away
+        elif defn.probability_source == "win_to_nil_home":
+            if matrix:
+                prob = round(sum(matrix[h][0] for h in range(1, len(matrix))), 4)
+        elif defn.probability_source == "win_to_nil_away":
+            if matrix:
+                prob = round(sum(matrix[0][a] for a in range(1, len(matrix[0]))), 4)
+
+        # 9. Especiales
+        elif defn.probability_source == "hit_woodwork":
+            prob = expected.over_05_woodwork
+
+        if prob is None:
+            continue
+
+        prob = round(prob, 4)
+        basis = (
+            "Proyección experimental sujeta a calibración histórica; calculada con distribución binomial negativa y probabilidad explícita de empate."
+            if defn.is_experimental
+            else "Proyección del modelo estadístico; no incluye cuota ni valoración frente a una casa."
+        )
+
+        try:
+            explanation = defn.explanation_template.format(projection=proj_val, probability=prob) if proj_val is not None else defn.explanation_template
+        except Exception:
+            explanation = defn.explanation_template
+
+        item: dict[str, Any] = {
+            "id": defn.id,
+            "category": defn.category,
+            "group": defn.group,
+            "market": defn.market_template,
+            "selection": defn.selection_template,
+            "line": defn.line,
+            "side": defn.side,
+            "probability": prob,
+            "basis": basis,
+            "explanation": explanation,
+        }
+        if proj_val is not None:
+            item["projection"] = round(proj_val, 2)
+        if defn.requires_starter_confirmation:
+            item["requires_starter_confirmation"] = True
+
+        candidates.append(item)
+
+    # 10. Jugadores (Props de remates y goleadores)
+    _add_player_candidates(candidates, home, expected.player_shots.get(home.id, []))
+    _add_player_candidates(candidates, away, expected.player_shots.get(away.id, []))
+    _add_scorer_candidates(candidates, home, expected.anytime_goalscorers.get(home.id, []))
+    _add_scorer_candidates(candidates, away, expected.anytime_goalscorers.get(away.id, []))
+
+    return candidates
+
+
+def _get_subfamily_key(candidate: dict[str, Any]) -> str:
+    """Identifica la subfamilia homogénea de una selección (ej: corners_total:over vs corners_total:under)."""
+    group = str(candidate.get("group", ""))
+    side = str(candidate.get("side", ""))
+    selection = str(candidate.get("selection", ""))
+
+    if group.startswith("player_shots"):
+        if "tiro a puerta" in selection:
+            return f"{group}:sot"
+        return f"{group}:shots"
+    if group.startswith("player_goal"):
+        return f"{group}:goal"
+    if side in ("over", "under"):
+        return f"{group}:{side}"
+    return group
+
+
+def _get_concept_group(candidate: dict[str, Any]) -> str:
+    """Identifica el concepto global del mercado para deduplicar a una única selección por concepto."""
+    group = str(candidate.get("group", ""))
+    if group.startswith("player_shots:") or group.startswith("player_goal:"):
+        parts = group.split(":")
+        if len(parts) >= 3:
+            return f"player:{parts[1]}:{parts[2]}"
+        return group
+    return group
+
+
+def _candidate_rank_key(c: dict[str, Any]) -> tuple[float, float]:
+    """Calcula el orden de prioridad entre campeones de subfamilias del mismo concepto.
+
+    Para mercados de conteo con línea y proyección:
+    Prioriza el margen direccional proyectado (projection - line para over, line - projection para under).
+    Desempata con la probabilidad de la selección.
+    """
+    side = c.get("side")
+    line = c.get("line")
+    proj = c.get("projection")
+    if proj is not None and line is not None:
+        if side == "over":
+            directional_margin = round(float(proj) - float(line), 2)
+            return (directional_margin, float(c.get("probability", 0.0)))
+        if side == "under":
+            directional_margin = round(float(line) - float(proj), 2)
+            return (directional_margin, float(c.get("probability", 0.0)))
+    return (0.0, float(c.get("probability", 0.0)))
+
+
 def select_statistical_markets(
     home: Team,
     away: Team,
     probabilities: ProbabilityReport,
     expected: ExpectedMetrics,
     minimum_probability: float = MINIMUM_PROBABILITY,
+    max_per_category: int = 4,
 ) -> list[dict[str, Any]]:
-    """Return model-only markets, without bookmaker prices or value assertions.
-
-    Each logical market contributes only its highest-probability eligible line.
-    This keeps the output useful without filling it with overlapping alternatives
-    such as every consecutive total-goals or total-corners line.
+    """Aplica la capa de presentación:
+    1. Filtra candidatos estrictamente según MarketPresentationCatalog (excluye triviales y no catalogados).
+    2. Conserva selecciones con probabilidad >= minimum_probability (0.60).
+    3. Para cada subfamilia, elige la línea válida MÁS EXIGENTE.
+    4. Deduplica por concepto/grupo priorizando margen direccional proyectado y probabilidad.
+    5. Agrupa por categoría, limitando a un máximo de 4 selecciones (orden descendente).
+    6. Oculta cualquier categoría sin selecciones válidas.
     """
+    candidates = calculate_candidate_markets(home, away, probabilities, expected)
 
-    candidates: list[dict[str, Any]] = []
+    # 1. Filtro estricto por MarketPresentationCatalog y probabilidad mínima
+    eligible: list[dict[str, Any]] = []
+    for c in candidates:
+        prob = c.get("probability")
+        if prob is None or prob < minimum_probability:
+            continue
+        if not MarketPresentationCatalog.is_presentable(c):
+            continue
+        eligible.append(c)
 
-    def add(
-        category: str,
-        group: str,
-        market: str,
-        selection: str,
-        probability: float | None,
-        projection: float | None = None,
-        *,
-        starter_confirmation: bool = False,
-        basis: str | None = None,
-    ) -> None:
-        if probability is None or probability < minimum_probability:
-            return
-        item: dict[str, Any] = {
-            "category": category,
-            "group": group,
-            "market": market,
-            "selection": selection,
-            "probability": round(probability, 4),
-            "basis": basis or "Proyección del modelo estadístico; no incluye cuota ni valoración frente a una casa.",
-        }
-        if projection is not None:
-            item["projection"] = round(projection, 2)
-        if starter_confirmation:
-            item["requires_starter_confirmation"] = True
-        candidates.append(item)
+    # 2. Agrupación por subfamilia para escoger la línea MÁS EXIGENTE de cada una
+    by_subfamily: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for c in eligible:
+        subfamily_key = _get_subfamily_key(c)
+        by_subfamily[subfamily_key].append(c)
 
-    matrix = probabilities.score_matrix if getattr(probabilities, "score_matrix", None) and len(probabilities.score_matrix) > 1 else None
-    total_goals = probabilities.expected_home_goals + probabilities.expected_away_goals
+    # 3. Dentro de cada subfamilia, elegir la selección con mayor puntaje de exigencia
+    subfamily_champions: list[dict[str, Any]] = []
+    for sub_items in by_subfamily.values():
+        champion = max(sub_items, key=lambda x: (get_exigence_score(x), x["probability"]))
+        subfamily_champions.append(champion)
 
-    # 1. Resultado y Gana a Cero (máximo 1 de cada subtipo)
-    add("Resultado", "1x2", "Resultado del partido", home.name, probabilities.home_win)
-    add("Resultado", "1x2", "Resultado del partido", "Empate", probabilities.draw)
-    add("Resultado", "1x2", "Resultado del partido", away.name, probabilities.away_win)
-
-    # Doble Oportunidad (solo la más probable: 1X, X2 o 12)
-    p_1x = min(1.0, probabilities.home_win + probabilities.draw) if (probabilities.home_win is not None and probabilities.draw is not None) else None
-    p_x2 = min(1.0, probabilities.away_win + probabilities.draw) if (probabilities.away_win is not None and probabilities.draw is not None) else None
-    p_12 = min(1.0, probabilities.home_win + probabilities.away_win) if (probabilities.home_win is not None and probabilities.away_win is not None) else None
-    add("Resultado", "double_chance", "Doble oportunidad", f"{home.name} o Empate (1X)", p_1x)
-    add("Resultado", "double_chance", "Doble oportunidad", f"{away.name} o Empate (X2)", p_x2)
-    add("Resultado", "double_chance", "Doble oportunidad", f"{home.name} o {away.name} (12)", p_12)
-
-    # Empate Apuesta No Válida (DNB - solo la más probable)
-    add("Resultado", "dnb", "Empate apuesta no válida", f"DNB {home.name}", probabilities.dnb_home)
-    add("Resultado", "dnb", "Empate apuesta no válida", f"DNB {away.name}", probabilities.dnb_away)
-
-    if matrix:
-        win_to_nil_h = sum(matrix[h][0] for h in range(1, len(matrix)))
-        win_to_nil_a = sum(matrix[0][a] for a in range(1, len(matrix[0])))
-        add("Resultado", "win_to_nil", "Gana a cero", f"{home.name} gana a cero", win_to_nil_h)
-        add("Resultado", "win_to_nil", "Gana a cero", f"{away.name} gana a cero", win_to_nil_a)
-
-    # 2. Goles Totales y Ambos Marcan (solo 1 línea de goles totales)
-    add("Goles", "total_goals", "Goles totales", "Más de 1.5 goles", probabilities.over_15, total_goals)
-    add("Goles", "total_goals", "Goles totales", "Más de 2.5 goles", probabilities.over_25, total_goals)
-    add("Goles", "total_goals", "Goles totales", "Más de 3.5 goles", probabilities.over_35, total_goals)
-    add("Goles", "total_goals", "Goles totales", "Menos de 2.5 goles", probabilities.under_25, total_goals)
-    add("Goles", "total_goals", "Goles totales", "Menos de 3.5 goles", probabilities.under_35, total_goals)
-
-    if matrix:
-        over_05 = 1.0 - matrix[0][0]
-        over_45 = sum(matrix[h][a] for h in range(len(matrix)) for a in range(len(matrix[h])) if h + a >= 5)
-        add("Goles", "total_goals", "Goles totales", "Más de 0.5 goles", over_05, total_goals)
-        add("Goles", "total_goals", "Goles totales", "Menos de 4.5 goles", 1.0 - over_45, total_goals)
-
-    add("Goles", "both_score", "Ambos equipos marcan", "Sí", probabilities.btts)
-    add("Goles", "both_score", "Ambos equipos marcan", "No (BTTS No)", _safe_complement(probabilities.btts))
-
-    # 3. Mercados por Mitad (1T y 2T - solo 1 línea por mitad)
-    p_1h_u15 = probabilities.first_half_under_15 if getattr(probabilities, "first_half_under_15", None) is not None else _safe_complement(probabilities.first_half_over_15)
-    p_2h_u15 = probabilities.second_half_under_15 if getattr(probabilities, "second_half_under_15", None) is not None else _safe_complement(probabilities.second_half_over_15)
-
-    add("Mitades", "first_half", "Primer tiempo", "1T Más de 0.5 goles", probabilities.first_half_over_05)
-    add("Mitades", "first_half", "Primer tiempo", "1T Menos de 1.5 goles", p_1h_u15)
-    add("Mitades", "first_half", "Primer tiempo", "1T Más de 1.5 goles", probabilities.first_half_over_15)
-    add("Mitades", "second_half", "Segundo tiempo", "2T Más de 0.5 goles", probabilities.second_half_over_05)
-    add("Mitades", "second_half", "Segundo tiempo", "2T Menos de 1.5 goles", p_2h_u15)
-    add("Mitades", "second_half", "Segundo tiempo", "2T Más de 1.5 goles", probabilities.second_half_over_15)
-
-    # 4. Goles por Equipo y Portería a Cero (solo 1 línea por equipo)
-    p_home_o05 = _safe_complement(probabilities.clean_sheet_away)
-    p_away_o05 = _safe_complement(probabilities.clean_sheet_home)
-
-    add("Goles", "home_goals", f"Goles de {home.name}", f"{home.name} Más de 0.5 goles", p_home_o05, probabilities.expected_home_goals)
-    add("Goles", "home_goals", f"Goles de {home.name}", f"{home.name} Más de 1.5 goles", probabilities.home_over_15, probabilities.expected_home_goals)
-    add("Goles", "home_goals", f"Goles de {home.name}", f"{home.name} Menos de 1.5 goles", probabilities.home_under_15, probabilities.expected_home_goals)
-    add("Goles", "home_goals", f"Goles de {home.name}", f"{home.name} Más de 2.5 goles", getattr(probabilities, "home_over_25", None), probabilities.expected_home_goals)
-
-    add("Goles", "away_goals", f"Goles de {away.name}", f"{away.name} Más de 0.5 goles", p_away_o05, probabilities.expected_away_goals)
-    add("Goles", "away_goals", f"Goles de {away.name}", f"{away.name} Menos de 1.5 goles", probabilities.away_under_15, probabilities.expected_away_goals)
-    add("Goles", "away_goals", f"Goles de {away.name}", f"{away.name} Más de 1.5 goles", probabilities.away_over_15, probabilities.expected_away_goals)
-
-    add("Goles", "clean_sheet", f"Portería a cero de {home.name}", f"{home.name} no recibe gol", probabilities.clean_sheet_home)
-    add("Goles", "clean_sheet", f"Portería a cero de {away.name}", f"{away.name} no recibe gol", probabilities.clean_sheet_away)
-
-    # 5. Especiales / Postes
-    if expected.over_05_woodwork is not None:
-        add("Especiales", "woodwork", "Tiros al palo", "Tiro al palo en el partido", expected.over_05_woodwork)
-
-    # 6. Córners 1X2 (Experimental - mediante convolución discreta binomial negativa con probabilidad explícita de empate)
-    p_c_home = getattr(expected, "corners_1x2_home", None)
-    p_c_away = getattr(expected, "corners_1x2_away", None)
-    if p_c_home is not None:
-        add(
-            "Córners",
-            "corners_1x2",
-            "Córners 1X2",
-            f"{home.name} saca más córners (Experimental)",
-            p_c_home,
-            expected.corners_home,
-            basis="Proyección experimental sujeta a calibración histórica; calculada con distribución binomial negativa y probabilidad explícita de empate.",
-        )
-    if p_c_away is not None:
-        add(
-            "Córners",
-            "corners_1x2",
-            "Córners 1X2",
-            f"{away.name} saca más córners (Experimental)",
-            p_c_away,
-            expected.corners_away,
-            basis="Proyección experimental sujeta a calibración histórica; calculada con distribución binomial negativa y probabilidad explícita de empate.",
-        )
-
-    corner_total = _total(expected.corners_home, expected.corners_away)
-    _add_lines(
-        add,
-        "Córners",
-        "corners_total",
-        "Córners totales",
-        corner_total,
-        [
-            ("Más de 7.5 córners", expected.over_75_corners),
-            ("Más de 8.5 córners", expected.over_85_corners),
-            ("Más de 9.5 córners", expected.over_95_corners),
-            ("Más de 10.5 córners", expected.over_105_corners),
-            ("Más de 11.5 córners", expected.over_115_corners),
-            ("Menos de 10.5 córners", expected.under_105_corners),
-        ],
-    )
-    _add_lines(
-        add,
-        "Córners",
-        "corners_home",
-        f"Córners de {home.name}",
-        expected.corners_home,
-        [
-            ("Más de 4.5 córners", expected.over_45_corners_home),
-            ("Más de 5.5 córners", expected.over_55_corners_home),
-            ("Más de 6.5 córners", expected.over_65_corners_home),
-            ("Menos de 3.5 córners", expected.under_35_corners_home),
-            ("Menos de 4.5 córners", expected.under_45_corners_home),
-        ],
-    )
-    _add_lines(
-        add,
-        "Córners",
-        "corners_away",
-        f"Córners de {away.name}",
-        expected.corners_away,
-        [
-            ("Más de 4.5 córners", expected.over_45_corners_away),
-            ("Más de 5.5 córners", expected.over_55_corners_away),
-            ("Más de 6.5 córners", expected.over_65_corners_away),
-            ("Menos de 3.5 córners", expected.under_35_corners_away),
-            ("Menos de 4.5 córners", expected.under_45_corners_away),
-        ],
-    )
-
-    cards_total = _total(expected.cards_home, expected.cards_away)
-    _add_lines(
-        add,
-        "Tarjetas",
-        "cards_total",
-        "Tarjetas totales",
-        cards_total,
-        [("Más de 3.5 tarjetas", expected.over_35_cards), ("Más de 4.5 tarjetas", expected.over_45_cards)],
-    )
-    _add_lines(add, "Tarjetas", "cards_home", f"Tarjetas de {home.name}", expected.cards_home, [
-        ("Más de 1.5 tarjetas", expected.over_15_cards_home),
-        ("Más de 2.5 tarjetas", expected.over_25_cards_home),
-    ])
-    _add_lines(add, "Tarjetas", "cards_away", f"Tarjetas de {away.name}", expected.cards_away, [
-        ("Más de 1.5 tarjetas", expected.over_15_cards_away),
-        ("Más de 2.5 tarjetas", expected.over_25_cards_away),
-    ])
-
-    shot_total = _total(expected.total_shots_home, expected.total_shots_away)
-    _add_lines(add, "Remates", "shots_total", "Remates totales", shot_total, [
-        ("Más de 21.5 remates", expected.over_215_total_shots),
-        ("Más de 23.5 remates", expected.over_235_total_shots),
-        ("Más de 25.5 remates", expected.over_255_total_shots),
-        ("Más de 27.5 remates", expected.over_275_total_shots),
-        ("Más de 29.5 remates", expected.over_295_total_shots),
-        ("Menos de 24.5 remates", expected.under_245_total_shots),
-        ("Menos de 26.5 remates", expected.under_265_total_shots),
-    ])
-    _add_lines(add, "Remates", "shots_home", f"Remates de {home.name}", expected.total_shots_home, [
-        ("Más de 11.5 remates", expected.over_115_shots_home),
-        ("Más de 13.5 remates", expected.over_135_shots_home),
-        ("Más de 15.5 remates", expected.over_155_shots_home),
-        ("Más de 17.5 remates", expected.over_175_shots_home),
-        ("Menos de 8.5 remates", expected.under_85_shots_home),
-        ("Menos de 9.5 remates", expected.under_95_shots_home),
-    ])
-    _add_lines(add, "Remates", "shots_away", f"Remates de {away.name}", expected.total_shots_away, [
-        ("Más de 11.5 remates", expected.over_115_shots_away),
-        ("Más de 13.5 remates", expected.over_135_shots_away),
-        ("Menos de 8.5 remates", expected.under_85_shots_away),
-        ("Menos de 9.5 remates", expected.under_95_shots_away),
-    ])
-
-    shots_on_total = _total(expected.shots_on_home, expected.shots_on_away)
-    _add_lines(add, "Tiros a puerta", "shots_on_total", "Tiros a puerta totales", shots_on_total, [
-        ("Más de 7.5 tiros a puerta", expected.over_75_shots_on),
-        ("Más de 8.5 tiros a puerta", expected.over_85_shots_on),
-        ("Más de 9.5 tiros a puerta", expected.over_95_shots_on),
-        ("Más de 10.5 tiros a puerta", expected.over_105_shots_on),
-        ("Menos de 8.5 tiros a puerta", expected.under_85_shots_on),
-        ("Menos de 9.5 tiros a puerta", expected.under_95_shots_on),
-    ])
-    _add_lines(add, "Tiros a puerta", "shots_on_home", f"Tiros a puerta de {home.name}", expected.shots_on_home, [
-        ("Más de 4.5 tiros a puerta", expected.over_45_shots_on_home),
-        ("Más de 5.5 tiros a puerta", expected.over_55_shots_on_home),
-        ("Más de 6.5 tiros a puerta", expected.over_65_shots_on_home),
-        ("Más de 7.5 tiros a puerta", expected.over_75_shots_on_home),
-        ("Menos de 2.5 tiros a puerta", expected.under_25_shots_on_home),
-        ("Menos de 3.5 tiros a puerta", expected.under_35_shots_on_home),
-    ])
-    _add_lines(add, "Tiros a puerta", "shots_on_away", f"Tiros a puerta de {away.name}", expected.shots_on_away, [
-        ("Más de 3.5 tiros a puerta", expected.over_35_shots_on_away),
-        ("Más de 4.5 tiros a puerta", expected.over_45_shots_on_away),
-        ("Menos de 2.5 tiros a puerta", expected.under_25_shots_on_away),
-        ("Menos de 3.5 tiros a puerta", expected.under_35_shots_on_away),
-    ])
-
-    offsides_total = _total(expected.offsides_home, expected.offsides_away)
-    _add_lines(add, "Fueras de juego", "offsides_total", "Fueras de juego totales", offsides_total, [
-        ("Más de 2.5 fueras de juego", expected.over_25_offsides),
-        ("Más de 3.5 fueras de juego", expected.over_35_offsides),
-        ("Menos de 2.5 fueras de juego", expected.under_25_offsides),
-        ("Menos de 3.5 fueras de juego", expected.under_35_offsides),
-        ("Menos de 4.5 fueras de juego", expected.under_45_offsides),
-    ])
-    _add_lines(add, "Fueras de juego", "offsides_home", f"Fueras de juego de {home.name}", expected.offsides_home, [
-        ("Más de 1.5 fueras de juego", expected.over_15_offsides_home),
-        ("Menos de 1.5 fueras de juego", expected.under_15_offsides_home),
-    ])
-    _add_lines(add, "Fueras de juego", "offsides_away", f"Fueras de juego de {away.name}", expected.offsides_away, [
-        ("Más de 1.5 fueras de juego", expected.over_15_offsides_away),
-        ("Menos de 1.5 fueras de juego", expected.under_15_offsides_away),
-    ])
-
-    _add_player_markets(add, home, expected.player_shots.get(home.id, []), minimum_probability)
-    _add_player_markets(add, away, expected.player_shots.get(away.id, []), minimum_probability)
-    _add_scorer_markets(add, home, expected.anytime_goalscorers.get(home.id, []), minimum_probability)
-    _add_scorer_markets(add, away, expected.anytime_goalscorers.get(away.id, []), minimum_probability)
-
+    # 4. Deduplicación por concepto global / grupo único
     best_by_group: dict[str, dict[str, Any]] = {}
-    for candidate in candidates:
-        previous = best_by_group.get(candidate["group"])
-        if previous is None or candidate["probability"] > previous["probability"]:
-            best_by_group[candidate["group"]] = candidate
+    for c in subfamily_champions:
+        concept_key = _get_concept_group(c)
+        previous = best_by_group.get(concept_key)
+        if previous is None or _candidate_rank_key(c) > _candidate_rank_key(previous):
+            best_by_group[concept_key] = c
 
-    # Agrupar por categoría y limitar a máximo 4 apuestas por categoría
-    # en estricto orden de mayor probabilidad a menor (probabilidad >= 60%)
+    # 5. Agrupación por categoría y limitación a máximo configurado (orden descendente)
     by_cat: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for item in best_by_group.values():
         by_cat[item["category"]].append(item)
@@ -309,31 +472,23 @@ def select_statistical_markets(
     selected: list[dict[str, Any]] = []
     for cat, items in by_cat.items():
         items.sort(key=lambda x: -x["probability"])
-        selected.extend(items[:4])
+        selected.extend(items[:max_per_category])
 
+    # 6. Orden final descendente y limpieza de campos internos
     selected.sort(key=lambda item: (-item["probability"], item["category"], item["market"]))
     for item in selected:
         item.pop("group", None)
+        item.pop("id", None)
+        item.pop("line", None)
+        item.pop("side", None)
+
     return selected
 
 
-def _add_lines(
-    add: Any,
-    category: str,
-    group: str,
-    market: str,
-    projection: float | None,
-    lines: list[tuple[str, float | None]],
-) -> None:
-    for selection, probability in lines:
-        add(category, group, market, selection, probability, projection)
-
-
-def _add_player_markets(
-    add: Any,
+def _add_player_candidates(
+    candidates: list[dict[str, Any]],
     team: Team,
     players: list[dict[str, Any]],
-    minimum_probability: float,
 ) -> None:
     for player in players:
         name = str(player.get("name") or "").strip()
@@ -341,34 +496,55 @@ def _add_player_markets(
             continue
         group = f"player_shots:{team.id}:{name.lower()}"
         projection = _number(player.get("expected_per_match"))
-        for selection, probability in (
+        for selection, prob in (
             ("2+ remates", _number(player.get("probability_two_plus"))),
             ("3+ remates", _number(player.get("probability_three_plus"))),
             ("4+ remates", _number(player.get("probability_four_plus"))),
             ("1+ tiro a puerta", _number(player.get("probability_sot_one_plus"))),
             ("2+ tiros a puerta", _number(player.get("probability_sot_two_plus"))),
         ):
-            if probability is not None and probability >= minimum_probability:
-                add("Jugadores", group, f"Remates de {name} ({team.name})", selection, probability, projection, starter_confirmation=True)
+            if prob is not None:
+                item: dict[str, Any] = {
+                    "id": f"player_shot_{team.id}_{name.lower()}_{selection.replace('+', 'plus').replace(' ', '_')}",
+                    "category": "Jugadores",
+                    "group": group,
+                    "market": f"Remates de {name} ({team.name})",
+                    "selection": selection,
+                    "line": None,
+                    "side": "player",
+                    "probability": round(prob, 4),
+                    "basis": "Proyección del modelo estadístico; no incluye cuota ni valoración frente a una casa.",
+                    "explanation": f"Porque {name} registra un promedio de {projection:.2f} remates esperados por partido." if projection else f"Porque {name} mantiene una alta frecuencia ofensiva.",
+                    "requires_starter_confirmation": True,
+                }
+                if projection is not None:
+                    item["projection"] = round(projection, 2)
+                candidates.append(item)
 
 
-def _add_scorer_markets(
-    add: Any,
+def _add_scorer_candidates(
+    candidates: list[dict[str, Any]],
     team: Team,
     players: list[dict[str, Any]],
-    minimum_probability: float,
 ) -> None:
     for player in players:
         name = str(player.get("name") or "").strip()
-        probability = _number(player.get("probability_goal"))
-        if name and probability is not None and probability >= minimum_probability:
-            add("Jugadores", f"player_goal:{team.id}:{name.lower()}", f"Gol de {name} ({team.name})", "Anota en cualquier momento", probability, starter_confirmation=True)
+        prob = _number(player.get("probability_goal"))
+        if name and prob is not None:
+            candidates.append({
+                "id": f"player_goal_{team.id}_{name.lower()}",
+                "category": "Jugadores",
+                "group": f"player_goal:{team.id}:{name.lower()}",
+                "market": f"Gol de {name} ({team.name})",
+                "selection": "Anota en cualquier momento",
+                "line": None,
+                "side": "player",
+                "probability": round(prob, 4),
+                "basis": "Proyección del modelo estadístico; no incluye cuota ni valoración frente a una casa.",
+                "explanation": f"Porque {name} es la principal referencia ofensiva de {team.name}.",
+                "requires_starter_confirmation": True,
+            })
 
 
 def _number(value: Any) -> float | None:
     return float(value) if isinstance(value, (int, float)) else None
-
-
-def _total(first: float | None, second: float | None) -> float | None:
-    return first + second if first is not None and second is not None else None
-
