@@ -5,7 +5,7 @@ Cuando el usuario pida analizar un partido, pronósticos o predicciones de fútb
 ## ⛔ PROHIBICIONES ESTRICTAS (BAJO NINGUNA CIRCUNSTANCIA INCLUIR):
 1. **PROHIBIDO mostrar probabilidades menores al 60.0% (< 60.0%):** En NINGUNA categoría (goles, córners, tarjetas, remates, jugadores, mitades, fueras de juego, etc.) se pueden incluir selecciones que no alcancen el 60.0%. La única excepción es el marcador exacto más probable dentro de las proyecciones numéricas.
 2. **PROHIBIDO incluir apuestas de Hándicap:** Quedan eliminadas y prohibidas todas las apuestas de Hándicap (Asiático o Europeo).
-3. **PROHIBIDO incluir líneas triviales o fuera del MarketPresentationCatalog:** No mostrar bajo ningún concepto líneas triviales (ej: Más de 3.5 córners totales, Más de 0.5 tarjetas por equipo, Más de 0.5 fueras de juego, Más de 7.5 remates), aunque superen el 90% o 99%.
+3. **PROHIBIDO incluir líneas triviales o fuera del MarketPresentationCatalog:** No mostrar bajo ningún concepto líneas triviales (ej: Más de 0.5 goles, Más de 3.5 córners totales, Más de 1.5 córners por equipo, Más de 0.5 tarjetas por equipo, Más de 1.5 tarjetas totales, Más de 0.5 fueras de juego, Más de 7.5 remates), aunque superen el 90% o 99%.
 4. **REGLA DE LA LÍNEA MÁS EXIGENTE (NO la más probable):** Dentro de cada mercado permitido, DEPORT AI escoge la línea válida MÁS EXIGENTE que conserve probabilidad ≥ 60.0% (ej: +8.5 córners al 66% antes que +7.5 al 85%).
 5. **PROHIBIDO incluir múltiples apuestas del mismo tipo:** Solo debe incluirse una única selección por cada concepto o subtipo (ej: en goles totales solo una línea, en doble oportunidad solo una, para un mismo jugador solo su mejor prop).
 6. **LÍMITE de máximo 4 apuestas por categoría:** Cada categoría puede contener como máximo 4 selecciones, presentadas estrictamente en orden de mayor a menor probabilidad.
@@ -22,16 +22,21 @@ Si un equipo está jugando un partido en directo en este momento, el motor calcu
 
 ---
 
-## 🎯 FLUJO DE EJECUCIÓN Y ESTRUCTURA ADAPTATIVA (CATÁLOGO BETANO)
+## 🎯 FLUJO DE EJECUCIÓN OBLIGATORIO
 
-1. Ejecuta el script de cálculo interno en la terminal:
+1. Ejecuta el script oficial en la terminal:
    ```powershell
-   python analyze.py "<Equipo 1> vs <Equipo 2>" --json
+   python analyze.py "<Equipo 1> vs <Equipo 2>" --report
    ```
-2. Lee los datos JSON de DEPORT AI y filtra de manera estricta únicamente las selecciones con probabilidad ≥ 60.0%.
-3. Genera un reporte **completamente adaptativo** según las probabilidades, estadísticas y la amplia oferta de mercados disponibles (estilo Betano):
+2. El script ejecuta el motor de cálculo, aplica estrictamente el `MarketPresentationCatalog` (descartando líneas triviales y eligiendo la línea más exigente ≥ 60.0%) y genera DIRECTAMENTE el reporte oficial adaptativo en formato Markdown.
+3. **MUESTRA DIRECTAMENTE AL USUARIO EL REPORTE ADAPTATIVO OBTENIDO DEL COMANDO.**
+   ⛔ **ESTÁ ESTRICTAMENTE PROHIBIDO:**
+   - No intentes deducir, inventar ni recalcular líneas a mano a partir de estadísticas crudas (NUNCA inventar Más de 0.5 goles, Más de 3.5 córners, Más de 1.5 córners ni Más de 0.5 tarjetas).
+   - No muestres selecciones que no hayan sido validadas y devueltas por el comando oficial.
 
-### Estructura Dinámica:
+---
+
+### Estructura Dinámica Generada por el Comando:
 
 # ⚽ <Equipo 1> vs <Equipo 2>
 **Confianza:** <🟢 Alta / 🟡 Media / 🔴 Baja> (<Detalle breve: muestra de partidos, confirmación de alineación>)

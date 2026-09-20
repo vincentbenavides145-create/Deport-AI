@@ -411,4 +411,113 @@ def test_uncatalogued_line_with_99_percent_is_discarded():
     assert MarketPresentationCatalog.is_presentable(fake_card) is False
 
 
+def test_format_adaptive_report_renders_clean_structure_and_omits_empty_categories():
+    """Verifica que format_adaptive_report formatee exactamente la estructura adaptativa oficial."""
+    from deport_ai.domain import AnalysisReport, ConfidenceScore
+    from deport_ai.formatter import format_adaptive_report
+
+    home = Team(1, "Real Madrid")
+    away = Team(2, "Atlético Madrid")
+    probs = _probabilities()
+    expected = ExpectedMetrics(
+        corners_home=6.5,
+        corners_away=5.0,
+        cards_home=2.5,
+        cards_away=2.5,
+    )
+    markets = select_statistical_markets(home, away, probs, expected)
+    conf = ConfidenceScore(
+        level="MEDIA",
+        score=75,
+        sample_size=30,
+        detailed_matches=25,
+        lineups_confirmed=False,
+    )
+
+    report = AnalysisReport(
+        home=home,
+        away=away,
+        fixture=None,
+        recent_home=[],
+        recent_away=[],
+        h2h=[],
+        probabilities=probs,
+        expected=expected,
+        elo_home=1850.0,
+        elo_away=1780.0,
+        injuries=[],
+        lineups=[],
+        odds={},
+        opportunities=[],
+        risks=["Rotaciones previstas"],
+        sources=[],
+        generated_at="2026-09-20",
+        statistical_markets=markets,
+        confidence=conf,
+    )
+
+    formatted = format_adaptive_report(report)
+
+    # Verifica encabezado y confianza
+    assert "# ⚽ Real Madrid vs Atlético Madrid" in formatted
+    assert "**Confianza:** 🟡 Media" in formatted
+
+    # Verifica que existan categorías con datos
+    assert "#### 🥅 Goles y Anotaciones" in formatted
+    assert "#### 🚩 Córners" in formatted
+    assert "#### 🟨 Tarjetas" in formatted
+
+    # Verifica que NO aparezcan categorías vacías (por ejemplo Especiales o Fueras de Juego si no hubo selecciones >= 60%)
+    if not any(m["category"] == "Especiales" for m in markets):
+        assert "#### 💥 Especiales" not in formatted
+
+    # Verifica formato de justificación en una sola línea con *Porque ...*
+    assert "*Porque " in formatted
+
+    # Verifica proyecciones numéricas finales
+    assert "#### 📊 Proyecciones numéricas" in formatted
+    assert "• **Goles estimados:**" in formatted
+    assert "• **Córners estimados:**" in formatted
+    assert "• **Tarjetas estimadas:**" in formatted
+    assert "• **Marcador más probable:**" in formatted
+
+
+def test_analysis_report_llm_payload_prioritizes_adaptive_report():
+    """Verifica que llm_payload() incluya adaptive_report y priorice statistical_markets."""
+    from deport_ai.domain import AnalysisReport
+    home = Team(1, "Real Madrid")
+    away = Team(2, "Atlético Madrid")
+    probs = _probabilities()
+    expected = ExpectedMetrics()
+    report = AnalysisReport(
+        home=home,
+        away=away,
+        fixture=None,
+        recent_home=[],
+        recent_away=[],
+        h2h=[],
+        probabilities=probs,
+        expected=expected,
+        elo_home=1850.0,
+        elo_away=1780.0,
+        injuries=[],
+        lineups=[],
+        odds={},
+        opportunities=[],
+        risks=[],
+        sources=[],
+        generated_at="2026-09-20",
+        statistical_markets=[{"category": "Goles", "market": "Goles totales", "selection": "Más de 1.5 goles", "probability": 0.86, "explanation": "test"}],
+    )
+
+    payload = report.llm_payload()
+    keys = list(payload.keys())
+
+    assert "adaptive_report" in payload
+    assert isinstance(payload["adaptive_report"], str)
+    assert "# ⚽ Real Madrid vs Atlético Madrid" in payload["adaptive_report"]
+    assert keys[0] == "adaptive_report"
+    assert keys[1] == "statistical_markets"
+
+
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from statistics import fmean
 from typing import Any
 
@@ -1103,3 +1104,95 @@ def _number_or_na(value: float | None) -> str:
 
 def _pct_or_na(value: float | None) -> str:
     return "No disponible" if value is None else f"{value * 100:.1f}%"
+
+
+def format_adaptive_report(report: AnalysisReport) -> str:
+    """Genera el reporte oficial de pronósticos deportivos (DEPORT AI) con estructura adaptativa estilo Betano."""
+    lines: list[str] = []
+
+    # 1. Título
+    lines.append(f"# ⚽ {report.home.name} vs {report.away.name}")
+
+    # 2. Confianza
+    if report.confidence:
+        badge = "🟢" if report.confidence.level == "ALTA" else "🟡" if report.confidence.level == "MEDIA" else "🔴"
+        lineup_str = "alineación titular confirmada oficialmente" if report.confidence.lineups_confirmed else "alineaciones no confirmadas oficialmente"
+        lines.append(f"**Confianza:** {badge} {report.confidence.level.capitalize()} ({report.confidence.sample_size} partidos analizados, {report.confidence.detailed_matches} con estadísticas completas, {lineup_str})")
+    else:
+        lines.append("**Confianza:** 🟡 Media (análisis estadístico preliminar)")
+    lines.append("")
+
+    # 3. Categorías temáticas oficiales
+    categories_spec = [
+        ("Resultado", "#### 🏆 Resultado"),
+        ("Goles", "#### 🥅 Goles y Anotaciones"),
+        ("Mitades", "#### ⏱️ Mercados por Mitad"),
+        ("Córners", "#### 🚩 Córners"),
+        ("Tarjetas", "#### 🟨 Tarjetas"),
+        ("Remates y Tiros a Puerta", "#### 🎯 Remates y Tiros a Puerta"),
+        ("Fueras de juego", "#### 🚩 Fueras de Juego (Offsides)"),
+        ("Especiales", "#### 💥 Especiales del Partido"),
+        ("Jugadores", "#### 👟 Jugadores"),
+    ]
+
+    # Agrupar mercados de report.statistical_markets
+    markets_by_cat: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for m in report.statistical_markets:
+        cat = m.get("category", "")
+        if cat in ("Remates", "Tiros a puerta"):
+            markets_by_cat["Remates y Tiros a Puerta"].append(m)
+        else:
+            markets_by_cat[cat].append(m)
+
+    for cat_name, header in categories_spec:
+        items = markets_by_cat.get(cat_name, [])
+        if not items:
+            continue
+        items = sorted(items, key=lambda x: -x.get("probability", 0.0))[:4]
+        lines.append(header)
+        for item in items:
+            sel = item.get("selection", "")
+            prob = item.get("probability", 0.0)
+            expl = item.get("explanation", "").strip()
+            if not expl.startswith("*"):
+                if not expl.lower().startswith("porque"):
+                    expl = f"Porque {expl}"
+                expl = f"*{expl}*"
+            lines.append(f"• **{sel} — {prob * 100:.1f}%**  ")
+            lines.append(f"  {expl}")
+            if item.get("requires_starter_confirmation"):
+                lines.append("  *(Requiere confirmar titularidad oficial)*.")
+        lines.append("")
+
+    # 4. Proyecciones numéricas
+    p = report.probabilities
+    exp = report.expected
+    total_goals = (p.expected_home_goals + p.expected_away_goals) if (p.expected_home_goals is not None and p.expected_away_goals is not None) else None
+    total_corners = _sum_optional(exp.corners_home, exp.corners_away)
+    total_cards = _sum_optional(exp.cards_home, exp.cards_away)
+    total_shots = _sum_optional(exp.total_shots_home, exp.total_shots_away)
+
+    best_score_str = "1 - 1"
+    best_score_prob = 0.10
+    if p.score_matrix:
+        scores = [
+            (f"{h} - {a}", p.score_matrix[h][a])
+            for h in range(len(p.score_matrix))
+            for a in range(len(p.score_matrix[h]))
+        ]
+        if scores:
+            best_score_str, best_score_prob = max(scores, key=lambda x: x[1])
+
+    lines.append("#### 📊 Proyecciones numéricas")
+    if total_goals is not None:
+        lines.append(f"• **Goles estimados:** {total_goals:.2f} ({report.home.name}: {p.expected_home_goals:.2f} | {report.away.name}: {p.expected_away_goals:.2f})  ")
+    if total_corners is not None:
+        lines.append(f"• **Córners estimados:** {total_corners:.2f}  ")
+    if total_cards is not None:
+        lines.append(f"• **Tarjetas estimadas:** {total_cards:.2f}  ")
+    if total_shots is not None:
+        lines.append(f"• **Remates estimados:** {total_shots:.1f}  ")
+    lines.append(f"• **Marcador más probable:** {best_score_str} ({best_score_prob * 100:.1f}%)")
+
+    return "\n".join(lines)
+

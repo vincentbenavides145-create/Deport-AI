@@ -19,7 +19,7 @@ if _src not in sys.path:
 
 from deport_ai.config import Settings
 from deport_ai.errors import DeportAIError
-from deport_ai.formatter import format_report
+from deport_ai.formatter import format_adaptive_report, format_report
 from deport_ai.llm import LLMExplainer
 from deport_ai.service import AnalysisService
 from deport_ai.sportmonks import SportmonksClient
@@ -28,12 +28,14 @@ from deport_ai.sportmonks import SportmonksClient
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analiza un partido de fútbol con DEPORT AI")
     parser.add_argument("query", nargs="*", help="Enfrentamiento, ej: 'Real Madrid vs Barcelona'")
+    parser.add_argument("--report", action="store_true", help="Devuelve el reporte adaptativo oficial en formato Markdown (por defecto)")
     parser.add_argument("--json", action="store_true", help="Devuelve la salida en formato JSON estructurado")
+    parser.add_argument("--legacy", action="store_true", help="Devuelve el reporte técnico de auditoría heredado")
     args = parser.parse_args()
 
     query_str = " ".join(args.query).strip() if args.query else ""
     if not query_str:
-        print("Uso: python analyze.py \"Equipo 1 vs Equipo 2\" [--json]", file=sys.stderr)
+        print("Uso: python analyze.py \"Equipo 1 vs Equipo 2\" [--report] [--json] [--legacy]", file=sys.stderr)
         sys.exit(1)
 
     try:
@@ -60,8 +62,10 @@ def main() -> None:
         report = service.analyze(query_str)
         if args.json:
             print(json.dumps(report.llm_payload(), ensure_ascii=False, indent=2))
-        else:
+        elif args.legacy:
             print(format_report(report))
+        else:
+            print(format_adaptive_report(report))
     except DeportAIError as exc:
         print(f"Error en el análisis: {exc}", file=sys.stderr)
         sys.exit(3)

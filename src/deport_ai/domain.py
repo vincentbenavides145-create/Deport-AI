@@ -253,4 +253,19 @@ class AnalysisReport:
         payload["recent_home"] = payload["recent_home"][:5]
         payload["recent_away"] = payload["recent_away"][:5]
         payload["h2h"] = payload["h2h"][:5]
-        return payload
+
+        adaptive_md = ""
+        try:
+            from .formatter import format_adaptive_report
+            adaptive_md = format_adaptive_report(self)
+        except Exception:
+            pass
+
+        ordered_payload: dict[str, Any] = {
+            "adaptive_report": adaptive_md,
+            "statistical_markets": payload.get("statistical_markets", []),
+        }
+        for k, v in payload.items():
+            if k not in ordered_payload:
+                ordered_payload[k] = v
+        return ordered_payload

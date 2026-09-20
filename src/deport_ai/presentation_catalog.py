@@ -130,7 +130,7 @@ class MarketPresentationCatalog:
 
         # 1. Mercados de jugadores
         if group.startswith("player_shots") or group.startswith("player_goal"):
-            return selection in cls.ALLOWED_PLAYER_SELECTIONS
+            return any(allowed in selection for allowed in cls.ALLOWED_PLAYER_SELECTIONS)
 
         # 2. Mercados de líneas numéricas (Over / Under)
         if group in cls.ALLOWED_LINES:
