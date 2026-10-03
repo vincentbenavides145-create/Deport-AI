@@ -175,9 +175,9 @@ def test_cards_valid_presentation_lines_used_and_trivial_15_excluded():
     assert card_markets, "Debe existir al menos un mercado de tarjetas seleccionado"
     total_card = next((m for m in card_markets if m["market"] == "Tarjetas totales"), None)
     assert total_card is not None, "Debe seleccionarse una línea de Tarjetas totales"
-    # No debe ser la línea trivial (+1.5), sino una línea válida del catálogo (Menos de 3.5 tarjetas)
+    # No debe ser la línea trivial (+1.5), sino una línea válida del catálogo (Menos de 4.5 tarjetas al ser más segura)
     assert "Más de 1.5 tarjetas" not in total_card["selection"]
-    assert "Menos de 3.5 tarjetas" in total_card["selection"]
+    assert "Menos de 4.5 tarjetas" in total_card["selection"]
     assert total_card["probability"] >= 0.60
     assert "3.20" in total_card["explanation"]
 
@@ -335,12 +335,12 @@ def test_trivial_lines_blocked_even_with_high_probability():
     assert not any(s.endswith("Más de 9.5 remates") for s in selections)
 
 
-def test_selector_picks_most_demanding_valid_line_over_highest_probability():
-    """Verifica que entre varias líneas válidas con >=60%, el selector elija la MÁS EXIGENTE y no la más probable."""
+def test_selector_picks_highest_probability_in_optimal_range():
+    """Verifica que entre varias líneas válidas del rango óptimo (60%-88%), el selector elija la de MAYOR PROBABILIDAD (Opción 1: más segura)."""
     home = Team(1, "Local")
     away = Team(2, "Visitante")
     probs = _probabilities()
-    # Con 11.5 córners proyectados: +7.5 tiene prob ~72.7% y +8.5 tiene prob ~65.5% (ambas >=60%)
+    # Con 11.5 córners proyectados: +7.5 tiene prob ~72.7% y +8.5 tiene prob ~65.5% (ambas en rango)
     expected = ExpectedMetrics(
         corners_home=6.5,
         corners_away=5.0,
@@ -351,10 +351,28 @@ def test_selector_picks_most_demanding_valid_line_over_highest_probability():
     corner_total = next((m for m in markets if m["market"] == "Córners totales"), None)
 
     assert corner_total is not None
-    # Debe escoger Más de 8.5 córners (~65.5%) en lugar de Más de 7.5 córners (~72.7%) o triviales
-    assert "Más de 8.5 córners" in corner_total["selection"]
-    assert corner_total["probability"] >= 0.60
-    assert corner_total["probability"] < 0.70  # Confirma que eligió la línea exigente y no la de 72.7%+
+    # Debe escoger Más de 7.5 córners (~72.7%) al ser la de mayor probabilidad dentro del rango óptimo
+    assert "Más de 7.5 córners" in corner_total["selection"]
+    assert corner_total["probability"] >= 0.70  # Confirma que eligió la línea de mayor probabilidad (~72.7%)
+
+
+def test_lines_above_maximum_probability_are_excluded_as_near_100_percent():
+    """Verifica que selecciones con probabilidad > 88% se descarten por considerarse demasiado cercanas al 100%."""
+    home = Team(1, "Local")
+    away = Team(2, "Visitante")
+    probs = _probabilities()
+    # Supongamos una probabilidad excesivamente alta (ej: 92%)
+    probs.home_win = 0.92
+    probs.draw = 0.05
+    probs.away_win = 0.03
+    expected = ExpectedMetrics(
+        corners_home=8.0,
+        corners_away=5.0,
+    )
+
+    markets = select_statistical_markets(home, away, probs, expected)
+    # Ninguna selección debe superar el 88.0%
+    assert all(m["probability"] <= 0.88 for m in markets)
 
 
 def test_category_hidden_if_no_valid_line_reaches_60_percent():
@@ -518,6 +536,62 @@ def test_analysis_report_llm_payload_prioritizes_adaptive_report():
     assert "# ⚽ Real Madrid vs Atlético Madrid" in payload["adaptive_report"]
     assert keys[0] == "adaptive_report"
     assert keys[1] == "statistical_markets"
+
+
+def test_creative_markets_generation_and_selection():
+    home = Team(1, "Manchester City")
+    away = Team(2, "Sunderland")
+
+    # Matriz 3x3 para combos
+    matrix = [
+        [0.02, 0.01, 0.00],  # 0-0, 0-1, 0-2
+        [0.15, 0.05, 0.01],  # 1-0, 1-1, 1-2
+        [0.35, 0.20, 0.05],  # 2-0, 2-1, 2-2
+        [0.10, 0.05, 0.01],  # 3-0, 3-1, 3-2
+    ]
+    probs = ProbabilityReport(
+        home_win=0.85,
+        draw=0.10,
+        away_win=0.05,
+        over_15=0.76,
+        over_25=0.62,
+        under_25=0.38,
+        btts=0.32,
+        expected_home_goals=2.2,
+        expected_away_goals=0.4,
+        shared_goal_component=0.0,
+        score_matrix=matrix,
+        first_half_over_05=0.80,
+        second_half_over_05=0.82,
+    )
+    expected = ExpectedMetrics(
+        corners_home=6.5,
+        corners_away=4.5,
+        cards_home=1.8,
+        cards_away=2.3,
+        shots_on_home=6.8,
+        shots_on_away=3.2,
+    )
+
+    markets = select_statistical_markets(home, away, probs, expected)
+
+    selections = [m["selection"] for m in markets]
+
+    # Verifica presencia de mercados creativos
+    assert any("Ambos equipos reciben al menos 1 tarjeta" in s for s in selections)
+    assert any("Ambos equipos sacan 3+ córners" in s for s in selections)
+    assert any("Habrá gol en ambas mitades" in s for s in selections)
+    assert any("Manchester City o Empate (1X) y Menos de 3.5 goles" in s for s in selections)
+
+    # Verifica que no haya más de una línea Under por equipo en tarjetas
+    team_card_unders = [s for s in selections if "tarjetas" in s and "Menos de" in s and ("Manchester City" in s or "Sunderland" in s)]
+    assert len(team_card_unders) <= 1
+
+    # Verifica límites de categoría
+    from collections import Counter
+    cat_counts = Counter(m["category"] for m in markets)
+    for cat, count in cat_counts.items():
+        assert count <= 4, f"Categoría {cat} excede el límite de 4 selecciones ({count})"
 
 
 

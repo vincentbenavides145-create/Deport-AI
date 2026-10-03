@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import re
 from collections import defaultdict
 from dataclasses import dataclass
 from statistics import fmean, median
@@ -27,36 +28,9 @@ STAT_KEYS = {
     "Red Cards": "red_cards",
     "Expected Goals": "expected_goals",
     "Offsides": "offsides",
+    "Fouls": "fouls",
 }
 
-
-def extract_team_matches(
-    rows: list[dict[str, Any]], team_id: int, details: dict[int, dict[str, Any]]
-) -> list[TeamMatch]:
-    result: list[TeamMatch] = []
-    for row in rows:
-        fixture_id = int(row["fixture"]["id"])
-        enriched = details.get(fixture_id, row)
-        teams = enriched.get("teams", {})
-        home = teams.get("home", {})
-        away = teams.get("away", {})
-        is_home = int(home.get("id", -1)) == team_id
-        if not is_home and int(away.get("id", -1)) != team_id:
-            continue
-        goals = enriched.get("goals", {})
-        home_goals = _number(goals.get("home"))
-        away_goals = _number(goals.get("away"))
-        if home_goals is None or away_goals is None:
-            continue
-        goals_for, goals_against = (
-            (int(home_goals), int(away_goals)) if is_home else (int(away_goals), int(home_goals))
-        )
-        stat_blocks = _team_stat_blocks(enriched.get("statistics", []))
-        own_id = team_id
-        opponent_id = int(away["id"] if is_home else home["id"])
-        league_info = enriched.get("league", {}) or row.get("league", {})
-        league_name = str(league_info.get("name", "")).lower()
-        league_id = league_info.get("id")
 
 OFFICIAL_LEAGUE_PATTERNS = (
     "premier league",
@@ -136,7 +110,7 @@ def classify_competition(
 
     # 1. Detección de Amistosos / Pretemporada / Exhibición
     if (league_id and int(league_id) in friendly_ids) or any(term in low for term in friendly_terms) or league_sub_type in ("friendly", "friendly_club"):
-        return "FRIENDLY", 0.20
+        return "FRIENDLY", 0.10
 
     # 2. Supercopas
     supercup_terms = ("supercup", "supercopa", "supercoppa", "super coupe", "recopa", "community shield", "trophée des champions")
@@ -385,6 +359,188 @@ LEAGUE_BASE_ELO: dict[int, float] = {
     743: 1580.0, # Liga MX
     779: 1550.0, # MLS
 }
+
+CLUB_TIER_OFFSETS: dict[str, float] = {
+    # Tier 1: Élite mundial / Candidatos a Champions League (+170 a +200)
+    "real madrid": 200.0,
+    "manchester city": 200.0,
+    "bayern munchen": 200.0,
+    "bayern munich": 200.0,
+    "arsenal": 180.0,
+    "liverpool": 180.0,
+    "barcelona": 180.0,
+    "paris saint germain": 180.0,
+    "psg": 180.0,
+    "inter": 180.0,
+    "inter milan": 180.0,
+    "internazionale": 180.0,
+    "ac milan": 170.0,
+    "milan": 170.0,
+    "juventus": 170.0,
+    "atletico madrid": 170.0,
+    "atletico de madrid": 170.0,
+    "bayer leverkusen": 170.0,
+    "leverkusen": 170.0,
+
+    # Tier 2: Élite secundaria / Top 4 contendientes / Gigantes continentales (+70 a +115)
+    "chelsea": 110.0,
+    "tottenham": 100.0,
+    "tottenham hotspur": 100.0,
+    "manchester united": 100.0,
+    "aston villa": 90.0,
+    "newcastle": 90.0,
+    "newcastle united": 90.0,
+    "borussia dortmund": 110.0,
+    "dortmund": 110.0,
+    "rb leipzig": 100.0,
+    "leipzig": 100.0,
+    "eintracht frankfurt": 80.0,
+    "stuttgart": 80.0,
+    "atalanta": 110.0,
+    "napoli": 110.0,
+    "roma": 90.0,
+    "as roma": 90.0,
+    "lazio": 90.0,
+    "fiorentina": 70.0,
+    "monaco": 90.0,
+    "as monaco": 90.0,
+    "olympique marseille": 85.0,
+    "marseille": 85.0,
+    "lille": 80.0,
+    "lille osc": 80.0,
+    "olympique lyonnais": 75.0,
+    "lyon": 75.0,
+    "sporting cp": 100.0,
+    "sporting lisbon": 100.0,
+    "benfica": 100.0,
+    "porto": 90.0,
+    "fc porto": 90.0,
+    "psv": 85.0,
+    "psv eindhoven": 85.0,
+    "feyenoord": 80.0,
+    "ajax": 75.0,
+    "athletic club": 85.0,
+    "athletic bilbao": 85.0,
+    "real sociedad": 80.0,
+    "villarreal": 80.0,
+    "real betis": 75.0,
+    "betis": 75.0,
+    "flamengo": 100.0,
+    "palmeiras": 100.0,
+    "botafogo": 90.0,
+    "river plate": 90.0,
+    "boca juniors": 90.0,
+
+    # Tier 1 Ligas Locales (Perú / Colombia / Sudamérica / MLS):
+    "universitario": 120.0,
+    "alianza lima": 120.0,
+    "sporting cristal": 110.0,
+    "melgar": 90.0,
+    "fbc melgar": 90.0,
+    "millonarios": 90.0,
+    "santa fe": 85.0,
+    "atletico nacional": 90.0,
+    "junior": 85.0,
+    "inter miami": 100.0,
+    "inter miami cf": 100.0,
+    "columbus crew": 70.0,
+    "lafc": 70.0,
+    "los angeles fc": 70.0,
+
+    # Tier 4: Pequeño presupuesto / Zona descenso / Expansión (-70 a -140)
+    "san diego": -70.0,
+    "san diego fc": -70.0,
+    "lecce": -130.0,
+    "us lecce": -130.0,
+    "venezia": -140.0,
+    "venezia fc": -140.0,
+    "monza": -110.0,
+    "cagliari": -110.0,
+    "empoli": -120.0,
+    "hellas verona": -110.0,
+    "verona": -110.0,
+    "como": -110.0,
+    "como 1907": -110.0,
+    "pisa": -140.0,
+    "salernitana": -140.0,
+    "frosinone": -130.0,
+    "southampton": -130.0,
+    "ipswich": -140.0,
+    "ipswich town": -140.0,
+    "leicester": -90.0,
+    "leicester city": -90.0,
+    "espanyol": -110.0,
+    "leganes": -130.0,
+    "valladolid": -130.0,
+    "real valladolid": -130.0,
+    "las palmas": -110.0,
+    "alaves": -90.0,
+    "deportivo alaves": -90.0,
+    "st pauli": -130.0,
+    "fc st. pauli": -130.0,
+    "holstein kiel": -140.0,
+    "bochum": -130.0,
+    "vfl bochum": -130.0,
+    "heidenheim": -90.0,
+    "angers": -130.0,
+    "le havre": -130.0,
+    "saint etienne": -120.0,
+    "as saint-etienne": -120.0,
+    "auxerre": -110.0,
+    "comerciantes unidos": -100.0,
+    "union comercio": -120.0,
+    "alianza atletico": -80.0,
+    "carlos mannucci": -100.0,
+}
+
+
+def get_club_tier_offset(name: str | None, league_id: int | None = None) -> float:
+    """
+    Estratificación de Clubes (Opción 2):
+    Devuelve el desfase Elo base según el estatus competitivo del club dentro de su liga.
+    """
+    if not name:
+        return 0.0
+    low = name.lower().strip()
+    low = (
+        low.replace("á", "a")
+        .replace("é", "e")
+        .replace("í", "i")
+        .replace("ó", "o")
+        .replace("ú", "u")
+        .replace("ü", "u")
+        .replace("ñ", "n")
+    )
+    for k in sorted(CLUB_TIER_OFFSETS.keys(), key=len, reverse=True):
+        pattern = r"\b" + re.escape(k) + r"\b"
+        if re.search(pattern, low):
+            return CLUB_TIER_OFFSETS[k]
+
+    if league_id in (5, 2451):  # Champions League
+        return 120.0
+    if league_id in (2, 2452):  # Europa League
+        return 60.0
+    return 0.0
+
+
+def get_sos_multiplier(opponent_name: str | None, league_id: int | None, attr: str) -> float:
+    """
+    Strength of Schedule (SoS) Multiplier (Opción 3):
+    Ajusta el mérito de goles marcados y encajados según el nivel del rival enfrentado.
+    - Anotar frente a rivales de élite (tier > 0) tiene mayor mérito (+10% a +25%).
+    - Encajar frente a rivales de élite es previsible y penaliza menos (-10% a -25%).
+    - Anotar frente a rivales débiles (tier < 0) reduce el crédito de volumen (-10% a -18%).
+    - Encajar frente a rivales débiles penaliza la solidez defensiva (+10% a +18%).
+    """
+    tier = get_club_tier_offset(opponent_name, league_id)
+    if not tier:
+        return 1.0
+    factor = tier / 800.0
+    if attr == "goals_for":
+        return max(0.75, min(1.30, 1.0 + factor))
+    elif attr == "goals_against":
+        return max(0.75, min(1.30, 1.0 - factor))
+    return 1.0
 
 
 @dataclass(frozen=True)
@@ -751,12 +907,15 @@ def calculate_elo(
     away_country: str | None = None,
     home_league: int | None = None,
     away_league: int | None = None,
+    home_name: str | None = None,
+    away_name: str | None = None,
 ) -> tuple[float, float]:
     def default_rating(
         team_id: int,
         matches: list[TeamMatch] | None = None,
         country: str | None = None,
         league_id: int | None = None,
+        team_name: str | None = None,
     ) -> float:
         # 1. Base Universal por División / Liga
         if league_id and int(league_id) in LEAGUE_BASE_ELO:
@@ -766,22 +925,24 @@ def calculate_elo(
         else:
             base = 1550.0
 
-        # 2. Modificador Dinámico Universal por Diferencial de Goles en Liga Oficial (Cero hardcoding)
+        # 2. Club Tier Stratification (Opción 2)
+        base += get_club_tier_offset(team_name, league_id)
+
+        # 3. Modificador Dinámico Universal por Diferencial de Goles en Liga Oficial
         team_pool = matches or []
         official = [m for m in team_pool if m.competition_weight >= 0.70]
         sample = official if official else team_pool
         if sample:
             diffs = [float(m.goals_for - m.goals_against) for m in sample]
             avg_gd = sum(diffs) / len(diffs)
-            # Escalamiento universal continuo: +/- 180 puntos Elo según dominio del club en su liga
-            performance_boost = max(-180.0, min(180.0, avg_gd * 60.0))
+            performance_boost = max(-150.0, min(150.0, avg_gd * 50.0))
             base += performance_boost
 
         return round(base, 1)
 
     ratings: dict[int, float] = {}
-    ratings[home_id] = default_rating(home_id, home_matches, home_country, home_league)
-    ratings[away_id] = default_rating(away_id, away_matches, away_country, away_league)
+    ratings[home_id] = default_rating(home_id, home_matches, home_country, home_league, team_name=home_name)
+    ratings[away_id] = default_rating(away_id, away_matches, away_country, away_league, team_name=away_name)
 
     unique: dict[int, TeamMatch] = {}
     for match in home_matches + away_matches:
@@ -792,14 +953,18 @@ def calculate_elo(
         if match.is_home:
             host, visitor = match.team_id, match.opponent_id
             host_goals, visitor_goals = match.goals_for, match.goals_against
+            host_name = home_name if host == home_id else (away_name if host == away_id else None)
+            vis_name = match.opponent_name if visitor not in (home_id, away_id) else (home_name if visitor == home_id else away_name)
         else:
             host, visitor = match.opponent_id, match.team_id
             host_goals, visitor_goals = match.goals_against, match.goals_for
+            host_name = match.opponent_name if host not in (home_id, away_id) else (home_name if host == home_id else away_name)
+            vis_name = home_name if visitor == home_id else (away_name if visitor == away_id else None)
 
         if host not in ratings:
-            ratings[host] = default_rating(host, league_id=match.league_id)
+            ratings[host] = default_rating(host, league_id=match.league_id, team_name=host_name)
         if visitor not in ratings:
-            ratings[visitor] = default_rating(visitor, league_id=match.league_id)
+            ratings[visitor] = default_rating(visitor, league_id=match.league_id, team_name=vis_name)
 
         expected_host = 1.0 / (1.0 + 10 ** ((ratings[visitor] - (ratings[host] + 60)) / 400))
         actual_host = 1.0 if host_goals > visitor_goals else 0.5 if host_goals == visitor_goals else 0.0
@@ -984,6 +1149,24 @@ def goal_probabilities(
     clean_sheet_home = sum(matrix[h][0] for h in range(11))
     clean_sheet_away = sum(matrix[0][a] for a in range(11))
 
+    # Multigoles (Rango exacto desde matriz bivariada)
+    multigoal_1_3 = sum(matrix[h][a] for h in range(11) for a in range(11) if 1 <= h + a <= 3)
+    multigoal_2_4 = sum(matrix[h][a] for h in range(11) for a in range(11) if 2 <= h + a <= 4)
+    multigoal_2_5 = sum(matrix[h][a] for h in range(11) for a in range(11) if 2 <= h + a <= 5)
+
+    # Combos 1X2 + Ambos Marcan (BTTS)
+    home_win_and_btts = sum(matrix[h][a] for h in range(1, 11) for a in range(1, 11) if h > a)
+    away_win_and_btts = sum(matrix[h][a] for h in range(1, 11) for a in range(1, 11) if a > h)
+    dc_1x_and_btts = sum(matrix[h][a] for h in range(1, 11) for a in range(1, 11) if h >= a)
+    dc_x2_and_btts = sum(matrix[h][a] for h in range(1, 11) for a in range(1, 11) if a >= h)
+
+    # Ambos Marcan en 2do Tiempo (BTTS 2T)
+    lambda_h_2t = 0.55 * lambda_home
+    lambda_a_2t = 0.55 * lambda_away
+    p_h_score_2t = 1.0 - math.exp(-lambda_h_2t)
+    p_a_score_2t = 1.0 - math.exp(-lambda_a_2t)
+    btts_second_half = p_h_score_2t * p_a_score_2t
+
     return ProbabilityReport(
         home_win=home_win,
         draw=draw,
@@ -1021,6 +1204,14 @@ def goal_probabilities(
         away_under_15=round(away_under_15, 4),
         clean_sheet_home=round(clean_sheet_home, 4),
         clean_sheet_away=round(clean_sheet_away, 4),
+        multigoal_1_3=round(multigoal_1_3, 4),
+        multigoal_2_4=round(multigoal_2_4, 4),
+        multigoal_2_5=round(multigoal_2_5, 4),
+        home_win_and_btts=round(home_win_and_btts, 4),
+        away_win_and_btts=round(away_win_and_btts, 4),
+        dc_1x_and_btts=round(dc_1x_and_btts, 4),
+        dc_x2_and_btts=round(dc_x2_and_btts, 4),
+        btts_second_half=round(btts_second_half, 4),
         attribution_home=attr_home,
         attribution_away=attr_away,
     )
@@ -1331,9 +1522,17 @@ def expected_metrics(
     scale_home = _clamp(scale_home, 0.45, 1.65)
     scale_away = _clamp(scale_away, 0.45, 1.65)
 
+    fouls_home = _expected_count(home_matches, away_matches, True, False, "fouls")
+    fouls_away = _expected_count(away_matches, home_matches, False, True, "fouls")
+    corners_first_half = round(total_corners * 0.45, 2) if total_corners is not None else None
+
     return ExpectedMetrics(
         corners_home=corners_home,
         corners_away=corners_away,
+        corners_first_half=corners_first_half,
+        fouls_home=fouls_home,
+        fouls_away=fouls_away,
+        dispersion_fouls=0.12,
         corners_1x2_home=corners_1x2_home,
         corners_1x2_tie=corners_1x2_tie,
         corners_1x2_away=corners_1x2_away,
@@ -1758,7 +1957,10 @@ def _venue_or_all(matches: list[TeamMatch], home: bool | None, attr: str) -> flo
         pool = venue_matches if len(venue_matches) >= 3 else base_pool
     else:
         pool = base_pool
-    values = [float(getattr(match, attr)) for match in pool]
+    values = [
+        float(getattr(match, attr)) * get_sos_multiplier(match.opponent_name, match.league_id, attr)
+        for match in pool
+    ]
     weights = [(0.86**i) * match.competition_weight for i, match in enumerate(pool)]
     total_w = sum(weights)
     if total_w > 0:

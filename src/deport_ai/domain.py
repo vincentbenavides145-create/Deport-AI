@@ -111,6 +111,14 @@ class ProbabilityReport:
     away_under_15: float | None = None
     clean_sheet_home: float | None = None
     clean_sheet_away: float | None = None
+    multigoal_1_3: float | None = None
+    multigoal_2_4: float | None = None
+    multigoal_2_5: float | None = None
+    home_win_and_btts: float | None = None
+    away_win_and_btts: float | None = None
+    dc_1x_and_btts: float | None = None
+    dc_x2_and_btts: float | None = None
+    btts_second_half: float | None = None
     attribution_home: FactorAttribution | None = None
     attribution_away: FactorAttribution | None = None
 
@@ -205,6 +213,10 @@ class ExpectedMetrics:
     over_15_offsides_away: float | None = None
     under_15_offsides_home: float | None = None
     under_15_offsides_away: float | None = None
+    fouls_home: float | None = None
+    fouls_away: float | None = None
+    dispersion_fouls: float = 0.12
+    corners_first_half: float | None = None
     player_shots: dict[int, list[dict[str, Any]]] = field(default_factory=dict)
     anytime_goalscorers: dict[int, list[dict[str, Any]]] = field(default_factory=dict)
 
@@ -234,6 +246,8 @@ class AnalysisReport:
     attribution_home: FactorAttribution | None = None
     attribution_away: FactorAttribution | None = None
     narrative: str | None = None
+    dynamic_calibration_info: Any = None
+    top_pick: dict[str, Any] | None = None
 
     def llm_payload(self) -> dict[str, Any]:
         """Datos cerrados: el LLM puede explicarlos, no recalcularlos."""

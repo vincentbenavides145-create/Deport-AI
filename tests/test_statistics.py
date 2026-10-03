@@ -115,15 +115,15 @@ def test_zero_trust_classify_competition():
     assert classify_competition("Supercoppa Italiana") == ("SUPERCUP", 0.60)
     assert classify_competition("Community Shield") == ("SUPERCUP", 0.60)
 
-    # 4. Amistosos / Pretemporada
-    assert classify_competition("Club Friendlies 1", 1101) == ("FRIENDLY", 0.20)
-    assert classify_competition("Torneo de Verano Betano") == ("FRIENDLY", 0.20)
-    assert classify_competition("Trofeo Joan Gamper") == ("FRIENDLY", 0.20)
+    # 4. Amistosos / Pretemporada (Ponderación reducida a 0.10)
+    assert classify_competition("Club Friendlies 1", 1101) == ("FRIENDLY", 0.10)
+    assert classify_competition("Torneo de Verano Betano") == ("FRIENDLY", 0.10)
+    assert classify_competition("Trofeo Joan Gamper") == ("FRIENDLY", 0.10)
 
     # 5. Competición Desconocida -> Zero-Trust UNKNOWN (0.00)
     assert classify_competition("Torneo Fantasma 2026") == ("UNKNOWN", 0.00)
     assert classify_competition("Copa Regional Desconocida XYZ") == ("DOMESTIC_CUP", 0.75)
-    assert classify_competition("Exhibition Invitation Unknown") == ("FRIENDLY", 0.20)
+    assert classify_competition("Exhibition Invitation Unknown") == ("FRIENDLY", 0.10)
     assert classify_competition("Random Tournament 123") == ("UNKNOWN", 0.00)
 
 
@@ -615,6 +615,53 @@ def test_strict_minimum_60_percent_across_all_markets():
     assert all(o["probability"] >= 0.60 for o in opps)
 
 
+def test_club_tier_offsets_and_sos():
+    from deport_ai.stats_engine import (
+        get_club_tier_offset,
+        get_sos_multiplier,
+        calculate_elo,
+    )
 
+    # 1. Tier 1 matches
+    assert get_club_tier_offset("Real Madrid") == 200.0
+    assert get_club_tier_offset("AC Milan") == 170.0
+    assert get_club_tier_offset("Paris Saint Germain") == 180.0
+    assert get_club_tier_offset("PSG") == 180.0
 
+    # 2. Tier 2 matches
+    assert get_club_tier_offset("Borussia Dortmund") == 110.0
+    assert get_club_tier_offset("Benfica") == 100.0
 
+    # 3. Tier 4 matches
+    assert get_club_tier_offset("US Lecce") == -130.0
+    assert get_club_tier_offset("Lecce") == -130.0
+    assert get_club_tier_offset("Venezia FC") == -140.0
+
+    # 4. Unknown team fallback
+    assert get_club_tier_offset("Equipo Desconocido FC") == 0.0
+
+    # 5. Continental competition fallback
+    assert get_club_tier_offset("Club Sin Tier", league_id=5) == 120.0  # Champions League
+    assert get_club_tier_offset("Club Sin Tier", league_id=2) == 60.0   # Europa League
+
+    # 6. SoS multipliers
+    # Against elite club (Real Madrid +200):
+    sos_gf_elite = get_sos_multiplier("Real Madrid", None, "goals_for")
+    assert sos_gf_elite > 1.15  # extra credit for scoring against elite
+    sos_ga_elite = get_sos_multiplier("Real Madrid", None, "goals_against")
+    assert sos_ga_elite < 0.85  # diminished penalty for conceding against elite
+
+    # Against weak club (Lecce -130):
+    sos_gf_weak = get_sos_multiplier("Lecce", None, "goals_for")
+    assert sos_gf_weak < 0.90   # discounted credit for scoring against weak opponent
+    sos_ga_weak = get_sos_multiplier("Lecce", None, "goals_against")
+    assert sos_ga_weak > 1.10   # penalized for conceding against weak opponent
+
+    # 7. Elo calculation with team names creates proper stratification
+    elo_milan, elo_lecce = calculate_elo(
+        HOME, AWAY, 10, 20,
+        home_league=384, away_league=384,
+        home_name="AC Milan", away_name="US Lecce"
+    )
+    # Milan should have a significantly higher Elo than Lecce
+    assert elo_milan > elo_lecce + 200.0

@@ -7,4 +7,9 @@ __pycache__/
 dist/
 build/
 *.egg-info/
-
+deport_ai.db
+data/*.db
+data/*.db-journal
+scratch/
+deport_ai.db
+scratch/

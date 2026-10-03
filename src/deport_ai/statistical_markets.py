@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
+from statistics import fmean
 from typing import Any
 
-from .domain import ExpectedMetrics, ProbabilityReport, Team
+from .domain import ExpectedMetrics, ProbabilityReport, Team, TeamMatch
 from .markets_catalog import (
     MINIMUM_INFORMATIVE_LINES,
     MarketDefinition,
@@ -15,6 +16,7 @@ from .stats_engine import negative_binomial_pmf
 
 
 MINIMUM_PROBABILITY = 0.60
+MAXIMUM_PROBABILITY = 0.88
 
 
 def _safe_complement(p: float | None) -> float | None:
@@ -45,11 +47,295 @@ def _calc_count_under(rate: float | None, alpha: float, line: float) -> float | 
     return round(max(0.0, min(1.0, p_under)), 4)
 
 
+def _calc_comparison_1x2(rate_a: float | None, rate_b: float | None, alpha: float) -> tuple[float | None, float | None]:
+    """Calcula P(A > B) y P(B > A) usando convolución de dos distribuciones Binomial Negativa independientes."""
+    if rate_a is None or rate_b is None or rate_a <= 0.0 or rate_b <= 0.0:
+        return None, None
+    max_val = 18
+    pmf_a = [negative_binomial_pmf(k, rate_a, alpha) for k in range(max_val + 1)]
+    pmf_b = [negative_binomial_pmf(k, rate_b, alpha) for k in range(max_val + 1)]
+    p_a_win = sum(pmf_a[k] * sum(pmf_b[j] for j in range(k)) for k in range(1, max_val + 1))
+    p_b_win = sum(pmf_b[k] * sum(pmf_a[j] for j in range(k)) for k in range(1, max_val + 1))
+    return round(max(0.0, min(1.0, p_a_win)), 4), round(max(0.0, min(1.0, p_b_win)), 4)
+
+
+def _generate_dynamic_explanation(
+    defn: MarketDefinition,
+    home: Team,
+    away: Team,
+    proj_val: float | None,
+    prob: float,
+    recent_home: list[TeamMatch] | None = None,
+    recent_away: list[TeamMatch] | None = None,
+) -> str:
+    """Genera explicaciones dinámicas y fundamentadas en los resultados empíricos recientes de los equipos."""
+    if not recent_home and not recent_away:
+        try:
+            return defn.explanation_template.format(projection=proj_val, probability=prob) if proj_val is not None else defn.explanation_template
+        except Exception:
+            return defn.explanation_template
+
+    grp = defn.group
+    line = defn.line
+    side = defn.side
+    sel = defn.selection_template
+
+    combined = (recent_home or []) + (recent_away or [])
+    n_h = len(recent_home or [])
+    n_a = len(recent_away or [])
+    n_comb = len(combined)
+
+    # 1. Goles Totales
+    if grp == "total_goals" and line is not None and n_comb > 0:
+        if side == "over":
+            hits = sum(1 for m in combined if (m.goals_for + m.goals_against) > line)
+            avg_g = fmean(m.goals_for + m.goals_against for m in combined)
+            return f"Porque en {hits} de los últimos {n_comb} partidos de ambos equipos se superó la línea de {line} goles (promedio: {avg_g:.2f})."
+        elif side == "under":
+            hits = sum(1 for m in combined if (m.goals_for + m.goals_against) < line)
+            avg_g = fmean(m.goals_for + m.goals_against for m in combined)
+            return f"Porque en {hits} de los últimos {n_comb} encuentros de ambos se registraron menos de {line} goles (promedio: {avg_g:.2f})."
+
+    # 2. Goles de Equipo
+    if grp == "home_goals" and line is not None and recent_home:
+        hits = sum(1 for m in recent_home if (m.goals_for > line if side == "over" else m.goals_for < line))
+        avg_hg = fmean(m.goals_for for m in recent_home)
+        comp = "más" if side == "over" else "menos"
+        return f"Porque {home.name} anotó {comp} de {line} goles en {hits} de sus últimos {n_h} compromisos (promedia {avg_hg:.2f} goles)."
+
+    if grp == "away_goals" and line is not None and recent_away:
+        hits = sum(1 for m in recent_away if (m.goals_for > line if side == "over" else m.goals_for < line))
+        avg_ag = fmean(m.goals_for for m in recent_away)
+        comp = "más" if side == "over" else "menos"
+        return f"Porque {away.name} anotó {comp} de {line} goles en {hits} de sus últimos {n_a} compromisos (promedia {avg_ag:.2f} goles)."
+
+    # 3. Ambos Marcan (BTTS)
+    if grp == "both_score" and n_comb > 0:
+        if sel == "Sí":
+            hits = sum(1 for m in combined if m.goals_for > 0 and m.goals_against > 0)
+            return f"Porque ambos equipos anotaron y recibieron gol en {hits} de sus últimos {n_comb} encuentros."
+        else:
+            hits = sum(1 for m in combined if m.goals_for == 0 or m.goals_against == 0)
+            return f"Porque al menos uno de los rivales se quedó sin anotar en {hits} de sus últimos {n_comb} partidos."
+
+    # 4. Resultado (1X2, Doble Oportunidad, DNB)
+    if grp in ("1x2", "double_chance", "dnb", "win_to_nil"):
+        if home.name in sel and recent_home:
+            wins_h = sum(1 for m in recent_home if m.result == "W")
+            unbeaten_h = sum(1 for m in recent_home if m.result in ("W", "D"))
+            if "(1X)" in sel or sel.startswith("DNB"):
+                return f"Porque {home.name} evitó la derrota en {unbeaten_h} de sus últimos {n_h} partidos con fuerte solidez de local."
+            if "gana a cero" in sel:
+                cs_h = sum(1 for m in recent_home if m.result == "W" and m.goals_against == 0)
+                return f"Porque {home.name} ganó manteniendo su arco a cero en {cs_h} de sus últimos {n_h} partidos."
+            return f"Porque {home.name} suma {wins_h} victorias en sus últimos {n_h} partidos con clara superioridad de campo."
+        if away.name in sel and recent_away:
+            wins_a = sum(1 for m in recent_away if m.result == "W")
+            unbeaten_a = sum(1 for m in recent_away if m.result in ("W", "D"))
+            if "(X2)" in sel or sel.startswith("DNB"):
+                return f"Porque {away.name} sumó puntos en {unbeaten_a} de sus últimos {n_a} partidos como visitante."
+            return f"Porque {away.name} llega con {wins_a} victorias en sus últimos {n_a} encuentros oficiales."
+
+    # 5. Córners
+    if grp.startswith("corners_"):
+        h_c = [m.stats_for.get("corner_kicks") for m in (recent_home or []) if m.stats_for.get("corner_kicks") is not None]
+        a_c = [m.stats_for.get("corner_kicks") for m in (recent_away or []) if m.stats_for.get("corner_kicks") is not None]
+        if grp == "corners_home" and h_c and line is not None:
+            hits = sum(1 for c in h_c if (c > line if side == "over" else c < line))
+            avg_c = fmean(h_c)
+            comp = "superó" if side == "over" else "estuvo por debajo de"
+            return f"Porque {home.name} promedia {avg_c:.1f} saques de esquina y {comp} los {line} córners en {hits} de sus últimos {len(h_c)} partidos."
+        if grp == "corners_away" and a_c and line is not None:
+            hits = sum(1 for c in a_c if (c > line if side == "over" else c < line))
+            avg_c = fmean(a_c)
+            comp = "superó" if side == "over" else "estuvo por debajo de"
+            return f"Porque {away.name} promedia {avg_c:.1f} saques de esquina y {comp} los {line} córners en {hits} de sus últimos {len(a_c)} partidos."
+        if grp == "corners_total" and line is not None and (h_c or a_c):
+            avg_tot = (fmean(h_c) if h_c else 4.5) + (fmean(a_c) if a_c else 4.5)
+            comp = "alta generación" if side == "over" else "volumen contenido"
+            return f"Porque la combinación de ambos equipos promedia {avg_tot:.1f} saques de esquina totales en sus fechas recientes ({comp})."
+
+    # 6. Tarjetas
+    if grp.startswith("cards_"):
+        h_t = [m.stats_for.get("yellow_cards") for m in (recent_home or []) if m.stats_for.get("yellow_cards") is not None]
+        a_t = [m.stats_for.get("yellow_cards") for m in (recent_away or []) if m.stats_for.get("yellow_cards") is not None]
+        if grp == "cards_total" and line is not None and (h_t or a_t):
+            avg_tot = (fmean(h_t) if h_t else 2.0) + (fmean(a_t) if a_t else 2.0)
+            comp = "disciplinado con apenas" if side == "under" else "de alta fricción con"
+            return f"Porque ambos equipos registran un promedio {comp} {avg_tot:.1f} tarjetas por partido en sus fechas previas."
+        if grp == "cards_home" and h_t and line is not None:
+            avg_t = fmean(h_t)
+            hits = sum(1 for t in h_t if (t > line if side == "over" else t < line))
+            comp = "más" if side == "over" else "menos"
+            return f"Porque {home.name} promedia {avg_t:.1f} tarjetas y registró {comp} de {line} en {hits} de sus últimos {len(h_t)} partidos."
+        if grp == "cards_away" and a_t and line is not None:
+            avg_t = fmean(a_t)
+            hits = sum(1 for t in a_t if (t > line if side == "over" else t < line))
+            comp = "más" if side == "over" else "menos"
+            return f"Porque {away.name} promedia {avg_t:.1f} tarjetas y registró {comp} de {line} en {hits} de sus últimos {len(a_t)} partidos."
+
+    # 7. Remates
+    if grp.startswith("shots_"):
+        h_s = [m.stats_for.get("total_shots") for m in (recent_home or []) if m.stats_for.get("total_shots") is not None]
+        a_s = [m.stats_for.get("total_shots") for m in (recent_away or []) if m.stats_for.get("total_shots") is not None]
+        if grp == "shots_home" and h_s and line is not None:
+            avg_s = fmean(h_s)
+            comp = "más" if side == "over" else "menos"
+            return f"Porque {home.name} promedia {avg_s:.1f} remates y registró {comp} de {line} en {len(h_s)} partidos analizados."
+        if grp == "shots_away" and a_s and line is not None:
+            avg_s = fmean(a_s)
+            comp = "más" if side == "over" else "menos"
+            return f"Porque {away.name} promedia {avg_s:.1f} remates y registró {comp} de {line} en {len(a_s)} partidos analizados."
+        if grp == "shots_total" and line is not None and (h_s or a_s):
+            avg_tot = (fmean(h_s) if h_s else 12.0) + (fmean(a_s) if a_s else 10.0)
+            comp = "elevado volumen ofensivo" if side == "over" else "volumen ofensivo contenido"
+            return f"Porque ambos clubes combinan {avg_tot:.1f} remates promedio por encuentro ({comp})."
+
+    # 8. Mercados Creativos (Tarjetas mutuas, 1X2, Córners mutuos, Gol en ambas mitades, Combos)
+    if grp in ("both_teams_card", "both_teams_2_cards") and n_comb > 0:
+        min_c = 1 if grp == "both_teams_card" else 2
+        hits = 0
+        tot = 0
+        for m in combined:
+            yf = m.stats_for.get("yellow_cards")
+            ya = m.stats_against.get("yellow_cards")
+            if yf is not None and ya is not None:
+                tot += 1
+                if yf >= min_c and ya >= min_c:
+                    hits += 1
+        if tot > 0:
+            return f"Porque ambos equipos recibieron {min_c}+ tarjeta(s) en {hits} de sus últimos {tot} partidos disputados."
+        return f"Porque el promedio de tarjetas conjuntas ({proj_val:.2f}) proyecta alta probabilidad de amonestaciones mutuas." if proj_val else defn.explanation_template
+
+    if grp == "cards_1x2":
+        t_name = home.name if home.name in sel else away.name
+        rec = recent_home if home.name in sel else recent_away
+        if rec:
+            hits = sum(1 for m in rec if (m.stats_for.get("yellow_cards") or 0) > (m.stats_against.get("yellow_cards") or 0))
+            return f"Porque {t_name} recibió más tarjetas que su adversario en {hits} de sus últimos {len(rec)} compromisos."
+
+    if grp == "both_teams_corners" and n_comb > 0:
+        thresh = 4 if "4+" in sel else 3
+        hits = 0
+        tot = 0
+        for m in combined:
+            cf = m.stats_for.get("corner_kicks")
+            ca = m.stats_against.get("corner_kicks")
+            if cf is not None and ca is not None:
+                tot += 1
+                if cf >= thresh and ca >= thresh:
+                    hits += 1
+        if tot > 0:
+            return f"Porque ambos clubes alcanzaron al menos {thresh} saques de esquina en {hits} de sus últimos {tot} partidos."
+
+    if grp == "goal_both_halves" and n_comb > 0:
+        hits = sum(1 for m in combined if (m.goals_for + m.goals_against) >= 2)
+        return f"Porque en {hits} de los últimos {n_comb} partidos hubo un desarrollo dinámico con ritmo goleador en ambas etapas."
+
+    if grp == "team_score_both_halves":
+        t_name = home.name if home.name in sel else away.name
+        rec = recent_home if home.name in sel else recent_away
+        if rec:
+            hits = sum(1 for m in rec if m.goals_for >= 2)
+            return f"Porque {t_name} anotó 2 o más goles en {hits} de sus últimos {len(rec)} partidos demostrando constancia ofensiva."
+
+    if grp == "combo_result_goals":
+        if "(1X)" in sel and recent_home:
+            hits = sum(1 for m in recent_home if m.result in ("W", "D") and (m.goals_for + m.goals_against > 1 if "Más de 1.5" in sel else m.goals_for + m.goals_against < 4))
+            return f"Porque {home.name} evitó la derrota y cumplió el margen de goles en {hits} de sus últimos {n_h} partidos."
+        if "(X2)" in sel and recent_away:
+            hits = sum(1 for m in recent_away if m.result in ("W", "D") and (m.goals_for + m.goals_against > 1 if "Más de 1.5" in sel else m.goals_for + m.goals_against < 4))
+            return f"Porque {away.name} sumó puntos y cumplió el margen de goles en {hits} de sus últimos {n_a} partidos."
+        if "gana y Más de 1.5" in sel:
+            t_name = home.name if home.name in sel else away.name
+            rec = recent_home if home.name in sel else recent_away
+            if rec:
+                hits = sum(1 for m in rec if m.result == "W" and (m.goals_for + m.goals_against) > 1)
+                return f"Porque {t_name} triunfó en partidos de múltiples goles en {hits} de sus últimos {len(rec)} encuentros."
+        if "Ambos marcan y Más de 2.5" in sel and n_comb > 0:
+            hits = sum(1 for m in combined if m.goals_for > 0 and m.goals_against > 0 and (m.goals_for + m.goals_against) > 2)
+            return f"Porque ambos anotaron y se superaron los 2.5 goles en {hits} de sus últimos {n_comb} partidos."
+
+    if grp == "both_teams_shots_on" and n_comb > 0:
+        hits = 0
+        tot = 0
+        for m in combined:
+            sf = m.stats_for.get("shots_on_target")
+            sa = m.stats_against.get("shots_on_target")
+            if sf is not None and sa is not None:
+                tot += 1
+                if sf >= 3 and sa >= 3:
+                    hits += 1
+        if tot > 0:
+            return f"Porque ambos equipos alcanzaron 3+ tiros a puerta en {hits} de sus últimos {tot} encuentros."
+
+    if grp == "shots_on_1x2":
+        t_name = home.name if home.name in sel else away.name
+        rec = recent_home if home.name in sel else recent_away
+        if rec:
+            hits = sum(1 for m in rec if (m.stats_for.get("shots_on_target") or 0) > (m.stats_against.get("shots_on_target") or 0))
+            return f"Porque {t_name} superó a sus rivales en tiros a puerta en {hits} de sus últimos {len(rec)} compromisos."
+
+    # 9. Multigoles y Combos 1X2 + Ambos Marcan
+    if grp == "multigoals" and n_comb > 0:
+        min_g, max_g = (1, 3) if "1 a 3" in sel else ((2, 4) if "2 a 4" in sel else (2, 5))
+        hits = sum(1 for m in combined if min_g <= (m.goals_for + m.goals_against) <= max_g)
+        return f"Porque en {hits} de los últimos {n_comb} partidos de ambos se registró un total de {sel}."
+
+    if grp == "combo_1x2_btts":
+        if home.name in sel and recent_home:
+            hits = sum(1 for m in recent_home if (m.result == "W" if "gana" in sel else m.result in ("W", "D")) and m.goals_for > 0 and m.goals_against > 0)
+            return f"Porque {home.name} cumplió este patrón de resultado con goles de ambos lados en {hits} de sus últimos {n_h} partidos."
+        if away.name in sel and recent_away:
+            hits = sum(1 for m in recent_away if (m.result == "W" if "gana" in sel else m.result in ("W", "D")) and m.goals_for > 0 and m.goals_against > 0)
+            return f"Porque {away.name} sumó con goles en ambas porterías en {hits} de sus últimos {n_a} compromisos como visitante."
+
+    if grp == "btts_second_half":
+        return "Porque la dinámica táctica y necesidad de puntos en el complemento suele forzar anotaciones en ambos arcos."
+
+    if grp == "corners_first_half" and line is not None:
+        comp = "alta generación ofensiva inicial" if side == "over" else "estudio táctico cerrado en los primeros 45 minutos"
+        return f"Porque la proyección de córners en la primera mitad ({proj_val:.2f}) refleja {comp}."
+
+    # 10. Faltas
+    if grp.startswith("fouls_"):
+        h_f = [m.stats_for.get("fouls") for m in (recent_home or []) if m.stats_for.get("fouls") is not None]
+        a_f = [m.stats_for.get("fouls") for m in (recent_away or []) if m.stats_for.get("fouls") is not None]
+        if grp == "fouls_total" and line is not None and (h_f or a_f):
+            avg_tot = (fmean(h_f) if h_f else 12.0) + (fmean(a_f) if a_f else 12.0)
+            comp = "intensa fricción" if side == "over" else "fútbol fluido y limpio"
+            return f"Porque ambos equipos combinan {avg_tot:.1f} faltas por partido en sus fechas recientes ({comp})."
+        if grp == "fouls_home" and h_f and line is not None:
+            avg_f = fmean(h_f)
+            hits = sum(1 for f in h_f if (f > line if side == "over" else f < line))
+            comp = "más" if side == "over" else "menos"
+            return f"Porque {home.name} promedia {avg_f:.1f} faltas y registró {comp} de {line} en {hits} de sus últimos {len(h_f)} partidos."
+        if grp == "fouls_away" and a_f and line is not None:
+            avg_f = fmean(a_f)
+            hits = sum(1 for f in a_f if (f > line if side == "over" else f < line))
+            comp = "más" if side == "over" else "menos"
+            return f"Porque {away.name} promedia {avg_f:.1f} faltas y registró {comp} de {line} en {hits} de sus últimos {len(a_f)} partidos."
+        if grp == "fouls_1x2":
+            t_name = home.name if home.name in sel else away.name
+            rec = recent_home if home.name in sel else recent_away
+            if rec:
+                hits = sum(1 for m in rec if (m.stats_for.get("fouls") or 0) > (m.stats_against.get("fouls") or 0))
+                return f"Porque {t_name} cometió más faltas que su adversario en {hits} de sus últimos {len(rec)} compromisos."
+
+    # Fallback
+    try:
+        return defn.explanation_template.format(projection=proj_val, probability=prob) if proj_val is not None else defn.explanation_template
+    except Exception:
+        return defn.explanation_template
+
+
 def calculate_candidate_markets(
     home: Team,
     away: Team,
     probabilities: ProbabilityReport,
     expected: ExpectedMetrics,
+    recent_home: list[TeamMatch] | None = None,
+    recent_away: list[TeamMatch] | None = None,
 ) -> list[dict[str, Any]]:
     """Genera sistemáticamente todos los mercados declarativos evaluados por las distribuciones del modelo."""
     catalog = build_declarative_catalog(home.name, away.name)
@@ -96,6 +382,13 @@ def calculate_candidate_markets(
         if (expected.woodwork_home is not None and expected.woodwork_away is not None)
         else None
     )
+    disp_fouls = getattr(expected, "dispersion_fouls", 0.12)
+    total_fouls = (
+        expected.fouls_home + expected.fouls_away
+        if (expected.fouls_home is not None and expected.fouls_away is not None)
+        else None
+    )
+    corners_1h = getattr(expected, "corners_first_half", None)
 
     matrix = (
         probabilities.score_matrix
@@ -123,6 +416,10 @@ def calculate_candidate_markets(
         "expected_home_goals": probabilities.expected_home_goals,
         "expected_away_goals": probabilities.expected_away_goals,
         "tot_woodwork": tot_woodwork,
+        "total_fouls": total_fouls,
+        "fouls_home": expected.fouls_home,
+        "fouls_away": expected.fouls_away,
+        "corners_first_half": corners_1h,
     }
 
     for defn in catalog:
@@ -321,9 +618,134 @@ def calculate_candidate_markets(
             if matrix:
                 prob = round(sum(matrix[0][a] for a in range(1, len(matrix[0]))), 4)
 
-        # 9. Especiales
+        # 9. Mercados Creativos (Tarjetas mutuas, Córners mutuos, Tiros a puerta mutuos, Combos)
+        elif defn.probability_source == "both_teams_card":
+            if expected.cards_home is not None and expected.cards_away is not None:
+                p_h_0 = negative_binomial_pmf(0, expected.cards_home, disp_cards)
+                p_a_0 = negative_binomial_pmf(0, expected.cards_away, disp_cards)
+                prob = round((1.0 - p_h_0) * (1.0 - p_a_0), 4)
+        elif defn.probability_source == "both_teams_2_cards":
+            if expected.cards_home is not None and expected.cards_away is not None:
+                p_h_under2 = negative_binomial_pmf(0, expected.cards_home, disp_cards) + negative_binomial_pmf(1, expected.cards_home, disp_cards)
+                p_a_under2 = negative_binomial_pmf(0, expected.cards_away, disp_cards) + negative_binomial_pmf(1, expected.cards_away, disp_cards)
+                prob = round(max(0.0, 1.0 - p_h_under2) * max(0.0, 1.0 - p_a_under2), 4)
+        elif defn.probability_source == "cards_1x2_home":
+            p_h_win, _ = _calc_comparison_1x2(expected.cards_home, expected.cards_away, disp_cards)
+            prob = p_h_win
+        elif defn.probability_source == "cards_1x2_away":
+            _, p_a_win = _calc_comparison_1x2(expected.cards_home, expected.cards_away, disp_cards)
+            prob = p_a_win
+
+        elif defn.probability_source == "both_teams_corners_3":
+            if expected.corners_home is not None and expected.corners_away is not None:
+                p_h_under3 = sum(negative_binomial_pmf(k, expected.corners_home, disp_corners) for k in range(3))
+                p_a_under3 = sum(negative_binomial_pmf(k, expected.corners_away, disp_corners) for k in range(3))
+                prob = round(max(0.0, 1.0 - p_h_under3) * max(0.0, 1.0 - p_a_under3), 4)
+        elif defn.probability_source == "both_teams_corners_4":
+            if expected.corners_home is not None and expected.corners_away is not None:
+                p_h_under4 = sum(negative_binomial_pmf(k, expected.corners_home, disp_corners) for k in range(4))
+                p_a_under4 = sum(negative_binomial_pmf(k, expected.corners_away, disp_corners) for k in range(4))
+                prob = round(max(0.0, 1.0 - p_h_under4) * max(0.0, 1.0 - p_a_under4), 4)
+
+        elif defn.probability_source == "both_teams_shots_on_3":
+            if expected.shots_on_home is not None and expected.shots_on_away is not None:
+                p_h_under3 = sum(negative_binomial_pmf(k, expected.shots_on_home, disp_shots) for k in range(3))
+                p_a_under3 = sum(negative_binomial_pmf(k, expected.shots_on_away, disp_shots) for k in range(3))
+                prob = round(max(0.0, 1.0 - p_h_under3) * max(0.0, 1.0 - p_a_under3), 4)
+        elif defn.probability_source == "shots_on_1x2_home":
+            p_h_win, _ = _calc_comparison_1x2(expected.shots_on_home, expected.shots_on_away, disp_shots)
+            prob = p_h_win
+        elif defn.probability_source == "shots_on_1x2_away":
+            _, p_a_win = _calc_comparison_1x2(expected.shots_on_home, expected.shots_on_away, disp_shots)
+            prob = p_a_win
+
+        elif defn.probability_source == "goal_both_halves":
+            p_1t = probabilities.first_half_over_05
+            p_2t = probabilities.second_half_over_05
+            if p_1t is not None and p_2t is not None:
+                prob = round(p_1t * p_2t, 4)
+            elif total_goals is not None and total_goals > 0:
+                p1 = 1.0 - math.exp(-0.45 * total_goals)
+                p2 = 1.0 - math.exp(-0.55 * total_goals)
+                prob = round(p1 * p2, 4)
+        elif defn.probability_source == "team_score_both_halves_home":
+            lambda_h = probabilities.expected_home_goals
+            if lambda_h is not None and lambda_h > 0:
+                prob = round((1.0 - math.exp(-0.45 * lambda_h)) * (1.0 - math.exp(-0.55 * lambda_h)), 4)
+        elif defn.probability_source == "team_score_both_halves_away":
+            lambda_a = probabilities.expected_away_goals
+            if lambda_a is not None and lambda_a > 0:
+                prob = round((1.0 - math.exp(-0.45 * lambda_a)) * (1.0 - math.exp(-0.55 * lambda_a)), 4)
+
+        elif defn.probability_source == "combo_1x_over_15":
+            if matrix:
+                prob = round(sum(matrix[h][a] for h in range(len(matrix)) for a in range(len(matrix[h])) if h >= a and (h + a) >= 2), 4)
+        elif defn.probability_source == "combo_x2_over_15":
+            if matrix:
+                prob = round(sum(matrix[h][a] for h in range(len(matrix)) for a in range(len(matrix[h])) if a >= h and (h + a) >= 2), 4)
+        elif defn.probability_source == "combo_1x_under_35":
+            if matrix:
+                prob = round(sum(matrix[h][a] for h in range(len(matrix)) for a in range(len(matrix[h])) if h >= a and (h + a) <= 3), 4)
+        elif defn.probability_source == "combo_x2_under_35":
+            if matrix:
+                prob = round(sum(matrix[h][a] for h in range(len(matrix)) for a in range(len(matrix[h])) if a >= h and (h + a) <= 3), 4)
+        elif defn.probability_source == "combo_1_over_15":
+            if matrix:
+                prob = round(sum(matrix[h][a] for h in range(len(matrix)) for a in range(len(matrix[h])) if h > a and (h + a) >= 2), 4)
+        elif defn.probability_source == "combo_2_over_15":
+            if matrix:
+                prob = round(sum(matrix[h][a] for h in range(len(matrix)) for a in range(len(matrix[h])) if a > h and (h + a) >= 2), 4)
+        elif defn.probability_source == "combo_btts_over_25":
+            if matrix:
+                prob = round(sum(matrix[h][a] for h in range(len(matrix)) for a in range(len(matrix[h])) if h >= 1 and a >= 1 and (h + a) >= 3), 4)
+
+        # 10. Especiales
         elif defn.probability_source == "hit_woodwork":
             prob = expected.over_05_woodwork
+
+        # 11. Multigoles
+        elif defn.probability_source == "multigoal_1_3":
+            prob = probabilities.multigoal_1_3
+        elif defn.probability_source == "multigoal_2_4":
+            prob = probabilities.multigoal_2_4
+        elif defn.probability_source == "multigoal_2_5":
+            prob = probabilities.multigoal_2_5
+
+        # 12. Combos 1X2 + Ambos Marcan
+        elif defn.probability_source == "combo_1_btts":
+            prob = probabilities.home_win_and_btts
+        elif defn.probability_source == "combo_2_btts":
+            prob = probabilities.away_win_and_btts
+        elif defn.probability_source == "combo_1x_btts":
+            prob = probabilities.dc_1x_and_btts
+        elif defn.probability_source == "combo_x2_btts":
+            prob = probabilities.dc_x2_and_btts
+
+        # 13. BTTS 2do Tiempo
+        elif defn.probability_source == "btts_second_half":
+            prob = probabilities.btts_second_half
+
+        # 14. Córners 1er Tiempo
+        elif defn.probability_source == "neg_bin_corners_1h":
+            if corners_1h is not None and corners_1h > 0 and defn.line is not None:
+                prob = _calc_count_over(corners_1h, disp_corners, defn.line) if defn.side == "over" else _calc_count_under(corners_1h, disp_corners, defn.line)
+
+        # 15. Faltas
+        elif defn.probability_source == "neg_bin_fouls_total":
+            if total_fouls is not None and total_fouls > 0 and defn.line is not None:
+                prob = _calc_count_over(total_fouls, disp_fouls, defn.line) if defn.side == "over" else _calc_count_under(total_fouls, disp_fouls, defn.line)
+        elif defn.probability_source == "neg_bin_fouls_home":
+            if expected.fouls_home is not None and expected.fouls_home > 0 and defn.line is not None:
+                prob = _calc_count_over(expected.fouls_home, disp_fouls, defn.line) if defn.side == "over" else _calc_count_under(expected.fouls_home, disp_fouls, defn.line)
+        elif defn.probability_source == "neg_bin_fouls_away":
+            if expected.fouls_away is not None and expected.fouls_away > 0 and defn.line is not None:
+                prob = _calc_count_over(expected.fouls_away, disp_fouls, defn.line) if defn.side == "over" else _calc_count_under(expected.fouls_away, disp_fouls, defn.line)
+        elif defn.probability_source == "fouls_1x2_home":
+            p_h_win, _ = _calc_comparison_1x2(expected.fouls_home, expected.fouls_away, disp_fouls)
+            prob = p_h_win
+        elif defn.probability_source == "fouls_1x2_away":
+            _, p_a_win = _calc_comparison_1x2(expected.fouls_home, expected.fouls_away, disp_fouls)
+            prob = p_a_win
 
         if prob is None:
             continue
@@ -335,10 +757,9 @@ def calculate_candidate_markets(
             else "Proyección del modelo estadístico; no incluye cuota ni valoración frente a una casa."
         )
 
-        try:
-            explanation = defn.explanation_template.format(projection=proj_val, probability=prob) if proj_val is not None else defn.explanation_template
-        except Exception:
-            explanation = defn.explanation_template
+        explanation = _generate_dynamic_explanation(
+            defn, home, away, proj_val, prob, recent_home=recent_home, recent_away=recent_away
+        )
 
         item: dict[str, Any] = {
             "id": defn.id,
@@ -380,6 +801,20 @@ def _get_subfamily_key(candidate: dict[str, Any]) -> str:
         return f"{group}:shots"
     if group.startswith("player_goal"):
         return f"{group}:goal"
+    if group in ("both_teams_card", "both_teams_2_cards"):
+        return "both_teams_card"
+    if group == "both_teams_corners":
+        return "both_teams_corners"
+    if group == "combo_result_goals":
+        return "combo_result_goals"
+    if group == "cards_1x2":
+        return "cards_1x2"
+    if group == "shots_on_1x2":
+        return "shots_on_1x2"
+    if group == "team_score_both_halves":
+        return "team_score_both_halves"
+    if group in ("multigoals", "combo_1x2_btts", "btts_second_half", "fouls_1x2"):
+        return group
     if side in ("over", "under"):
         return f"{group}:{side}"
     return group
@@ -388,10 +823,32 @@ def _get_subfamily_key(candidate: dict[str, Any]) -> str:
 def _get_concept_group(candidate: dict[str, Any]) -> str:
     """Identifica el concepto global del mercado para deduplicar a una única selección por concepto."""
     group = str(candidate.get("group", ""))
+    side = str(candidate.get("side", ""))
     if group.startswith("player_shots:") or group.startswith("player_goal:"):
         parts = group.split(":")
         if len(parts) >= 3:
             return f"player:{parts[1]}:{parts[2]}"
+        return group
+    # Evitar saturación de líneas 'Menos de' individuales por equipo cuando hay mercados mutuos
+    if group in ("cards_home", "cards_away") and side == "under":
+        return "team_cards_under"
+    if group in ("corners_home", "corners_away") and side == "under":
+        return "team_corners_under"
+    if group in ("fouls_home", "fouls_away") and side == "under":
+        return "team_fouls_under"
+    if group in ("both_teams_card", "both_teams_2_cards"):
+        return "both_teams_card"
+    if group == "both_teams_corners":
+        return "both_teams_corners"
+    if group == "combo_result_goals":
+        return "combo_result_goals"
+    if group == "cards_1x2":
+        return "cards_1x2"
+    if group == "shots_on_1x2":
+        return "shots_on_1x2"
+    if group == "team_score_both_halves":
+        return "team_score_both_halves"
+    if group in ("multigoals", "combo_1x2_btts", "btts_second_half", "fouls_1x2"):
         return group
     return group
 
@@ -399,21 +856,19 @@ def _get_concept_group(candidate: dict[str, Any]) -> str:
 def _candidate_rank_key(c: dict[str, Any]) -> tuple[float, float]:
     """Calcula el orden de prioridad entre campeones de subfamilias del mismo concepto.
 
-    Para mercados de conteo con línea y proyección:
-    Prioriza el margen direccional proyectado (projection - line para over, line - projection para under).
-    Desempata con la probabilidad de la selección.
+    Prioriza la probabilidad más alta (Opción 1: máxima seguridad) y desempata con el margen direccional.
     """
+    prob = float(c.get("probability", 0.0))
     side = c.get("side")
     line = c.get("line")
     proj = c.get("projection")
+    directional_margin = 0.0
     if proj is not None and line is not None:
         if side == "over":
             directional_margin = round(float(proj) - float(line), 2)
-            return (directional_margin, float(c.get("probability", 0.0)))
-        if side == "under":
+        elif side == "under":
             directional_margin = round(float(line) - float(proj), 2)
-            return (directional_margin, float(c.get("probability", 0.0)))
-    return (0.0, float(c.get("probability", 0.0)))
+    return (prob, directional_margin)
 
 
 def select_statistical_markets(
@@ -422,38 +877,73 @@ def select_statistical_markets(
     probabilities: ProbabilityReport,
     expected: ExpectedMetrics,
     minimum_probability: float = MINIMUM_PROBABILITY,
+    maximum_probability: float = MAXIMUM_PROBABILITY,
     max_per_category: int = 4,
+    calibration: Any = None,
+    recent_home: list[TeamMatch] | None = None,
+    recent_away: list[TeamMatch] | None = None,
 ) -> list[dict[str, Any]]:
     """Aplica la capa de presentación:
     1. Filtra candidatos estrictamente según MarketPresentationCatalog (excluye triviales y no catalogados).
-    2. Conserva selecciones con probabilidad >= minimum_probability (0.60).
-    3. Para cada subfamilia, elige la línea válida MÁS EXIGENTE.
-    4. Deduplica por concepto/grupo priorizando margen direccional proyectado y probabilidad.
-    5. Agrupa por categoría, limitando a un máximo de 4 selecciones (orden descendente).
-    6. Oculta cualquier categoría sin selecciones válidas.
+    2. Aplica calibración adaptativa si está activa (contracción empírica y filtro dinámico).
+    3. Conserva selecciones con probabilidad dentro del rango óptimo (>= minimum_probability y <= maximum_probability).
+    4. Para cada subfamilia, elige la selección de MAYOR PROBABILIDAD (Opción 1: más segura en el rango).
+    5. Deduplica por concepto/grupo priorizando probabilidad y margen direccional proyectado.
+    6. Agrupa por categoría, limitando a un máximo de 4 selecciones (orden descendente).
+    7. Oculta cualquier categoría sin selecciones válidas.
     """
-    candidates = calculate_candidate_markets(home, away, probabilities, expected)
+    candidates = calculate_candidate_markets(
+        home, away, probabilities, expected, recent_home=recent_home, recent_away=recent_away
+    )
 
-    # 1. Filtro estricto por MarketPresentationCatalog y probabilidad mínima
+    # 1. Filtro estricto por MarketPresentationCatalog y rango de probabilidad óptimo
     eligible: list[dict[str, Any]] = []
+    cat_factors = getattr(calibration, "category_factors", {}) if calibration else {}
+
     for c in candidates:
-        prob = c.get("probability")
-        if prob is None or prob < minimum_probability:
-            continue
         if not MarketPresentationCatalog.is_presentable(c):
             continue
+
+        prob = c.get("probability")
+        if prob is None:
+            continue
+
+        cat = c.get("category", "")
+        # Si existe calibración dinámica activa para esta categoría, aplicar factor empírico
+        if cat in cat_factors:
+            f_info = cat_factors[cat]
+            shrinkage = f_info.get("shrinkage_factor", 1.0)
+            hit_rate = f_info.get("hit_rate", 0.0)
+            sample_size = f_info.get("sample_size", 0)
+
+            if shrinkage < 1.0:
+                prob = round(prob * shrinkage, 4)
+                c["probability"] = prob
+
+            if sample_size >= 5 and hit_rate >= 0.70:
+                c["dynamic_verified"] = True
+                if not c.get("explanation", "").endswith("."):
+                    c["explanation"] = c.get("explanation", "") + "."
+                c["explanation"] += f" (Validación dinámica: {hit_rate * 100:.1f}% acierto histórico)."
+
+        if prob < minimum_probability:
+            continue
+
+        if prob > maximum_probability:
+            continue
+
         eligible.append(c)
 
-    # 2. Agrupación por subfamilia para escoger la línea MÁS EXIGENTE de cada una
+    # 2. Agrupación por subfamilia
     by_subfamily: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for c in eligible:
         subfamily_key = _get_subfamily_key(c)
         by_subfamily[subfamily_key].append(c)
 
-    # 3. Dentro de cada subfamilia, elegir la selección con mayor puntaje de exigencia
+    # 3. Dentro de cada subfamilia, elegir la selección de MAYOR PROBABILIDAD (Opción 1: más segura dentro del rango)
     subfamily_champions: list[dict[str, Any]] = []
     for sub_items in by_subfamily.values():
-        champion = max(sub_items, key=lambda x: (get_exigence_score(x), x["probability"]))
+        champion = max(sub_items, key=lambda x: (x["probability"], -abs(get_exigence_score(x))))
         subfamily_champions.append(champion)
 
     # 4. Deduplicación por concepto global / grupo único
@@ -548,3 +1038,48 @@ def _add_scorer_candidates(
 
 def _number(value: Any) -> float | None:
     return float(value) if isinstance(value, (int, float)) else None
+
+
+def select_top_recommended_pick(
+    selected_markets: list[dict[str, Any]],
+    recent_home: list[TeamMatch] | None = None,
+    recent_away: list[TeamMatch] | None = None,
+    probabilities: ProbabilityReport | None = None,
+    expected: ExpectedMetrics | None = None,
+) -> dict[str, Any] | None:
+    """Selecciona la mejor recomendación global del partido (AI Top Pick).
+
+    Evalúa todas las selecciones filtradas del catálogo (rango 60.0% - 88.0%),
+    priorizando selecciones con alta probabilidad, consistencia en la muestra empírica
+    y menor varianza estructural.
+    """
+    if not selected_markets:
+        return None
+
+    # Si hay selecciones sin sujeción a titularidad oficial, preferirlas para el Top Pick
+    stable_pool = [m for m in selected_markets if not m.get("requires_starter_confirmation")]
+    pool = stable_pool if stable_pool else selected_markets
+
+    def score_candidate(item: dict[str, Any]) -> float:
+        prob = float(item.get("probability", 0.0))
+        bonus = 0.05 if item.get("dynamic_verified") else 0.0
+        cat = str(item.get("category", ""))
+        # Ponderación por estabilidad de mercado
+        cat_weight = 1.0
+        if cat in ("Córners", "Goles", "Resultado"):
+            cat_weight = 1.05
+        elif cat in ("Fueras de juego", "Especiales"):
+            cat_weight = 0.95
+        return (prob + bonus) * cat_weight
+
+    best = max(pool, key=score_candidate)
+
+    return {
+        "market": best.get("market"),
+        "selection": best.get("selection"),
+        "category": best.get("category"),
+        "probability": best.get("probability"),
+        "explanation": best.get("explanation"),
+        "requires_starter_confirmation": best.get("requires_starter_confirmation", False),
+    }
+

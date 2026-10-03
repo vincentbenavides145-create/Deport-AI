@@ -37,6 +37,37 @@ FIXTURE_INCLUDES = "participants;scores;league;season;state;lineups;formations;s
 TEAM_ALIASES: dict[str, str] = {
     "arsenal": "Arsenal",
     "arsenal fc": "Arsenal",
+    "gales": "Wales",
+    "noruega": "Norway",
+    "nooruega": "Norway",
+    "dinamarca": "Denmark",
+    "alemania": "Germany",
+    "inglaterra": "England",
+    "espana": "Spain",
+    "españa": "Spain",
+    "francia": "France",
+    "italia": "Italy",
+    "paises bajos": "Netherlands",
+    "holanda": "Netherlands",
+    "croacia": "Croatia",
+    "belgica": "Belgium",
+    "bélgica": "Belgium",
+    "suiza": "Switzerland",
+    "suecia": "Sweden",
+    "polonia": "Poland",
+    "turquia": "Turkey",
+    "turquía": "Turkey",
+    "austria": "Austria",
+    "escocia": "Scotland",
+    "irlanda": "Republic of Ireland",
+    "islandia": "Iceland",
+    "grecia": "Greece",
+    "brasil": "Brazil",
+    "estados unidos": "USA",
+    "eeuu": "USA",
+    "japon": "Japan",
+    "japón": "Japan",
+    "marruecos": "Morocco",
     "sunderland": "Sunderland",
     "sunderland afc": "Sunderland",
     "udinese": "Udinese",
@@ -221,6 +252,11 @@ TEAM_ID_OVERRIDES: dict[str, int] = {
     "inter milan": 2930,
     "inter de milan": 2930,
     "internazionale": 2930,
+    "inter miami": 239235,
+    "inter miami cf": 239235,
+    "inter de miami": 239235,
+    "san diego": 275650,
+    "san diego fc": 275650,
     "lille": 690,
     "lille osc": 690,
     "losc lille": 690,
@@ -249,6 +285,13 @@ TEAM_ID_OVERRIDES: dict[str, int] = {
     "soprting cristal": 10661,
     "river plate": 10002,
     "river": 10002,
+    "flamengo": 1024,
+    "flamengo rj": 1024,
+    "cr flamengo": 1024,
+    "bragantino": 7808,
+    "bragantino sp": 7808,
+    "red bull bragantino": 7808,
+    "rb bragantino": 7808,
     "santa fe": 12506,
     "independiente santa fe": 12506,
     "union santa fe": 7228,
@@ -295,6 +338,32 @@ TEAM_ID_OVERRIDES: dict[str, int] = {
     "independiente del valle": 14635,
     "independinete del valle": 14635,
     "idv": 14635,
+    "independiente medellin": 332,
+    "independiente medellín": 332,
+    "medellin": 332,
+    "medellín": 332,
+    "dim": 332,
+    "independiente de medellin": 332,
+    "independiente de medellín": 332,
+    "independiente": 10840,
+    "independiente avellaneda": 10840,
+    "independiente de avellaneda": 10840,
+    "independiente rivadavia": 812,
+    "jaguares de cordoba": 12488,
+    "jaguares de córdoba": 12488,
+    "jaguares": 12488,
+    "asociacion deportiva de tarma": 239392,
+    "asociacion deportiva tarma": 239392,
+    "asociación deportiva de tarma": 239392,
+    "asociación deportiva tarma": 239392,
+    "ad tarma": 239392,
+    "tarma": 239392,
+    "adt": 239392,
+    "adt tarma": 239392,
+    "cienciano": 13264,
+    "club cienciano": 13264,
+    "club cienciano del cusco": 13264,
+    "cienciano del cusco": 13264,
 }
 
 
@@ -367,7 +436,7 @@ class SportmonksClient:
         norm = _normalize(cleaned)
         override_id = TEAM_ID_OVERRIDES.get(norm)
         if not override_id:
-            close = get_close_matches(norm, TEAM_ID_OVERRIDES.keys(), n=1, cutoff=0.80)
+            close = get_close_matches(norm, TEAM_ID_OVERRIDES.keys(), n=1, cutoff=0.88)
             if close:
                 override_id = TEAM_ID_OVERRIDES[close[0]]
         if override_id:
@@ -389,7 +458,7 @@ class SportmonksClient:
                 if stripped_norm in TEAM_ID_OVERRIDES:
                     override_id = TEAM_ID_OVERRIDES[stripped_norm]
                 else:
-                    close_stripped = get_close_matches(stripped_norm, TEAM_ID_OVERRIDES.keys(), n=1, cutoff=0.80)
+                    close_stripped = get_close_matches(stripped_norm, TEAM_ID_OVERRIDES.keys(), n=1, cutoff=0.88)
                     if close_stripped:
                         override_id = TEAM_ID_OVERRIDES[close_stripped[0]]
                 if override_id:
@@ -430,7 +499,7 @@ class SportmonksClient:
     def recent_fixtures(self, team_id: int, count: int) -> list[dict[str, Any]]:
         completed: list[dict[str, Any]] = []
         end = date.today()
-        for _ in range(3):
+        for _ in range(8):
             start = end - timedelta(days=99)
             rows = self._get(
                 f"fixtures/between/{start.isoformat()}/{end.isoformat()}/{team_id}",
@@ -742,6 +811,9 @@ def _convert_statistics(
         "OFFSIDES": "Offsides",
         "OFFSIDE": "Offsides",
         "OFF_SIDES": "Offsides",
+        "FOULS": "Fouls",
+        "FOULS_COMMITTED": "Fouls",
+        "FOULS_TOTAL": "Fouls",
     }
     grouped: dict[int, list[dict[str, Any]]] = {}
     for row in rows or []:

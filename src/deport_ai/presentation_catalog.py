@@ -96,9 +96,25 @@ class MarketPresentationCatalog:
             "over": {0.5, 1.5},
             "under": {1.5},
         },
+        "corners_first_half": {
+            "over": {3.5, 4.5},
+            "under": {4.5, 5.5},
+        },
+        "fouls_total": {
+            "over": {21.5, 23.5, 25.5, 27.5},
+            "under": {23.5, 25.5, 27.5},
+        },
+        "fouls_home": {
+            "over": {10.5, 11.5, 12.5, 13.5},
+            "under": {10.5, 11.5, 12.5},
+        },
+        "fouls_away": {
+            "over": {10.5, 11.5, 12.5, 13.5},
+            "under": {10.5, 11.5, 12.5},
+        },
     }
 
-    # Mercados binarios / cualitativos permitidos
+    # Mercados binarios / cualitativos / combinados permitidos
     ALLOWED_BINARY_GROUPS: set[str] = {
         "both_score",
         "clean_sheet",
@@ -108,6 +124,19 @@ class MarketPresentationCatalog:
         "dnb",
         "win_to_nil",
         "woodwork",
+        "both_teams_card",
+        "both_teams_2_cards",
+        "cards_1x2",
+        "both_teams_corners",
+        "goal_both_halves",
+        "team_score_both_halves",
+        "combo_result_goals",
+        "both_teams_shots_on",
+        "shots_on_1x2",
+        "multigoals",
+        "combo_1x2_btts",
+        "btts_second_half",
+        "fouls_1x2",
     }
 
     # Props de jugadores autorizados
@@ -139,7 +168,7 @@ class MarketPresentationCatalog:
                 return float(line) in allowed_sides[side]
             return False
 
-        # 3. Mercados binarios, resultados o mitades
+        # 3. Mercados binarios, resultados, mitades y combinados
         if group in cls.ALLOWED_BINARY_GROUPS:
             if group == "woodwork":
                 return selection == "Tiro al palo en el partido"
@@ -148,7 +177,7 @@ class MarketPresentationCatalog:
             if group == "clean_sheet":
                 return "no recibe gol" in selection
             if group == "corners_1x2":
-                return "saca más córners (Experimental)" in selection
+                return "saca más córners" in selection
             if group == "1x2":
                 return True
             if group == "double_chance":
@@ -157,6 +186,32 @@ class MarketPresentationCatalog:
                 return selection.startswith("DNB")
             if group == "win_to_nil":
                 return "gana a cero" in selection
+            if group == "both_teams_card":
+                return "Ambos equipos reciben al menos 1 tarjeta" in selection or "Ambos equipos reciben tarjeta" in selection
+            if group == "both_teams_2_cards":
+                return "Ambos equipos reciben 2+ tarjetas" in selection
+            if group == "cards_1x2":
+                return "recibe más tarjetas" in selection
+            if group == "both_teams_corners":
+                return any(allowed in selection for allowed in ("Ambos equipos sacan 3+ córners", "Ambos equipos sacan 4+ córners"))
+            if group == "goal_both_halves":
+                return "gol en ambas mitades" in selection.lower()
+            if group == "team_score_both_halves":
+                return "marca en ambas mitades" in selection or "anota en ambas mitades" in selection
+            if group == "combo_result_goals":
+                return any(op in selection for op in (" y Más de 1.5", " y Menos de 3.5", " y Más de 2.5"))
+            if group == "both_teams_shots_on":
+                return "3+ tiros a puerta" in selection
+            if group == "shots_on_1x2":
+                return "más tiros a puerta" in selection
+            if group == "multigoals":
+                return any(allowed in selection for allowed in ("1 a 3 goles", "2 a 4 goles", "2 a 5 goles"))
+            if group == "combo_1x2_btts":
+                return "y Ambos Marcan" in selection
+            if group == "btts_second_half":
+                return "Ambos anotan en el 2do tiempo" in selection or "Ambos marcan en el 2T" in selection
+            if group == "fouls_1x2":
+                return "comete más faltas" in selection
             return True
 
         return False
@@ -168,7 +223,7 @@ def get_exigence_score(candidate: dict[str, Any]) -> float:
     Para Over: a mayor línea, mayor exigencia (ej: 8.5 > 7.5).
     Para Under: a menor línea, mayor exigencia (ej: -9.5 > -10.5, 9.5 es más exigente que 10.5).
     Para Jugadores: 4+ remates (4.0) > 3+ remates (3.0) > 2+ remates (2.0); 2+ SOT (2.0) > 1+ SOT (1.0).
-    Para mercados binarios o 1X2 sin escala ordinal: 0.0.
+    Para mercados binarios con escalas: 4+ córners (4.0) > 3+ córners (3.0); 2+ tarjetas (2.0) > 1+ tarjeta (1.0).
     """
     side = candidate.get("side", "")
     line = candidate.get("line")
@@ -188,6 +243,15 @@ def get_exigence_score(candidate: dict[str, Any]) -> float:
     if "2+ tiros a puerta" in selection:
         return 2.0
     if "1+ tiro a puerta" in selection:
+        return 1.0
+
+    if "4+ córners" in selection:
+        return 4.0
+    if "3+ córners" in selection:
+        return 3.0
+    if "2+ tarjetas" in selection:
+        return 2.0
+    if "al menos 1 tarjeta" in selection or "reciben tarjeta" in selection:
         return 1.0
 
     return 0.0

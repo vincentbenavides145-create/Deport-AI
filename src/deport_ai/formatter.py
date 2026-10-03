@@ -1114,13 +1114,35 @@ def format_adaptive_report(report: AnalysisReport) -> str:
     lines.append(f"# ⚽ {report.home.name} vs {report.away.name}")
 
     # 2. Confianza
+    cal_info = getattr(report, "dynamic_calibration_info", None)
+    cal_str = ""
+    if cal_info and getattr(cal_info, "active", False) and getattr(cal_info, "sample_size", 0) >= 5:
+        cal_str = f", ⚡ Calibración Dinámica: {cal_info.sample_size} apuestas auditadas, {cal_info.overall_hit_rate * 100:.1f}% acierto"
+
     if report.confidence:
         badge = "🟢" if report.confidence.level == "ALTA" else "🟡" if report.confidence.level == "MEDIA" else "🔴"
         lineup_str = "alineación titular confirmada oficialmente" if report.confidence.lineups_confirmed else "alineaciones no confirmadas oficialmente"
-        lines.append(f"**Confianza:** {badge} {report.confidence.level.capitalize()} ({report.confidence.sample_size} partidos analizados, {report.confidence.detailed_matches} con estadísticas completas, {lineup_str})")
+        lines.append(f"**Confianza:** {badge} {report.confidence.level.capitalize()} ({report.confidence.sample_size} partidos analizados, {report.confidence.detailed_matches} con estadísticas completas, {lineup_str}{cal_str})")
     else:
-        lines.append("**Confianza:** 🟡 Media (análisis estadístico preliminar)")
+        lines.append(f"**Confianza:** 🟡 Media (análisis estadístico preliminar{cal_str})")
     lines.append("")
+
+    # 2.5 Pick Recomendado Oficial
+    top_pick = getattr(report, "top_pick", None)
+    if top_pick and top_pick.get("probability", 0.0) >= 0.60:
+        sel = top_pick.get("selection", "")
+        prob = top_pick.get("probability", 0.0)
+        expl = top_pick.get("explanation", "").strip()
+        if not expl.startswith("*"):
+            if not expl.lower().startswith("porque"):
+                expl = f"Porque {expl}"
+            expl = f"*{expl}*"
+        lines.append("### ⭐ PICK RECOMENDADO POR EL MODELO (AI Top Pick)")
+        lines.append(f"• **{sel} — {prob * 100:.1f}%**  ")
+        lines.append(f"  {expl}  ")
+        if top_pick.get("requires_starter_confirmation"):
+            lines.append("  *(Requiere confirmar titularidad oficial)*.  ")
+        lines.append("")
 
     # 3. Categorías temáticas oficiales
     categories_spec = [
@@ -1129,6 +1151,7 @@ def format_adaptive_report(report: AnalysisReport) -> str:
         ("Mitades", "#### ⏱️ Mercados por Mitad"),
         ("Córners", "#### 🚩 Córners"),
         ("Tarjetas", "#### 🟨 Tarjetas"),
+        ("Faltas", "#### 🛑 Faltas y Disciplina"),
         ("Remates y Tiros a Puerta", "#### 🎯 Remates y Tiros a Puerta"),
         ("Fueras de juego", "#### 🚩 Fueras de Juego (Offsides)"),
         ("Especiales", "#### 💥 Especiales del Partido"),
@@ -1159,9 +1182,9 @@ def format_adaptive_report(report: AnalysisReport) -> str:
                     expl = f"Porque {expl}"
                 expl = f"*{expl}*"
             lines.append(f"• **{sel} — {prob * 100:.1f}%**  ")
-            lines.append(f"  {expl}")
+            lines.append(f"  {expl}  ")
             if item.get("requires_starter_confirmation"):
-                lines.append("  *(Requiere confirmar titularidad oficial)*.")
+                lines.append("  *(Requiere confirmar titularidad oficial)*.  ")
         lines.append("")
 
     # 4. Proyecciones numéricas
