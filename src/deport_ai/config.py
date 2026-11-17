@@ -21,7 +21,10 @@ class Settings:
     def from_env(cls) -> "Settings":
         load_dotenv()
         return cls(
-            sportmonks_api_token=os.getenv("SPORTMONKS_API_TOKEN", "").strip() or None,
+            # KEY: nombre de la variable configurada en el entorno cloud de Claude Code.
+            sportmonks_api_token=(
+                os.getenv("SPORTMONKS_API_TOKEN", "").strip() or os.getenv("KEY", "").strip() or None
+            ),
             sportmonks_base_url=os.getenv(
                 "SPORTMONKS_BASE_URL", "https://api.sportmonks.com/v3/football"
             ).strip().rstrip("/"),
