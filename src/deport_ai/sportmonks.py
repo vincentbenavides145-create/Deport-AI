@@ -369,6 +369,9 @@ TEAM_ID_OVERRIDES: dict[str, int] = {
 }
 
 
+TEAM_SEARCH_PAGE_SIZE = 50
+
+
 class SportmonksClient:
     """Adaptador Sportmonks v3 al contrato interno usado por DEPORT AI."""
 
@@ -438,6 +441,10 @@ class SportmonksClient:
         return data
 
     def resolve_team(self, query: str) -> Team:
+        return self._resolve_team(query)[0]
+
+    def _resolve_team(self, query: str) -> tuple[Team, list[Team]]:
+        """Equipo elegido y, si hubo homónimos exactos, los equipos empatados con él."""
         cleaned = re.sub(r"\s+", " ", query).strip()
         norm = _normalize(cleaned)
         override_id = TEAM_ID_OVERRIDES.get(norm)
@@ -449,13 +456,13 @@ class SportmonksClient:
             try:
                 team_data = self._get(f"teams/{override_id}")
                 if team_data:
-                    return Team(override_id, team_data.get("name", cleaned), str(team_data.get("country_id") or ""))
+                    return Team(override_id, team_data.get("name", cleaned), str(team_data.get("country_id") or "")), []
             except Exception:
                 pass
         effective_query = TEAM_ALIASES.get(norm, cleaned)
-        rows = self._get(f"teams/search/{quote(effective_query, safe='')}", per_page=10)
+        rows = self._get(f"teams/search/{quote(effective_query, safe='')}", per_page=TEAM_SEARCH_PAGE_SIZE)
         if not rows and effective_query != cleaned:
-            rows = self._get(f"teams/search/{quote(cleaned, safe='')}", per_page=10)
+            rows = self._get(f"teams/search/{quote(cleaned, safe='')}", per_page=TEAM_SEARCH_PAGE_SIZE)
         if not rows:
             stripped = re.sub(r"\b(fc|cf|afc|sc|cd|fk|ec|ac|ca|club|calcio|sp|rj|mg|rs|pr|ba|go)\b", "", cleaned, flags=re.IGNORECASE).strip()
             stripped = re.sub(r"\s+", " ", stripped).strip()
@@ -471,25 +478,18 @@ class SportmonksClient:
                     try:
                         team_data = self._get(f"teams/{override_id}")
                         if team_data:
-                            return Team(override_id, team_data.get("name", cleaned), str(team_data.get("country_id") or ""))
+                            return Team(override_id, team_data.get("name", cleaned), str(team_data.get("country_id") or "")), []
                     except Exception:
                         pass
                 effective_stripped = TEAM_ALIASES.get(stripped_norm, stripped)
-                rows = self._get(f"teams/search/{quote(effective_stripped, safe='')}", per_page=10)
+                rows = self._get(f"teams/search/{quote(effective_stripped, safe='')}", per_page=TEAM_SEARCH_PAGE_SIZE)
         if not rows:
             raise TeamNotFoundError(f"No encontré el equipo '{cleaned}' en Sportmonks.")
         if override_id:
             for row in rows:
                 if int(row.get("id", -1)) == override_id:
-                    return Team(override_id, row.get("name", cleaned), str(row.get("country_id") or ""))
-        ranked = [
-            (
-                max(_name_score(cleaned, row.get("name", "")), _name_score(effective_query, row.get("name", ""))),
-                Team(int(row["id"]), row.get("name", cleaned), str(row.get("country_id") or "")),
-            )
-            for row in rows
-        ]
-        ranked.sort(key=lambda item: item[0], reverse=True)
+                    return Team(override_id, row.get("name", cleaned), str(row.get("country_id") or "")), []
+        ranked = _rank_team_rows(cleaned, effective_query, rows)
         best_score, best = ranked[0]
         if best_score < 0.48:
             raise TeamNotFoundError(f"No pude identificar con seguridad '{cleaned}'.")
@@ -498,9 +498,63 @@ class SportmonksClient:
             if best_score < 0.94 and best_score - second_score < 0.035:
                 raise AmbiguousTeamError(
                     f"'{cleaned}' es ambiguo: {best.name} o {second.name}. "
-                    "Escribe el país o el nombre completo."
+                    "Escribe el país o el nombre completo.",
+                    candidates=[team for score, team in ranked if best_score - score < 0.035][:3],
                 )
-        return best
+        # Homónimos exactos (p. ej. dos "Nacional"): se conserva el primero, pero se
+        # informan los empatados para que resolve_match pueda desempatar por calendario.
+        ties = [team for score, team in ranked[1:] if score >= 1.0] if best_score >= 1.0 else []
+        return best, ties
+
+    def resolve_match(self, first_query: str, second_query: str) -> tuple[Team, Team]:
+        """Resuelve ambos equipos; si uno es ambiguo, desempata con el partido programado.
+
+        Cuando un nombre admite varios equipos, se busca cuál de los candidatos tiene un
+        partido próximo contra el otro equipo. Si exactamente uno lo tiene, se elige ese.
+        """
+        first = second = None
+        first_ties: list[Team] = []
+        second_ties: list[Team] = []
+        first_error = second_error = None
+        try:
+            first, first_ties = self._resolve_team(first_query)
+        except AmbiguousTeamError as exc:
+            first_error = exc
+        try:
+            second, second_ties = self._resolve_team(second_query)
+        except AmbiguousTeamError as exc:
+            second_error = exc
+        if first_error and second_error:
+            raise first_error
+        if first_error:
+            first = self._pick_by_fixture(first_error.candidates, second, error=first_error)
+        elif first_ties:
+            first = self._pick_by_fixture([first, *first_ties], second, default=first)
+        if second_error:
+            second = self._pick_by_fixture(second_error.candidates, first, error=second_error)
+        elif second_ties:
+            second = self._pick_by_fixture([second, *second_ties], first, default=second)
+        return first, second
+
+    def _pick_by_fixture(
+        self,
+        candidates: list[Team],
+        rival: Team,
+        error: AmbiguousTeamError | None = None,
+        default: Team | None = None,
+    ) -> Team:
+        with_fixture = []
+        for candidate in candidates:
+            try:
+                if self.upcoming_between(candidate.id, rival.id):
+                    with_fixture.append(candidate)
+            except Exception:
+                continue
+        if len(with_fixture) == 1:
+            return with_fixture[0]
+        if default is not None:
+            return default
+        raise error
 
     def recent_fixtures(self, team_id: int, count: int) -> list[dict[str, Any]]:
         completed: list[dict[str, Any]] = []
@@ -951,8 +1005,55 @@ def _name_score(query: str, candidate: str) -> float:
     if right in {f"fc {left}", f"{left} fc", f"cf {left}", f"{left} cf"}:
         return 0.98
     sequence = SequenceMatcher(None, left, right).ratio()
-    containment = 0.93 if left in right or right in left else 0.0
-    overlap = len(set(left.split()) & set(right.split())) / max(
-        1, len(set(left.split()) | set(right.split()))
-    )
+    # Contención solo por palabras completas: "russia" está en "russia u21" pero no en
+    # "borussia dortmund"; "iran" no está en "mirandela" ni en "partizani tirana".
+    left_tokens, right_tokens = left.split(), right.split()
+    containment = 0.93 if left_tokens and right_tokens and (
+        _contains_tokens(right_tokens, left_tokens) or _contains_tokens(left_tokens, right_tokens)
+    ) else 0.0
+    overlap = len(set(left_tokens) & set(right_tokens)) / max(1, len(set(left_tokens) | set(right_tokens)))
     return max(sequence, containment, overlap)
+
+
+def _contains_tokens(haystack: list[str], needle: list[str]) -> bool:
+    """True si `needle` aparece como secuencia contigua de palabras completas en `haystack`."""
+    size = len(needle)
+    return any(haystack[i : i + size] == needle for i in range(len(haystack) - size + 1))
+
+
+# Marcadores de equipos juveniles, filiales o femeninos: no deben ganarle al equipo
+# absoluto salvo que el usuario los escriba.
+_SECONDARY_TEAM_TOKENS = frozenset(
+    {"u15", "u16", "u17", "u18", "u19", "u20", "u21", "u22", "u23", "ii", "iii", "b", "reserves", "reservas", "women", "w", "femenino", "feminino"}
+)
+_SECONDARY_PENALTY = 0.06
+
+
+def _rank_team_rows(cleaned: str, effective_query: str, rows: list[dict[str, Any]]) -> list[tuple[float, Team]]:
+    """Ordena los resultados de búsqueda de Sportmonks por afinidad con el nombre pedido.
+
+    1. Un nombre idéntico (normalizado) a lo escrito gana directamente.
+    2. Los equipos juveniles/filiales se penalizan si el usuario no los pidió.
+    3. Ante igualdad, la selección nacional precede a un club (p. ej. "Venezuela").
+    """
+    query_tokens = set(_normalize(cleaned).split()) | set(_normalize(effective_query).split())
+    ranked: list[tuple[float, int, Team]] = []
+    for row in rows:
+        name = row.get("name", "") or ""
+        score = max(_name_score(cleaned, name), _name_score(effective_query, name))
+        secondary = (set(_normalize(name).split()) & _SECONDARY_TEAM_TOKENS) - query_tokens
+        if secondary and score < 1.0:
+            score -= _SECONDARY_PENALTY
+        national = 1 if str(row.get("type") or "").lower() == "national" else 0
+        ranked.append((round(score, 4), national, Team(int(row["id"]), name or cleaned, str(row.get("country_id") or ""))))
+    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+
+    exact = [item for item in ranked if item[0] >= 1.0]
+    if len(exact) > 1:
+        nationals = [item for item in exact if item[1] == 1]
+        if len(nationals) == 1:
+            # Varios equipos con el mismo nombre: la selección absoluta va primero
+            # y el resto se separa para que no se declare ambigüedad.
+            others = [(score - 0.05, nat, team) for score, nat, team in ranked if team.id != nationals[0][2].id]
+            return [(nationals[0][0], nationals[0][2])] + [(score, team) for score, _, team in others]
+    return [(score, team) for score, _, team in ranked]

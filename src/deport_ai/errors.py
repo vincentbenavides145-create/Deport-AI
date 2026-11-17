@@ -11,7 +11,10 @@ class TeamNotFoundError(DeportAIError):
 
 
 class AmbiguousTeamError(DeportAIError):
-    pass
+    def __init__(self, message: str, candidates: list | None = None) -> None:
+        super().__init__(message)
+        # Equipos empatados en la búsqueda, para desempatar con el partido programado.
+        self.candidates = list(candidates or [])
 
 
 class InsufficientDataError(DeportAIError):

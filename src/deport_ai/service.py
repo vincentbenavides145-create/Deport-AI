@@ -50,8 +50,11 @@ class AnalysisService:
 
     def analyze(self, question: str, track: bool | None = None) -> AnalysisReport:
         first_name, second_name = parse_match_query(question)
-        first = self.api.resolve_team(first_name)
-        second = self.api.resolve_team(second_name)
+        if hasattr(self.api, "resolve_match"):
+            first, second = self.api.resolve_match(first_name, second_name)
+        else:
+            first = self.api.resolve_team(first_name)
+            second = self.api.resolve_team(second_name)
 
         upcoming_row = self.api.upcoming_between(first.id, second.id)
         live_fixture_notice = None
