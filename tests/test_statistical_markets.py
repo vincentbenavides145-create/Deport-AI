@@ -93,9 +93,14 @@ def test_extended_betano_markets_are_included_and_adaptive():
     categories = {m["category"] for m in markets}
 
     # Verifica mercados tipo Betano
-    assert any("Doble oportunidad" in m["market"] for m in markets)
-    assert any("Empate apuesta no válida" in m["market"] for m in markets)
-    assert any(m["category"] == "Mitades" for m in markets)
+    # Regla 5: doble oportunidad y DNB son la misma familia de resultado -> una sola selección
+    result_family = [
+        m for m in markets
+        if "Doble oportunidad" in m["market"] or "Empate apuesta no válida" in m["market"] or m["market"] == "Resultado del partido"
+    ]
+    assert len(result_family) == 1
+    # Regla 3: +0.5 goles por mitad es una línea trivial y nunca se presenta
+    assert not any(m["selection"] in ("1T Más de 0.5 goles", "2T Más de 0.5 goles") for m in markets)
     assert any(m["category"] == "Especiales" for m in markets)
 
     # Verifica adaptabilidad: si no hay métricas de córners >= 60%, NO debe figurar Córners
@@ -139,7 +144,7 @@ def test_uncalculated_fields_do_not_produce_artificial_100_percent():
     assert not any(f"{home.name} Más de 0.5 goles" in m["selection"] for m in markets)
 
 
-def test_corners_1x2_is_experimental_and_requires_valid_metrics():
+def test_corners_1x2_has_no_label_and_requires_valid_metrics():
     home = Team(1, "Local")
     away = Team(2, "Visitante")
     probs = _probabilities()
@@ -153,7 +158,8 @@ def test_corners_1x2_is_experimental_and_requires_valid_metrics():
     markets = select_statistical_markets(home, away, probs, expected)
     corner_1x2 = next((m for m in markets if m["market"] == "Córners 1X2"), None)
     assert corner_1x2 is not None
-    assert "(Experimental)" in corner_1x2["selection"]
+    # Sin etiquetas internas en la selección publicada
+    assert corner_1x2["selection"] == "Local saca más córners"
     assert "calibración histórica" in corner_1x2["basis"]
 
 

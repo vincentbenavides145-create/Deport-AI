@@ -14,11 +14,15 @@ from .markets_catalog import (
 from .dynamic_calibration import MIN_CALIBRATION_SAMPLE
 from .odds import MIN_EDGE, expected_value, odds_key_for_candidate
 from .presentation_catalog import MarketPresentationCatalog, get_exigence_score
-from .stats_engine import negative_binomial_pmf
+from .stats_engine import negative_binomial_pmf, stat_value
 
 
 MINIMUM_PROBABILITY = 0.60
 MAXIMUM_PROBABILITY = 0.88
+# Filtro de coherencia: muestra mínima para citar un historial y desvío máximo tolerado
+# entre la probabilidad del modelo y la tasa histórica que se cita como justificación.
+MIN_EVIDENCE_SAMPLE = 6
+MAX_MODEL_GAP = 0.20
 
 
 def _safe_complement(p: float | None) -> float | None:
@@ -61,6 +65,346 @@ def _calc_comparison_1x2(rate_a: float | None, rate_b: float | None, alpha: floa
     return round(max(0.0, min(1.0, p_a_win)), 4), round(max(0.0, min(1.0, p_b_win)), 4)
 
 
+# Etiquetas de estadísticas por equipo usadas en justificaciones y evidencia empírica.
+_STAT_LABELS: dict[str, str] = {
+    "corner_kicks": "saques de esquina",
+    "yellow_cards": "tarjetas",
+    "fouls": "faltas",
+    "total_shots": "remates",
+    "shots_on_goal": "tiros a puerta",
+    "offsides": "fueras de juego",
+}
+# group -> (lado del equipo, clave de estadística)
+_TEAM_STAT_GROUPS: dict[str, tuple[str, str]] = {
+    "corners_home": ("home", "corner_kicks"),
+    "corners_away": ("away", "corner_kicks"),
+    "cards_home": ("home", "yellow_cards"),
+    "cards_away": ("away", "yellow_cards"),
+    "fouls_home": ("home", "fouls"),
+    "fouls_away": ("away", "fouls"),
+    "shots_home": ("home", "total_shots"),
+    "shots_away": ("away", "total_shots"),
+    "shots_on_home": ("home", "shots_on_goal"),
+    "shots_on_away": ("away", "shots_on_goal"),
+    "offsides_home": ("home", "offsides"),
+    "offsides_away": ("away", "offsides"),
+}
+_TOTAL_STAT_GROUPS: dict[str, str] = {
+    "corners_total": "corner_kicks",
+    "cards_total": "yellow_cards",
+    "fouls_total": "fouls",
+    "shots_total": "total_shots",
+    "shots_on_total": "shots_on_goal",
+    "offsides_total": "offsides",
+}
+_STAT_1X2_GROUPS: dict[str, tuple[str, str]] = {
+    "corners_1x2": ("corner_kicks", "sacó más córners"),
+    "cards_1x2": ("yellow_cards", "recibió más tarjetas"),
+    "shots_on_1x2": ("shots_on_goal", "tuvo más tiros a puerta"),
+    "fouls_1x2": ("fouls", "cometió más faltas"),
+}
+# Mercados que dependen de estadísticas de partido (no de goles): exigen muestra mínima.
+STAT_EVIDENCE_GROUPS: frozenset[str] = frozenset(
+    set(_TEAM_STAT_GROUPS) | set(_TOTAL_STAT_GROUPS) | set(_STAT_1X2_GROUPS)
+    | {"woodwork", "both_teams_card", "both_teams_2_cards", "both_teams_corners", "both_teams_shots_on"}
+)
+
+
+def _fmt_line(line: float | None) -> str:
+    return f"{line:g}" if line is not None else ""
+
+
+def _selection_team(
+    sel: str, home: Team, away: Team, recent_home: list[TeamMatch], recent_away: list[TeamMatch]
+) -> tuple[Team, list[TeamMatch]]:
+    text = sel[4:] if sel.startswith("DNB ") else sel
+    if text.startswith(home.name):
+        return home, recent_home
+    if text.startswith(away.name):
+        return away, recent_away
+    if home.name in text:
+        return home, recent_home
+    return away, recent_away
+
+
+def _hit(value: float, line: float, side: str) -> bool:
+    return value > line if side == "over" else value < line
+
+
+def _evidence(hits: int, n: int, avg: float | None = None, line: float | None = None, side: str | None = None) -> dict[str, Any]:
+    return {"hits": hits, "n": n, "avg": None if avg is None else round(avg, 2), "line": line, "side": side}
+
+
+def _half_split(m: TeamMatch) -> tuple[int, int, int, int] | None:
+    """(1T a favor, 1T en contra, 2T a favor, 2T en contra) si hay marcador al descanso."""
+    if m.goals_for_1h is None or m.goals_against_1h is None:
+        return None
+    return (
+        m.goals_for_1h,
+        m.goals_against_1h,
+        m.goals_for - m.goals_for_1h,
+        m.goals_against - m.goals_against_1h,
+    )
+
+
+def _explain_market(
+    defn: MarketDefinition,
+    home: Team,
+    away: Team,
+    proj_val: float | None,
+    prob: float,
+    recent_home: list[TeamMatch] | None = None,
+    recent_away: list[TeamMatch] | None = None,
+) -> tuple[str, dict[str, Any] | None]:
+    """Justificación de una línea y la evidencia empírica exacta que cita.
+
+    La evidencia (aciertos, muestra, promedio) es la misma que aparece en el texto, de
+    modo que el filtro de coherencia nunca deja pasar una justificación que contradiga
+    la probabilidad publicada.
+    """
+    recent_home = recent_home or []
+    recent_away = recent_away or []
+    grp = defn.group
+    line = defn.line
+    side = defn.side or ""
+    sel = defn.selection_template
+    combined = recent_home + recent_away
+    n_comb = len(combined)
+
+    def fallback() -> tuple[str, None]:
+        try:
+            text = defn.explanation_template.format(projection=proj_val, probability=prob) if proj_val is not None else defn.explanation_template
+        except Exception:
+            text = defn.explanation_template
+        return text, None
+
+    if not recent_home and not recent_away:
+        return fallback()
+
+    # 1. Goles totales
+    if grp == "total_goals" and line is not None and n_comb:
+        hits = sum(1 for m in combined if _hit(m.goals_for + m.goals_against, line, side))
+        avg = fmean(m.goals_for + m.goals_against for m in combined)
+        verb = "se superó" if side == "over" else "no se alcanzó"
+        return (
+            f"Porque en {hits} de los últimos {n_comb} partidos de ambos equipos {verb} la línea de {_fmt_line(line)} goles (promedio: {avg:.2f}).",
+            _evidence(hits, n_comb, avg, line, side),
+        )
+
+    # 2. Goles de equipo
+    if grp in ("home_goals", "away_goals") and line is not None:
+        team, rec = (home, recent_home) if grp == "home_goals" else (away, recent_away)
+        if rec:
+            hits = sum(1 for m in rec if _hit(m.goals_for, line, side))
+            avg = fmean(m.goals_for for m in rec)
+            comp = "más" if side == "over" else "menos"
+            return (
+                f"Porque {team.name} anotó {comp} de {_fmt_line(line)} goles en {hits} de sus últimos {len(rec)} partidos (promedia {avg:.2f} goles).",
+                _evidence(hits, len(rec), avg, line, side),
+            )
+
+    # 3. Ambos marcan
+    if grp == "both_score" and n_comb:
+        if sel == "Sí":
+            hits = sum(1 for m in combined if m.goals_for > 0 and m.goals_against > 0)
+            return f"Porque ambos equipos anotaron y recibieron gol en {hits} de sus últimos {n_comb} encuentros.", _evidence(hits, n_comb)
+        hits = sum(1 for m in combined if m.goals_for == 0 or m.goals_against == 0)
+        return f"Porque al menos uno de los rivales se quedó sin anotar en {hits} de sus últimos {n_comb} partidos.", _evidence(hits, n_comb)
+
+    # 4. Portería a cero y resultado
+    if grp == "clean_sheet":
+        team, rec = _selection_team(sel, home, away, recent_home, recent_away)
+        if rec:
+            hits = sum(1 for m in rec if m.goals_against == 0)
+            return f"Porque {team.name} dejó su arco en cero en {hits} de sus últimos {len(rec)} partidos.", _evidence(hits, len(rec))
+
+    if grp == "win_to_nil":
+        team, rec = _selection_team(sel, home, away, recent_home, recent_away)
+        if rec:
+            hits = sum(1 for m in rec if m.result == "W" and m.goals_against == 0)
+            return f"Porque {team.name} ganó sin recibir goles en {hits} de sus últimos {len(rec)} partidos.", _evidence(hits, len(rec))
+
+    if grp == "1x2":
+        if sel == "Empate" and n_comb:
+            hits = sum(1 for m in combined if m.result == "D")
+            return f"Porque {hits} de los últimos {n_comb} partidos de ambos equipos terminaron en empate.", _evidence(hits, n_comb)
+        team, rec = _selection_team(sel, home, away, recent_home, recent_away)
+        if rec:
+            hits = sum(1 for m in rec if m.result == "W")
+            return f"Porque {team.name} ganó {hits} de sus últimos {len(rec)} partidos.", _evidence(hits, len(rec))
+
+    if grp == "double_chance":
+        if "(12)" in sel and n_comb:
+            hits = sum(1 for m in combined if m.result != "D")
+            return f"Porque {hits} de los últimos {n_comb} partidos de ambos equipos tuvieron un ganador.", _evidence(hits, n_comb)
+        team, rec = _selection_team(sel, home, away, recent_home, recent_away)
+        if rec:
+            hits = sum(1 for m in rec if m.result in ("W", "D"))
+            return f"Porque {team.name} evitó la derrota en {hits} de sus últimos {len(rec)} partidos.", _evidence(hits, len(rec))
+
+    if grp == "dnb":
+        team, rec = _selection_team(sel, home, away, recent_home, recent_away)
+        decided = [m for m in rec if m.result != "D"]
+        if decided:
+            hits = sum(1 for m in decided if m.result == "W")
+            return (
+                f"Porque {team.name} ganó {hits} de sus últimos {len(decided)} partidos que no terminaron en empate.",
+                _evidence(hits, len(decided)),
+            )
+
+    if grp == "combo_result_goals":
+        if sel.startswith("Ambos marcan") and n_comb:
+            hits = sum(1 for m in combined if m.goals_for > 0 and m.goals_against > 0 and (m.goals_for + m.goals_against) > 2)
+            return f"Porque ambos anotaron y se superaron los 2.5 goles en {hits} de sus últimos {n_comb} partidos.", _evidence(hits, n_comb)
+        team, rec = _selection_team(sel, home, away, recent_home, recent_away)
+        if rec:
+            outcome_ok = (lambda m: m.result == "W") if " gana " in f" {sel} " else (lambda m: m.result in ("W", "D"))
+            if "Menos de 3.5" in sel:
+                goals_ok = lambda m: (m.goals_for + m.goals_against) < 3.5  # noqa: E731
+            elif "Más de 2.5" in sel:
+                goals_ok = lambda m: (m.goals_for + m.goals_against) > 2.5  # noqa: E731
+            else:
+                goals_ok = lambda m: (m.goals_for + m.goals_against) > 1.5  # noqa: E731
+            hits = sum(1 for m in rec if outcome_ok(m) and goals_ok(m))
+            return (
+                f"Porque {team.name} cumplió el resultado y la línea de goles en {hits} de sus últimos {len(rec)} partidos.",
+                _evidence(hits, len(rec)),
+            )
+
+    if grp == "combo_1x2_btts":
+        team, rec = _selection_team(sel, home, away, recent_home, recent_away)
+        if rec:
+            outcome_ok = (lambda m: m.result == "W") if " gana " in f" {sel} " else (lambda m: m.result in ("W", "D"))
+            hits = sum(1 for m in rec if outcome_ok(m) and m.goals_for > 0 and m.goals_against > 0)
+            return (
+                f"Porque {team.name} cumplió este resultado con goles en ambos arcos en {hits} de sus últimos {len(rec)} partidos.",
+                _evidence(hits, len(rec)),
+            )
+
+    if grp == "multigoals" and n_comb:
+        min_g, max_g = (1, 3) if "1 a 3" in sel else ((2, 4) if "2 a 4" in sel else (2, 5))
+        hits = sum(1 for m in combined if min_g <= (m.goals_for + m.goals_against) <= max_g)
+        return f"Porque en {hits} de los últimos {n_comb} partidos de ambos equipos hubo un total de {sel}.", _evidence(hits, n_comb)
+
+    # 5. Mercados por mitad (requieren marcador al descanso)
+    if grp in ("goal_both_halves", "team_score_both_halves", "first_half", "second_half", "btts_second_half"):
+        if grp == "team_score_both_halves":
+            team, rec = _selection_team(sel, home, away, recent_home, recent_away)
+            halves = [h for h in (_half_split(m) for m in rec) if h is not None]
+            if len(halves) >= MIN_EVIDENCE_SAMPLE:
+                hits = sum(1 for h in halves if h[0] > 0 and h[2] > 0)
+                return f"Porque {team.name} marcó en ambos tiempos en {hits} de sus últimos {len(halves)} partidos.", _evidence(hits, len(halves))
+            if proj_val is not None:
+                return f"Porque el modelo proyecta {proj_val:.2f} goles de {team.name}, repartidos entre ambos tiempos.", None
+            return fallback()
+        halves = [h for h in (_half_split(m) for m in combined) if h is not None]
+        if len(halves) >= MIN_EVIDENCE_SAMPLE:
+            n = len(halves)
+            if grp == "goal_both_halves":
+                hits = sum(1 for h in halves if (h[0] + h[1]) > 0 and (h[2] + h[3]) > 0)
+                return f"Porque hubo gol en ambos tiempos en {hits} de los últimos {n} partidos de ambos equipos.", _evidence(hits, n)
+            if grp == "btts_second_half":
+                hits = sum(1 for h in halves if h[2] > 0 and h[3] > 0)
+                return f"Porque ambos equipos marcaron en el 2T en {hits} de los últimos {n} partidos.", _evidence(hits, n)
+            if line is not None:
+                period = "1T" if grp == "first_half" else "2T"
+                totals = [(h[0] + h[1]) if grp == "first_half" else (h[2] + h[3]) for h in halves]
+                hits = sum(1 for t in totals if _hit(t, line, side))
+                comp = "más" if side == "over" else "menos"
+                return (
+                    f"Porque hubo {comp} de {_fmt_line(line)} goles en el {period} en {hits} de los últimos {n} partidos de ambos equipos.",
+                    _evidence(hits, n, fmean(totals), line, side),
+                )
+        if grp == "goal_both_halves" and proj_val is not None:
+            return f"Porque el modelo proyecta {proj_val:.2f} goles en el partido, con margen para marcar en ambos tiempos.", None
+        return fallback()
+
+    # 6. Estadísticas por equipo (córners, tarjetas, faltas, remates, tiros a puerta, offsides)
+    if grp in _TEAM_STAT_GROUPS and line is not None:
+        team_side, key = _TEAM_STAT_GROUPS[grp]
+        team, rec = (home, recent_home) if team_side == "home" else (away, recent_away)
+        values = [v for v in (stat_value(m.stats_for, key) for m in rec) if v is not None]
+        if values:
+            hits = sum(1 for v in values if _hit(v, line, side))
+            avg = fmean(values)
+            comp = "más" if side == "over" else "menos"
+            return (
+                f"Porque {team.name} promedia {avg:.1f} {_STAT_LABELS[key]} y registró {comp} de {_fmt_line(line)} en {hits} de sus últimos {len(values)} partidos.",
+                _evidence(hits, len(values), avg, line, side),
+            )
+        return fallback()
+
+    if grp in _TOTAL_STAT_GROUPS and line is not None:
+        key = _TOTAL_STAT_GROUPS[grp]
+        totals = []
+        for m in combined:
+            own, opp = stat_value(m.stats_for, key), stat_value(m.stats_against, key)
+            if own is not None and opp is not None:
+                totals.append(own + opp)
+        if totals:
+            hits = sum(1 for t in totals if _hit(t, line, side))
+            avg = fmean(totals)
+            comp = "más" if side == "over" else "menos"
+            return (
+                f"Porque los partidos recientes de ambos equipos promedian {avg:.1f} {_STAT_LABELS[key]} y registraron {comp} de {_fmt_line(line)} en {hits} de {len(totals)}.",
+                _evidence(hits, len(totals), avg, line, side),
+            )
+        return fallback()
+
+    if grp in _STAT_1X2_GROUPS:
+        key, verb = _STAT_1X2_GROUPS[grp]
+        team, rec = _selection_team(sel, home, away, recent_home, recent_away)
+        pairs = [
+            (own, opp)
+            for own, opp in ((stat_value(m.stats_for, key), stat_value(m.stats_against, key)) for m in rec)
+            if own is not None and opp is not None
+        ]
+        if pairs:
+            hits = sum(1 for own, opp in pairs if own > opp)
+            return f"Porque {team.name} {verb} que su rival en {hits} de sus últimos {len(pairs)} partidos.", _evidence(hits, len(pairs))
+        return fallback()
+
+    if grp in ("both_teams_card", "both_teams_2_cards", "both_teams_corners", "both_teams_shots_on"):
+        if grp == "both_teams_card":
+            key, thresh, label = "yellow_cards", 1, "1+ tarjeta"
+        elif grp == "both_teams_2_cards":
+            key, thresh, label = "yellow_cards", 2, "2+ tarjetas"
+        elif grp == "both_teams_corners":
+            key, thresh = "corner_kicks", (4 if "4+" in sel else 3)
+            label = f"{thresh}+ córners"
+        else:
+            key, thresh, label = "shots_on_goal", 3, "3+ tiros a puerta"
+        pairs = [
+            (own, opp)
+            for own, opp in ((stat_value(m.stats_for, key), stat_value(m.stats_against, key)) for m in combined)
+            if own is not None and opp is not None
+        ]
+        if pairs:
+            hits = sum(1 for own, opp in pairs if own >= thresh and opp >= thresh)
+            return f"Porque ambos equipos registraron {label} en {hits} de los últimos {len(pairs)} partidos.", _evidence(hits, len(pairs))
+        return fallback()
+
+    if grp == "woodwork":
+        totals = []
+        for m in combined:
+            own, opp = stat_value(m.stats_for, "hit_woodwork"), stat_value(m.stats_against, "hit_woodwork")
+            if own is not None and opp is not None:
+                totals.append(own + opp)
+        if totals:
+            hits = sum(1 for t in totals if t >= 1)
+            return (
+                f"Porque hubo al menos un tiro al palo en {hits} de los últimos {len(totals)} partidos de ambos equipos (promedio {fmean(totals):.2f}).",
+                _evidence(hits, len(totals), fmean(totals)),
+            )
+        return fallback()
+
+    if grp == "corners_first_half" and line is not None and proj_val is not None:
+        comp = "por encima" if side == "over" else "por debajo"
+        return f"Porque el modelo proyecta {proj_val:.2f} córners en el 1T, {comp} de la línea de {_fmt_line(line)}.", None
+
+    return fallback()
+
+
 def _generate_dynamic_explanation(
     defn: MarketDefinition,
     home: Team,
@@ -70,265 +414,30 @@ def _generate_dynamic_explanation(
     recent_home: list[TeamMatch] | None = None,
     recent_away: list[TeamMatch] | None = None,
 ) -> str:
-    """Genera explicaciones dinámicas y fundamentadas en los resultados empíricos recientes de los equipos."""
-    if not recent_home and not recent_away:
-        try:
-            return defn.explanation_template.format(projection=proj_val, probability=prob) if proj_val is not None else defn.explanation_template
-        except Exception:
-            return defn.explanation_template
+    """Compatibilidad: solo el texto de la justificación."""
+    return _explain_market(defn, home, away, proj_val, prob, recent_home, recent_away)[0]
 
-    grp = defn.group
-    line = defn.line
-    side = defn.side
-    sel = defn.selection_template
 
-    combined = (recent_home or []) + (recent_away or [])
-    n_h = len(recent_home or [])
-    n_a = len(recent_away or [])
-    n_comb = len(combined)
+def evidence_contradicts(probability: float, evidence: dict[str, Any] | None, stat_market: bool) -> bool:
+    """True si la evidencia citada no respalda la probabilidad publicada.
 
-    # 1. Goles Totales
-    if grp == "total_goals" and line is not None and n_comb > 0:
-        if side == "over":
-            hits = sum(1 for m in combined if (m.goals_for + m.goals_against) > line)
-            avg_g = fmean(m.goals_for + m.goals_against for m in combined)
-            return f"Porque en {hits} de los últimos {n_comb} partidos de ambos equipos se superó la línea de {line} goles (promedio: {avg_g:.2f})."
-        elif side == "under":
-            hits = sum(1 for m in combined if (m.goals_for + m.goals_against) < line)
-            avg_g = fmean(m.goals_for + m.goals_against for m in combined)
-            return f"Porque en {hits} de los últimos {n_comb} encuentros de ambos se registraron menos de {line} goles (promedio: {avg_g:.2f})."
-
-    # 2. Goles de Equipo
-    if grp == "home_goals" and line is not None and recent_home:
-        hits = sum(1 for m in recent_home if (m.goals_for > line if side == "over" else m.goals_for < line))
-        avg_hg = fmean(m.goals_for for m in recent_home)
-        comp = "más" if side == "over" else "menos"
-        return f"Porque {home.name} anotó {comp} de {line} goles en {hits} de sus últimos {n_h} compromisos (promedia {avg_hg:.2f} goles)."
-
-    if grp == "away_goals" and line is not None and recent_away:
-        hits = sum(1 for m in recent_away if (m.goals_for > line if side == "over" else m.goals_for < line))
-        avg_ag = fmean(m.goals_for for m in recent_away)
-        comp = "más" if side == "over" else "menos"
-        return f"Porque {away.name} anotó {comp} de {line} goles en {hits} de sus últimos {n_a} compromisos (promedia {avg_ag:.2f} goles)."
-
-    # 3. Ambos Marcan (BTTS)
-    if grp == "both_score" and n_comb > 0:
-        if sel == "Sí":
-            hits = sum(1 for m in combined if m.goals_for > 0 and m.goals_against > 0)
-            return f"Porque ambos equipos anotaron y recibieron gol en {hits} de sus últimos {n_comb} encuentros."
-        else:
-            hits = sum(1 for m in combined if m.goals_for == 0 or m.goals_against == 0)
-            return f"Porque al menos uno de los rivales se quedó sin anotar en {hits} de sus últimos {n_comb} partidos."
-
-    # 4. Resultado (1X2, Doble Oportunidad, DNB)
-    if grp in ("1x2", "double_chance", "dnb", "win_to_nil"):
-        if home.name in sel and recent_home:
-            wins_h = sum(1 for m in recent_home if m.result == "W")
-            unbeaten_h = sum(1 for m in recent_home if m.result in ("W", "D"))
-            if "(1X)" in sel or sel.startswith("DNB"):
-                return f"Porque {home.name} evitó la derrota en {unbeaten_h} de sus últimos {n_h} partidos con fuerte solidez de local."
-            if "gana a cero" in sel:
-                cs_h = sum(1 for m in recent_home if m.result == "W" and m.goals_against == 0)
-                return f"Porque {home.name} ganó manteniendo su arco a cero en {cs_h} de sus últimos {n_h} partidos."
-            return f"Porque {home.name} suma {wins_h} victorias en sus últimos {n_h} partidos con clara superioridad de campo."
-        if away.name in sel and recent_away:
-            wins_a = sum(1 for m in recent_away if m.result == "W")
-            unbeaten_a = sum(1 for m in recent_away if m.result in ("W", "D"))
-            if "(X2)" in sel or sel.startswith("DNB"):
-                return f"Porque {away.name} sumó puntos en {unbeaten_a} de sus últimos {n_a} partidos como visitante."
-            return f"Porque {away.name} llega con {wins_a} victorias en sus últimos {n_a} encuentros oficiales."
-
-    # 5. Córners
-    if grp.startswith("corners_"):
-        h_c = [m.stats_for.get("corner_kicks") for m in (recent_home or []) if m.stats_for.get("corner_kicks") is not None]
-        a_c = [m.stats_for.get("corner_kicks") for m in (recent_away or []) if m.stats_for.get("corner_kicks") is not None]
-        if grp == "corners_home" and h_c and line is not None:
-            hits = sum(1 for c in h_c if (c > line if side == "over" else c < line))
-            avg_c = fmean(h_c)
-            comp = "superó" if side == "over" else "estuvo por debajo de"
-            return f"Porque {home.name} promedia {avg_c:.1f} saques de esquina y {comp} los {line} córners en {hits} de sus últimos {len(h_c)} partidos."
-        if grp == "corners_away" and a_c and line is not None:
-            hits = sum(1 for c in a_c if (c > line if side == "over" else c < line))
-            avg_c = fmean(a_c)
-            comp = "superó" if side == "over" else "estuvo por debajo de"
-            return f"Porque {away.name} promedia {avg_c:.1f} saques de esquina y {comp} los {line} córners en {hits} de sus últimos {len(a_c)} partidos."
-        if grp == "corners_total" and line is not None and (h_c or a_c):
-            avg_tot = (fmean(h_c) if h_c else 4.5) + (fmean(a_c) if a_c else 4.5)
-            comp = "alta generación" if side == "over" else "volumen contenido"
-            return f"Porque la combinación de ambos equipos promedia {avg_tot:.1f} saques de esquina totales en sus fechas recientes ({comp})."
-
-    # 6. Tarjetas
-    if grp.startswith("cards_"):
-        h_t = [m.stats_for.get("yellow_cards") for m in (recent_home or []) if m.stats_for.get("yellow_cards") is not None]
-        a_t = [m.stats_for.get("yellow_cards") for m in (recent_away or []) if m.stats_for.get("yellow_cards") is not None]
-        if grp == "cards_total" and line is not None and (h_t or a_t):
-            avg_tot = (fmean(h_t) if h_t else 2.0) + (fmean(a_t) if a_t else 2.0)
-            comp = "disciplinado con apenas" if side == "under" else "de alta fricción con"
-            return f"Porque ambos equipos registran un promedio {comp} {avg_tot:.1f} tarjetas por partido en sus fechas previas."
-        if grp == "cards_home" and h_t and line is not None:
-            avg_t = fmean(h_t)
-            hits = sum(1 for t in h_t if (t > line if side == "over" else t < line))
-            comp = "más" if side == "over" else "menos"
-            return f"Porque {home.name} promedia {avg_t:.1f} tarjetas y registró {comp} de {line} en {hits} de sus últimos {len(h_t)} partidos."
-        if grp == "cards_away" and a_t and line is not None:
-            avg_t = fmean(a_t)
-            hits = sum(1 for t in a_t if (t > line if side == "over" else t < line))
-            comp = "más" if side == "over" else "menos"
-            return f"Porque {away.name} promedia {avg_t:.1f} tarjetas y registró {comp} de {line} en {hits} de sus últimos {len(a_t)} partidos."
-
-    # 7. Remates
-    if grp.startswith("shots_"):
-        h_s = [m.stats_for.get("total_shots") for m in (recent_home or []) if m.stats_for.get("total_shots") is not None]
-        a_s = [m.stats_for.get("total_shots") for m in (recent_away or []) if m.stats_for.get("total_shots") is not None]
-        if grp == "shots_home" and h_s and line is not None:
-            avg_s = fmean(h_s)
-            comp = "más" if side == "over" else "menos"
-            return f"Porque {home.name} promedia {avg_s:.1f} remates y registró {comp} de {line} en {len(h_s)} partidos analizados."
-        if grp == "shots_away" and a_s and line is not None:
-            avg_s = fmean(a_s)
-            comp = "más" if side == "over" else "menos"
-            return f"Porque {away.name} promedia {avg_s:.1f} remates y registró {comp} de {line} en {len(a_s)} partidos analizados."
-        if grp == "shots_total" and line is not None and (h_s or a_s):
-            avg_tot = (fmean(h_s) if h_s else 12.0) + (fmean(a_s) if a_s else 10.0)
-            comp = "elevado volumen ofensivo" if side == "over" else "volumen ofensivo contenido"
-            return f"Porque ambos clubes combinan {avg_tot:.1f} remates promedio por encuentro ({comp})."
-
-    # 8. Mercados Creativos (Tarjetas mutuas, 1X2, Córners mutuos, Gol en ambas mitades, Combos)
-    if grp in ("both_teams_card", "both_teams_2_cards") and n_comb > 0:
-        min_c = 1 if grp == "both_teams_card" else 2
-        hits = 0
-        tot = 0
-        for m in combined:
-            yf = m.stats_for.get("yellow_cards")
-            ya = m.stats_against.get("yellow_cards")
-            if yf is not None and ya is not None:
-                tot += 1
-                if yf >= min_c and ya >= min_c:
-                    hits += 1
-        if tot > 0:
-            return f"Porque ambos equipos recibieron {min_c}+ tarjeta(s) en {hits} de sus últimos {tot} partidos disputados."
-        return f"Porque el promedio de tarjetas conjuntas ({proj_val:.2f}) proyecta alta probabilidad de amonestaciones mutuas." if proj_val else defn.explanation_template
-
-    if grp == "cards_1x2":
-        t_name = home.name if home.name in sel else away.name
-        rec = recent_home if home.name in sel else recent_away
-        if rec:
-            hits = sum(1 for m in rec if (m.stats_for.get("yellow_cards") or 0) > (m.stats_against.get("yellow_cards") or 0))
-            return f"Porque {t_name} recibió más tarjetas que su adversario en {hits} de sus últimos {len(rec)} compromisos."
-
-    if grp == "both_teams_corners" and n_comb > 0:
-        thresh = 4 if "4+" in sel else 3
-        hits = 0
-        tot = 0
-        for m in combined:
-            cf = m.stats_for.get("corner_kicks")
-            ca = m.stats_against.get("corner_kicks")
-            if cf is not None and ca is not None:
-                tot += 1
-                if cf >= thresh and ca >= thresh:
-                    hits += 1
-        if tot > 0:
-            return f"Porque ambos clubes alcanzaron al menos {thresh} saques de esquina en {hits} de sus últimos {tot} partidos."
-
-    if grp == "goal_both_halves" and n_comb > 0:
-        hits = sum(1 for m in combined if (m.goals_for + m.goals_against) >= 2)
-        return f"Porque en {hits} de los últimos {n_comb} partidos hubo un desarrollo dinámico con ritmo goleador en ambas etapas."
-
-    if grp == "team_score_both_halves":
-        t_name = home.name if home.name in sel else away.name
-        rec = recent_home if home.name in sel else recent_away
-        if rec:
-            hits = sum(1 for m in rec if m.goals_for >= 2)
-            return f"Porque {t_name} anotó 2 o más goles en {hits} de sus últimos {len(rec)} partidos demostrando constancia ofensiva."
-
-    if grp == "combo_result_goals":
-        if "(1X)" in sel and recent_home:
-            hits = sum(1 for m in recent_home if m.result in ("W", "D") and (m.goals_for + m.goals_against > 1 if "Más de 1.5" in sel else m.goals_for + m.goals_against < 4))
-            return f"Porque {home.name} evitó la derrota y cumplió el margen de goles en {hits} de sus últimos {n_h} partidos."
-        if "(X2)" in sel and recent_away:
-            hits = sum(1 for m in recent_away if m.result in ("W", "D") and (m.goals_for + m.goals_against > 1 if "Más de 1.5" in sel else m.goals_for + m.goals_against < 4))
-            return f"Porque {away.name} sumó puntos y cumplió el margen de goles en {hits} de sus últimos {n_a} partidos."
-        if "gana y Más de 1.5" in sel:
-            t_name = home.name if home.name in sel else away.name
-            rec = recent_home if home.name in sel else recent_away
-            if rec:
-                hits = sum(1 for m in rec if m.result == "W" and (m.goals_for + m.goals_against) > 1)
-                return f"Porque {t_name} triunfó en partidos de múltiples goles en {hits} de sus últimos {len(rec)} encuentros."
-        if "Ambos marcan y Más de 2.5" in sel and n_comb > 0:
-            hits = sum(1 for m in combined if m.goals_for > 0 and m.goals_against > 0 and (m.goals_for + m.goals_against) > 2)
-            return f"Porque ambos anotaron y se superaron los 2.5 goles en {hits} de sus últimos {n_comb} partidos."
-
-    if grp == "both_teams_shots_on" and n_comb > 0:
-        hits = 0
-        tot = 0
-        for m in combined:
-            sf = m.stats_for.get("shots_on_target")
-            sa = m.stats_against.get("shots_on_target")
-            if sf is not None and sa is not None:
-                tot += 1
-                if sf >= 3 and sa >= 3:
-                    hits += 1
-        if tot > 0:
-            return f"Porque ambos equipos alcanzaron 3+ tiros a puerta en {hits} de sus últimos {tot} encuentros."
-
-    if grp == "shots_on_1x2":
-        t_name = home.name if home.name in sel else away.name
-        rec = recent_home if home.name in sel else recent_away
-        if rec:
-            hits = sum(1 for m in rec if (m.stats_for.get("shots_on_target") or 0) > (m.stats_against.get("shots_on_target") or 0))
-            return f"Porque {t_name} superó a sus rivales en tiros a puerta en {hits} de sus últimos {len(rec)} compromisos."
-
-    # 9. Multigoles y Combos 1X2 + Ambos Marcan
-    if grp == "multigoals" and n_comb > 0:
-        min_g, max_g = (1, 3) if "1 a 3" in sel else ((2, 4) if "2 a 4" in sel else (2, 5))
-        hits = sum(1 for m in combined if min_g <= (m.goals_for + m.goals_against) <= max_g)
-        return f"Porque en {hits} de los últimos {n_comb} partidos de ambos se registró un total de {sel}."
-
-    if grp == "combo_1x2_btts":
-        if home.name in sel and recent_home:
-            hits = sum(1 for m in recent_home if (m.result == "W" if "gana" in sel else m.result in ("W", "D")) and m.goals_for > 0 and m.goals_against > 0)
-            return f"Porque {home.name} cumplió este patrón de resultado con goles de ambos lados en {hits} de sus últimos {n_h} partidos."
-        if away.name in sel and recent_away:
-            hits = sum(1 for m in recent_away if (m.result == "W" if "gana" in sel else m.result in ("W", "D")) and m.goals_for > 0 and m.goals_against > 0)
-            return f"Porque {away.name} sumó con goles en ambas porterías en {hits} de sus últimos {n_a} compromisos como visitante."
-
-    if grp == "btts_second_half":
-        return "Porque la dinámica táctica y necesidad de puntos en el complemento suele forzar anotaciones en ambos arcos."
-
-    if grp == "corners_first_half" and line is not None:
-        comp = "alta generación ofensiva inicial" if side == "over" else "estudio táctico cerrado en los primeros 45 minutos"
-        return f"Porque la proyección de córners en la primera mitad ({proj_val:.2f}) refleja {comp}."
-
-    # 10. Faltas
-    if grp.startswith("fouls_"):
-        h_f = [m.stats_for.get("fouls") for m in (recent_home or []) if m.stats_for.get("fouls") is not None]
-        a_f = [m.stats_for.get("fouls") for m in (recent_away or []) if m.stats_for.get("fouls") is not None]
-        if grp == "fouls_total" and line is not None and (h_f or a_f):
-            avg_tot = (fmean(h_f) if h_f else 12.0) + (fmean(a_f) if a_f else 12.0)
-            comp = "intensa fricción" if side == "over" else "fútbol fluido y limpio"
-            return f"Porque ambos equipos combinan {avg_tot:.1f} faltas por partido en sus fechas recientes ({comp})."
-        if grp == "fouls_home" and h_f and line is not None:
-            avg_f = fmean(h_f)
-            hits = sum(1 for f in h_f if (f > line if side == "over" else f < line))
-            comp = "más" if side == "over" else "menos"
-            return f"Porque {home.name} promedia {avg_f:.1f} faltas y registró {comp} de {line} en {hits} de sus últimos {len(h_f)} partidos."
-        if grp == "fouls_away" and a_f and line is not None:
-            avg_f = fmean(a_f)
-            hits = sum(1 for f in a_f if (f > line if side == "over" else f < line))
-            comp = "más" if side == "over" else "menos"
-            return f"Porque {away.name} promedia {avg_f:.1f} faltas y registró {comp} de {line} en {hits} de sus últimos {len(a_f)} partidos."
-        if grp == "fouls_1x2":
-            t_name = home.name if home.name in sel else away.name
-            rec = recent_home if home.name in sel else recent_away
-            if rec:
-                hits = sum(1 for m in rec if (m.stats_for.get("fouls") or 0) > (m.stats_against.get("fouls") or 0))
-                return f"Porque {t_name} cometió más faltas que su adversario en {hits} de sus últimos {len(rec)} compromisos."
-
-    # Fallback
-    try:
-        return defn.explanation_template.format(projection=proj_val, probability=prob) if proj_val is not None else defn.explanation_template
-    except Exception:
-        return defn.explanation_template
+    - Mercados de estadísticas con menos de MIN_EVIDENCE_SAMPLE partidos: muestra insuficiente.
+    - Tasa de acierto histórica < 50% o más de MAX_MODEL_GAP por debajo del modelo.
+    - Promedio citado del lado contrario de la línea (p. ej. "Menos de 4.5" con promedio 4.9).
+    """
+    if evidence is None:
+        return False
+    n = int(evidence.get("n") or 0)
+    if n < MIN_EVIDENCE_SAMPLE:
+        return stat_market
+    rate = evidence["hits"] / n
+    if rate < 0.5 or probability - rate > MAX_MODEL_GAP:
+        return True
+    avg, line, side = evidence.get("avg"), evidence.get("line"), evidence.get("side")
+    if avg is not None and line is not None and side in ("over", "under"):
+        if (side == "over" and avg <= line) or (side == "under" and avg >= line):
+            return True
+    return False
 
 
 def calculate_candidate_markets(
@@ -759,7 +868,7 @@ def calculate_candidate_markets(
             else "Proyección del modelo estadístico; no incluye cuota ni valoración frente a una casa."
         )
 
-        explanation = _generate_dynamic_explanation(
+        explanation, evidence = _explain_market(
             defn, home, away, proj_val, prob, recent_home=recent_home, recent_away=recent_away
         )
 
@@ -774,6 +883,7 @@ def calculate_candidate_markets(
             "probability": prob,
             "basis": basis,
             "explanation": explanation,
+            "evidence": evidence,
         }
         if proj_val is not None:
             item["projection"] = round(proj_val, 2)
@@ -842,17 +952,22 @@ def _get_concept_group(candidate: dict[str, Any]) -> str:
         return "both_teams_card"
     if group == "both_teams_corners":
         return "both_teams_corners"
-    if group == "combo_result_goals":
-        return "combo_result_goals"
-    if group == "cards_1x2":
-        return "cards_1x2"
-    if group == "shots_on_1x2":
-        return "shots_on_1x2"
-    if group == "team_score_both_halves":
-        return "team_score_both_halves"
-    if group in ("multigoals", "combo_1x2_btts", "btts_second_half", "fouls_1x2"):
-        return group
+    # Familias de mercados correlacionados: una sola selección por familia (regla 5).
+    if group in RESULT_FAMILY:
+        return "family:result"
+    if group in CLEAN_SHEET_FAMILY:
+        return "family:clean_sheet"
+    if group in TOTAL_GOALS_FAMILY:
+        return "family:total_goals"
     return group
+
+
+# 1X2, doble oportunidad, DNB y combinadas de resultado expresan la misma apuesta de fondo.
+RESULT_FAMILY = frozenset({"1x2", "double_chance", "dnb", "combo_result_goals", "combo_1x2_btts"})
+# "Ambos marcan: No", "X no recibe gol" y "X gana a cero" dependen de la misma portería a cero.
+CLEAN_SHEET_FAMILY = frozenset({"both_score", "clean_sheet", "win_to_nil"})
+# Goles totales y multigoles son la misma distribución de goles del partido.
+TOTAL_GOALS_FAMILY = frozenset({"total_goals", "multigoals"})
 
 
 def _candidate_rank_key(c: dict[str, Any]) -> tuple[float, float, float, float]:
@@ -943,6 +1058,10 @@ def select_statistical_markets(
         if prob < minimum_probability:
             continue
 
+        # Filtro de coherencia: la justificación citada debe respaldar la probabilidad.
+        if evidence_contradicts(prob, c.get("evidence"), c.get("group") in STAT_EVIDENCE_GROUPS):
+            continue
+
         if prob > maximum_probability:
             continue
 
@@ -998,6 +1117,7 @@ def select_statistical_markets(
         item.pop("id", None)
         item.pop("line", None)
         item.pop("side", None)
+        item.pop("evidence", None)
 
     return selected
 
@@ -1009,8 +1129,10 @@ def _add_player_candidates(
 ) -> None:
     for player in players:
         name = str(player.get("name") or "").strip()
-        if not name:
+        if not name or player.get("is_starter") is False:
+            # Un suplente confirmado no tiene minutos garantizados para la prop.
             continue
+        needs_confirmation = player.get("is_starter") is not True
         group = f"player_shots:{team.id}:{name.lower()}"
         projection = _number(player.get("expected_per_match"))
         for selection, prob in (
@@ -1032,8 +1154,9 @@ def _add_player_candidates(
                     "probability": round(prob, 4),
                     "basis": "Proyección del modelo estadístico; no incluye cuota ni valoración frente a una casa.",
                     "explanation": f"Porque {name} registra un promedio de {projection:.2f} remates esperados por partido." if projection else f"Porque {name} mantiene una alta frecuencia ofensiva.",
-                    "requires_starter_confirmation": True,
                 }
+                if needs_confirmation:
+                    item["requires_starter_confirmation"] = True
                 if projection is not None:
                     item["projection"] = round(projection, 2)
                 candidates.append(item)
@@ -1047,8 +1170,8 @@ def _add_scorer_candidates(
     for player in players:
         name = str(player.get("name") or "").strip()
         prob = _number(player.get("probability_goal"))
-        if name and prob is not None:
-            candidates.append({
+        if name and prob is not None and player.get("is_starter") is not False:
+            item = {
                 "id": f"player_goal_{team.id}_{name.lower()}",
                 "category": "Jugadores",
                 "group": f"player_goal:{team.id}:{name.lower()}",
@@ -1059,8 +1182,10 @@ def _add_scorer_candidates(
                 "probability": round(prob, 4),
                 "basis": "Proyección del modelo estadístico; no incluye cuota ni valoración frente a una casa.",
                 "explanation": f"Porque {name} es la principal referencia ofensiva de {team.name}.",
-                "requires_starter_confirmation": True,
-            })
+            }
+            if player.get("is_starter") is not True:
+                item["requires_starter_confirmation"] = True
+            candidates.append(item)
 
 
 def _number(value: Any) -> float | None:

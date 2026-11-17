@@ -88,12 +88,13 @@ class MarketPresentationCatalog:
             "over": {1.5, 2.5, 3.5},
             "under": {1.5, 2.5},
         },
+        # +0.5 goles por mitad es una línea trivial (regla 3): solo se presenta 1.5.
         "first_half": {
-            "over": {0.5, 1.5},
+            "over": {1.5},
             "under": {1.5},
         },
         "second_half": {
-            "over": {0.5, 1.5},
+            "over": {1.5},
             "under": {1.5},
         },
         "corners_first_half": {

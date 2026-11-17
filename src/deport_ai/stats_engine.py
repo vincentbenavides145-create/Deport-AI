@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import re
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from statistics import fmean, median
 from typing import Any, Iterable
 
@@ -159,6 +159,15 @@ def extract_team_matches(
         goals_for, goals_against = (
             (int(home_goals), int(away_goals)) if is_home else (int(away_goals), int(home_goals))
         )
+        halftime = enriched.get("halftime") or {}
+        ht_home = _number(halftime.get("home"))
+        ht_away = _number(halftime.get("away"))
+        ht_for: int | None = None
+        ht_against: int | None = None
+        if ht_home is not None and ht_away is not None:
+            ht_for, ht_against = (int(ht_home), int(ht_away)) if is_home else (int(ht_away), int(ht_home))
+            if ht_for > goals_for or ht_against > goals_against:
+                ht_for = ht_against = None
         stat_blocks = _team_stat_blocks(enriched.get("statistics", []))
         own_id = team_id
         opponent_id = int(away["id"] if is_home else home["id"])
@@ -189,6 +198,8 @@ def extract_team_matches(
                 stats_against=stat_blocks.get(opponent_id, {}),
                 competition_weight=comp_weight,
                 league_id=league_id,
+                goals_for_1h=ht_for,
+                goals_against_1h=ht_against,
             )
         )
     result.sort(key=lambda match: match.date, reverse=True)
@@ -555,6 +566,9 @@ class CompetitionProfile:
     recency_decay: float       # Tasa decaimiento temporal (0.86 estándar)
     dispersion_corners: float  # Parámetro alpha Binomial Negativa córners
     dispersion_cards: float    # Parámetro alpha Binomial Negativa tarjetas
+    max_lambda_home: float = 5.0          # Tope de goles esperados del local
+    max_lambda_away: float = 3.5          # Tope de goles esperados del visitante
+    elo_weight_cap: float | None = None   # Peso Elo máximo permitido en la competición
 
 
 COMPETITION_PROFILES: dict[int, CompetitionProfile] = {
@@ -594,6 +608,25 @@ COMPETITION_PROFILES: dict[int, CompetitionProfile] = {
     743: CompetitionProfile(743, "Liga MX", 1.15, 0.85, 2.70, 300.0, 0.86, 0.15, 0.24),
 }
 
+# Amistosos internacionales (1082): rotaciones, sedes a menudo neutrales y ritmo bajo.
+# La forma reciente ya refleja el nivel de cada selección, así que el Elo pesa poco
+# y los goles esperados se topan para no proyectar goleadas irreales.
+FRIENDLY_INTERNATIONAL_PROFILE = CompetitionProfile(
+    1082,
+    "Amistoso Internacional",
+    home_advantage=1.06,
+    away_advantage=0.94,
+    base_goals=2.55,
+    elo_scale=320.0,
+    recency_decay=0.86,
+    dispersion_corners=0.15,
+    dispersion_cards=0.24,
+    max_lambda_home=3.5,
+    max_lambda_away=3.0,
+    elo_weight_cap=0.15,
+)
+COMPETITION_PROFILES[1082] = FRIENDLY_INTERNATIONAL_PROFILE
+
 DEFAULT_COMPETITION_PROFILE = CompetitionProfile(
     None, "Universal / General", 1.12, 0.90, 2.60, 320.0, 0.86, 0.14, 0.22
 )
@@ -605,6 +638,8 @@ def get_competition_profile(
     if league_id is not None and int(league_id) in COMPETITION_PROFILES:
         return COMPETITION_PROFILES[int(league_id)]
     low = (league_name or "").lower()
+    if any(k in low for k in ("friendl", "amistos")):
+        return replace(FRIENDLY_INTERNATIONAL_PROFILE, league_id=league_id, name="Amistoso")
     if any(k in low for k in ("libertadores", "sudamericana")):
         return CompetitionProfile(
             league_id,
@@ -630,6 +665,9 @@ def get_competition_profile(
             dispersion_cards=0.22,
         )
     return DEFAULT_COMPETITION_PROFILE
+
+
+MIN_DETAILED_PER_TEAM = 6
 
 
 def calculate_confidence_score(
@@ -692,6 +730,14 @@ def calculate_confidence_score(
 
     total_score = min(100, max(0, pts_sample + pts_detail + pts_lineup + pts_official))
 
+    min_team_detailed = min(
+        sum(1 for m in team if m.stats_for and ("shots_on_goal" in m.stats_for or "corner_kicks" in m.stats_for))
+        for team in (home_matches, away_matches)
+    )
+    if total_score >= 75 and min_team_detailed < MIN_DETAILED_PER_TEAM:
+        # Con pocas estadísticas de un equipo, los mercados de córners/tarjetas/remates son frágiles.
+        total_score = 74
+
     if total_score >= 75:
         level = "ALTA"
     elif total_score >= 50:
@@ -706,6 +752,8 @@ def calculate_confidence_score(
     ]
     if ratio_official < 0.70:
         reasons.append("Muestra con presencia de amistosos o partidos de menor ponderación")
+    if min_team_detailed < MIN_DETAILED_PER_TEAM:
+        reasons.append(f"Un equipo tiene menos de {MIN_DETAILED_PER_TEAM} partidos con estadísticas completas")
 
     return ConfidenceScore(
         score=total_score,
@@ -1051,8 +1099,11 @@ def goal_probabilities(
 
     # El Elo y la forma reciente se construyen con los mismos partidos: aplicar el factor
     # Elo completo los cuenta dos veces. elo_weight (ajustado con datos) fija su peso.
-    elo_factor_h = math.exp(params.elo_weight * elo_delta / comp_profile.elo_scale)
-    elo_factor_a = math.exp(-params.elo_weight * elo_delta / comp_profile.elo_scale)
+    elo_weight = params.elo_weight
+    if comp_profile.elo_weight_cap is not None:
+        elo_weight = min(elo_weight, comp_profile.elo_weight_cap)
+    elo_factor_h = math.exp(elo_weight * elo_delta / comp_profile.elo_scale)
+    elo_factor_a = math.exp(-elo_weight * elo_delta / comp_profile.elo_scale)
 
     base_league_half = round(comp_profile.base_goals / 2.0, 2)
 
@@ -1066,7 +1117,7 @@ def goal_probabilities(
     raw_lambda_h = base_league_half + venue_impact_h + form_impact_h + elo_impact_h + rest_impact_h
     if altitude_impact and h_mult != 1.0:
         raw_lambda_h *= h_mult
-    lambda_home = _clamp(raw_lambda_h, 0.2, 5.0)
+    lambda_home = _clamp(raw_lambda_h, 0.2, comp_profile.max_lambda_home)
 
     venue_impact_a = round(base_league_half * (comp_profile.away_advantage - 1.0), 2)
     form_impact_a = round((raw_away - base_league_half) * comp_profile.away_advantage, 2)
@@ -1076,7 +1127,7 @@ def goal_probabilities(
     raw_lambda_a = base_league_half + venue_impact_a + form_impact_a + elo_impact_a + rest_impact_a
     if altitude_impact and a_mult != 1.0:
         raw_lambda_a *= a_mult
-    lambda_away = _clamp(raw_lambda_a, 0.05, 3.5)
+    lambda_away = _clamp(raw_lambda_a, 0.05, comp_profile.max_lambda_away)
 
     attr_home = FactorAttribution(
         base_league_goals=base_league_half,
@@ -1731,6 +1782,22 @@ def _poisson(k: int, rate: float) -> float:
     return _negative_binomial(k, rate, 0.0)
 
 
+# Estadísticas de evento raro que Sportmonks solo publica cuando ocurren: en un partido
+# con estadísticas completas, su ausencia significa 0 (no "dato faltante"). Promediar
+# solo los partidos donde aparecen infla la proyección (p. ej. tiros al palo).
+SPARSE_EVENT_KEYS = frozenset({"hit_woodwork"})
+_DETAIL_MARKER_KEYS = ("total_shots", "shots_on_goal", "corner_kicks")
+
+
+def stat_value(stats: dict[str, float], key: str) -> float | None:
+    """Valor de una estadística, tratando como 0 los eventos raros ausentes en partidos detallados."""
+    if key in stats:
+        return float(stats[key])
+    if key in SPARSE_EVENT_KEYS and any(marker in stats for marker in _DETAIL_MARKER_KEYS):
+        return 0.0
+    return None
+
+
 def _expected_count(
     attacking: list[TeamMatch],
     defending: list[TeamMatch],
@@ -1739,13 +1806,15 @@ def _expected_count(
     key: str,
 ) -> float | None:
     # 1. Priorizar partidos oficiales sobre amistosos
-    official_att = [m for m in attacking if m.competition_weight >= 0.70 and key in m.stats_for]
-    att_base = official_att if len(official_att) >= 3 else [m for m in attacking if key in m.stats_for]
+    with_att = [m for m in attacking if stat_value(m.stats_for, key) is not None]
+    official_att = [m for m in with_att if m.competition_weight >= 0.70]
+    att_base = official_att if len(official_att) >= 3 else with_att
     att_venue = [m for m in att_base if m.is_home == attacking_home]
     attack_pool = att_venue if len(att_venue) >= 3 else att_base
 
-    official_def = [m for m in defending if m.competition_weight >= 0.70 and key in m.stats_against]
-    def_base = official_def if len(official_def) >= 3 else [m for m in defending if key in m.stats_against]
+    with_def = [m for m in defending if stat_value(m.stats_against, key) is not None]
+    official_def = [m for m in with_def if m.competition_weight >= 0.70]
+    def_base = official_def if len(official_def) >= 3 else with_def
     def_venue = [m for m in def_base if m.is_home == defending_home]
     defence_pool = def_venue if len(def_venue) >= 3 else def_base
 
@@ -1753,7 +1822,7 @@ def _expected_count(
         return None
 
     # Ponderación temporal + peso de competición (atenúa amistosos a 0.35)
-    att_values = [float(m.stats_for[key]) for m in attack_pool]
+    att_values = [stat_value(m.stats_for, key) or 0.0 for m in attack_pool]
     att_weights = [(0.86**i) * m.competition_weight for i, m in enumerate(attack_pool)]
     total_att_w = sum(att_weights)
     attack_mean = (
@@ -1762,7 +1831,7 @@ def _expected_count(
         else _robust_count_mean(att_values)
     )
 
-    def_values = [float(m.stats_against[key]) for m in defence_pool]
+    def_values = [stat_value(m.stats_against, key) or 0.0 for m in defence_pool]
     def_weights = [(0.86**i) * m.competition_weight for i, m in enumerate(defence_pool)]
     total_def_w = sum(def_weights)
     allowed_mean = (

@@ -247,7 +247,7 @@ def build_declarative_catalog(home_name: str, away_name: str) -> list[MarketDefi
             id="corners_1x2_home",
             category="Córners",
             group="corners_1x2",
-            selection_template=f"{home_name} saca más córners (Experimental)",
+            selection_template=f"{home_name} saca más córners",
             market_template="Córners 1X2",
             line=None,
             side="1x2",
@@ -262,7 +262,7 @@ def build_declarative_catalog(home_name: str, away_name: str) -> list[MarketDefi
             id="corners_1x2_away",
             category="Córners",
             group="corners_1x2",
-            selection_template=f"{away_name} saca más córners (Experimental)",
+            selection_template=f"{away_name} saca más córners",
             market_template="Córners 1X2",
             line=None,
             side="1x2",
@@ -757,7 +757,7 @@ def build_declarative_catalog(home_name: str, away_name: str) -> list[MarketDefi
             side="binary",
             probability_source="goal_both_halves",
             projection_source="total_goals",
-            explanation_template="Porque la intensidad de ambos clubes proyecta presencia de gol tanto en el 1T como en el 2T.",
+            explanation_template="Porque la intensidad de ambos equipos proyecta presencia de gol tanto en el 1T como en el 2T.",
         ),
         MarketDefinition(
             id="team_score_both_halves_home",
@@ -1009,7 +1009,7 @@ def build_declarative_catalog(home_name: str, away_name: str) -> list[MarketDefi
             side="binary",
             probability_source="hit_woodwork",
             projection_source="tot_woodwork",
-            explanation_template="Porque ambos equipos registran una alta frecuencia de remates a los postes.",
+            explanation_template="Porque el modelo proyecta {projection:.2f} tiros al palo en el partido.",
         )
     )
 

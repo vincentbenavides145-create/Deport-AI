@@ -791,6 +791,10 @@ def _convert_fixture(raw: dict[str, Any], timezone_name: str = "UTC") -> dict[st
             "home": _current_score(raw.get("scores", []), home_id),
             "away": _current_score(raw.get("scores", []), away_id),
         },
+        "halftime": {
+            "home": _period_score(raw.get("scores", []), home_id, "1ST_HALF"),
+            "away": _period_score(raw.get("scores", []), away_id, "1ST_HALF"),
+        },
         "statistics": _convert_statistics(raw.get("statistics", []), participants),
         "players": _convert_players(raw.get("lineups", []), participants),
     }
@@ -887,6 +891,14 @@ def _current_score(scores: list[dict[str, Any]], participant_id: int) -> int | N
     for description in priorities:
         if by_description.get(description) is not None:
             return int(by_description[description])
+    return None
+
+
+def _period_score(scores: list[dict[str, Any]], participant_id: int, description: str) -> int | None:
+    for row in scores or []:
+        if int(row.get("participant_id") or -1) == participant_id and row.get("description") == description:
+            goals = (row.get("score") or {}).get("goals")
+            return int(goals) if goals is not None else None
     return None
 
 

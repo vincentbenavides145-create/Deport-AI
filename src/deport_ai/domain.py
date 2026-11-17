@@ -40,6 +40,9 @@ class TeamMatch:
     stats_against: dict[str, float] = field(default_factory=dict)
     competition_weight: float = 1.0
     league_id: int | None = None
+    # Goles al descanso (None si la API no publica el marcador del 1T)
+    goals_for_1h: int | None = None
+    goals_against_1h: int | None = None
 
 
 @dataclass(frozen=True)

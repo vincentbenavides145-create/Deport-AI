@@ -1168,8 +1168,11 @@ def format_adaptive_report(report: AnalysisReport) -> str:
         else:
             markets_by_cat[cat].append(m)
 
+    # El Pick Recomendado ya se muestra arriba: no se repite dentro de su categoría.
+    top_selection = top_pick.get("selection") if top_pick and top_pick.get("probability", 0.0) >= 0.60 else None
+
     for cat_name, header in categories_spec:
-        items = markets_by_cat.get(cat_name, [])
+        items = [m for m in markets_by_cat.get(cat_name, []) if m.get("selection") != top_selection]
         if not items:
             continue
         items = sorted(items, key=lambda x: -x.get("probability", 0.0))[:4]

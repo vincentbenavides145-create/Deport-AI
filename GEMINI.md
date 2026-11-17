@@ -23,6 +23,14 @@ Cuando el usuario pida analizar un partido, pronósticos o predicciones de fútb
 - Dentro de cada mercado con cuotas se elige la selección de **mayor EV** (no la más probable), y el Pick Recomendado es la de mayor EV.
 - La línea se muestra como: `• **<Selección> — XX.X%** · cuota X.XX · EV +X.X%`. Sin cuotas, el formato no cambia.
 
+## 🔎 COHERENCIA ENTRE PROBABILIDAD Y JUSTIFICACIÓN
+- Cada justificación cita el historial real (aciertos/partidos y promedio) que el comando usa para validar la selección.
+- Se descarta toda selección cuyo historial citado tenga una tasa de acierto menor al 50%, quede más de 20 puntos por debajo de la probabilidad del modelo, o cuyo promedio esté del lado contrario de la línea.
+- Los mercados de estadísticas (córners, tarjetas, faltas, remates, offsides, tiros al palo) exigen al menos 6 partidos con esa estadística.
+- Mercados correlacionados comparten familia y solo se muestra una selección por familia: {1X2, doble oportunidad, DNB, combinadas de resultado}, {Ambos marcan, valla invicta, gana a cero} y {goles totales, multigoles}.
+- El Pick Recomendado no se repite dentro de su categoría.
+- Los amistosos internacionales usan un perfil propio (Elo con peso máximo 0.15 y tope de 3.5 / 3.0 goles esperados).
+
 ## 🧪 CALIBRACIÓN Y PARÁMETROS
 - La calibración dinámica solo se activa con **30 o más predicciones reales liquidadas** por categoría. Nunca se inventan datos para calibrar.
 - Los parámetros del modelo por liga se ajustan con `python backtest.py --teams-file <liga.txt> --fit --save-params` y se guardan en `model_params.json`.

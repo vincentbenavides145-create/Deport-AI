@@ -138,10 +138,9 @@ class AnalysisService:
         starter_info: dict[int, dict[str, Any]] = {}
         lineups_confirmed = False
         if lineups:
+            lineups_confirmed = lineups_are_confirmed(lineups)
             for team_info in lineups:
                 starters = team_info.get("startXI", [])
-                if starters:
-                    lineups_confirmed = True
                 for p in starters:
                     pid = p.get("player", {}).get("id")
                     if pid is not None:
@@ -214,21 +213,18 @@ class AnalysisService:
             for team_id in (home.id, away.id):
                 if team_id in starter_names and starter_names[team_id]:
                     valid_names = starter_names[team_id]
-                    filtered_shots = [
-                        p
+                    # Con once confirmado solo quedan los titulares (aunque la lista quede vacía),
+                    # marcados como titulares para no pedir otra confirmación.
+                    expected.player_shots[team_id] = [
+                        {**p, "is_starter": True}
                         for p in expected.player_shots.get(team_id, [])
                         if any(s in p["name"].lower() or p["name"].lower() in s for s in valid_names)
                     ]
-                    if filtered_shots:
-                        expected.player_shots[team_id] = filtered_shots
-
-                    filtered_scorers = [
-                        p
+                    expected.anytime_goalscorers[team_id] = [
+                        {**p, "is_starter": True}
                         for p in expected.anytime_goalscorers.get(team_id, [])
                         if any(s in p["name"].lower() or p["name"].lower() in s for s in valid_names)
                     ]
-                    if filtered_scorers:
-                        expected.anytime_goalscorers[team_id] = filtered_scorers
 
         # Calibración dinámica adaptativa basada en resultados empíricos
         calibration = self.calibrator.get_calibration_summary(target_league_id, target_league_name)
@@ -484,6 +480,11 @@ def _sources(
         if odds_supported:
             sources.append(f"{provider} odds")
     return sources
+
+
+def lineups_are_confirmed(lineups: list[dict[str, Any]] | None) -> bool:
+    """Solo hay alineación confirmada cuando ambos equipos publicaron su once titular."""
+    return sum(1 for team_info in lineups or [] if team_info.get("startXI")) >= 2
 
 
 def _primary_league_id(rows: list[dict[str, Any]]) -> int | None:
