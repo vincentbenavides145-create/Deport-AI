@@ -28,6 +28,13 @@ Cuando el usuario pida analizar un partido, pronósticos o predicciones de fútb
 - Dentro de cada mercado con cuotas se elige la selección de **mayor EV** (no la más probable), y el Pick Recomendado es la de mayor EV.
 - La línea se muestra como: `• **<Selección> — XX.X%** · cuota X.XX · EV +X.X%`. Sin cuotas, el formato no cambia.
 
+## 📒 HISTÓRICO DE PREDICCIONES (OBLIGATORIO)
+- `analyze.py` registra automáticamente cada predicción y además la escribe en `history/predictions.jsonl`, dentro del repositorio. Es el histórico permanente: las sesiones en la nube son temporales y la base SQLite local se pierde al cerrarlas (se reconstruye sola desde ese archivo).
+- No uses `--no-track` salvo para pruebas.
+- **Después de cada análisis**, sube el histórico: `python track.py sync` (commit y push a `main`).
+- Para comprobar con los resultados reales: `python track.py update` (liquida con Sportmonks), `python track.py report` y `python track.py sync`.
+- Al empezar una sesión nueva, ejecuta primero `python track.py update` y `python track.py sync` para liquidar lo pendiente.
+
 ## 🧪 CALIBRACIÓN Y PARÁMETROS
 - La calibración dinámica solo se activa con **30 o más predicciones reales liquidadas** por categoría. Nunca se inventan datos para calibrar.
 - Los parámetros del modelo por liga se ajustan con `python backtest.py --teams-file <liga.txt> --fit --save-params` y se guardan en `model_params.json`.

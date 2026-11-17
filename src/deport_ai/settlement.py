@@ -12,6 +12,7 @@ logger = logging.getLogger("deport_ai.settlement")
 
 # Resultado de `evaluate_prediction` para mercados que el liquidador no sabe evaluar.
 UNSUPPORTED = "UNSUPPORTED"
+_LINE_RE = re.compile(r"\b(Más|Menos) de (\d+(?:\.\d+)?)", re.IGNORECASE)
 
 
 def extract_match_actual_stats(fixture_detail: dict[str, Any]) -> dict[str, Any] | None:
@@ -168,6 +169,12 @@ def evaluate_prediction(
     selection = prediction.get("selection", "")
     side = prediction.get("side")
     line = prediction.get("line")
+    if line is None or side not in ("over", "under"):
+        # Predicciones antiguas se guardaron sin línea: se deduce del texto ("Más de 2.5 goles").
+        parsed = _LINE_RE.search(selection)
+        if parsed:
+            side = "over" if parsed.group(1).lower() == "más" else "under"
+            line = float(parsed.group(2))
 
     hg = actual.get("home_goals")
     ag = actual.get("away_goals")
@@ -575,4 +582,5 @@ class SettlementEngine:
         for fix in pending:
             res = self.settle_fixture(fix["fixture_id"])
             results.append(res)
+        self.db.export_history()
         return results

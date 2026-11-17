@@ -153,6 +153,16 @@ La calibración dinámica (`track.py calibrate`) solo se activa con 30 o más
 predicciones **reales** liquidadas por categoría, y aplica la corrección con un peso
 de credibilidad `n / (n + 50)`.
 
+## Histórico de predicciones
+
+Cada análisis se registra y se guarda en `history/predictions.jsonl`, dentro del repositorio, para que no se pierda entre sesiones en la nube.
+
+```bash
+python track.py update   # liquida las predicciones pendientes con los resultados de Sportmonks
+python track.py report   # aciertos, fallos y rentabilidad
+python track.py sync     # commit + push del histórico a main
+```
+
 ## Verificación
 
 ```powershell

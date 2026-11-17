@@ -326,6 +326,7 @@ class AnalysisService:
                     match_date=fixture.date,
                     predictions=statistical_markets,
                 )
+                self.db.export_history()
             except Exception:
                 pass
 

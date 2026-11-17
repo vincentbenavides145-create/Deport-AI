@@ -31,6 +31,13 @@ Cuando el usuario pida analizar un partido, pronósticos o predicciones de fútb
 - El Pick Recomendado no se repite dentro de su categoría.
 - Los amistosos internacionales usan un perfil propio (Elo con peso máximo 0.15 y tope de 3.5 / 3.0 goles esperados).
 
+## 📒 HISTÓRICO DE PREDICCIONES (OBLIGATORIO)
+- `analyze.py` registra automáticamente cada predicción y además la escribe en `history/predictions.jsonl`, dentro del repositorio. Es el histórico permanente: las sesiones en la nube son temporales y la base SQLite local se pierde al cerrarlas (se reconstruye sola desde ese archivo).
+- No uses `--no-track` salvo para pruebas.
+- **Después de cada análisis**, sube el histórico: `python track.py sync` (commit y push a `main`).
+- Para comprobar con los resultados reales: `python track.py update` (liquida con Sportmonks), `python track.py report` y `python track.py sync`.
+- Al empezar una sesión nueva, ejecuta primero `python track.py update` y `python track.py sync` para liquidar lo pendiente.
+
 ## 🧪 CALIBRACIÓN Y PARÁMETROS
 - La calibración dinámica solo se activa con **30 o más predicciones reales liquidadas** por categoría. Nunca se inventan datos para calibrar.
 - Los parámetros del modelo por liga se ajustan con `python backtest.py --teams-file <liga.txt> --fit --save-params` y se guardan en `model_params.json`.

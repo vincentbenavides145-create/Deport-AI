@@ -8,13 +8,28 @@ from typing import Any
 
 
 DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "deport_ai.db"
+# Copia de texto del histórico dentro del repositorio: es la fuente permanente (las
+# sesiones en la nube son temporales y la base SQLite se pierde al cerrarlas).
+DEFAULT_HISTORY_PATH = Path(__file__).resolve().parent.parent.parent / "history" / "predictions.jsonl"
 
 
 class DatabaseManager:
     """Gestor de base de datos SQLite para persistencia y calibración dinámica de DEPORT AI."""
 
-    def __init__(self, db_path: Path | str | None = None) -> None:
+    def __init__(
+        self,
+        db_path: Path | str | None = None,
+        history_path: Path | str | None = None,
+    ) -> None:
         self._memory_conn: sqlite3.Connection | None = None
+        # El histórico en el repositorio se usa con la base por defecto (o si se indica);
+        # las bases en memoria de las pruebas no lo tocan.
+        if history_path is not None:
+            self.history_path: Path | None = Path(history_path)
+        elif db_path is None:
+            self.history_path = DEFAULT_HISTORY_PATH
+        else:
+            self.history_path = None
         if db_path is None:
             self.db_path = DEFAULT_DB_PATH
         elif str(db_path) == ":memory:":
@@ -29,6 +44,54 @@ class DatabaseManager:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
         self._init_db()
+        self._sync_from_history()
+
+    # ------------------------------------------------------------------ histórico
+    def _sync_from_history(self) -> None:
+        """Si la base no tiene un partido que sí está en el histórico, lo importa."""
+        if self.history_path is None or not self.history_path.exists():
+            return
+        with self._get_connection() as conn:
+            known = {row[0] for row in conn.execute("SELECT fixture_id FROM tracked_fixtures")}
+            fixture_cols = {row[1] for row in conn.execute("PRAGMA table_info(tracked_fixtures)")}
+            pred_cols = {row[1] for row in conn.execute("PRAGMA table_info(tracked_predictions)")}
+            for line in self.history_path.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                record = json.loads(line)
+                if record.get("fixture_id") in known:
+                    continue
+                fixture = {k: v for k, v in record.items() if k in fixture_cols}
+                cols = ", ".join(fixture)
+                conn.execute(
+                    f"INSERT INTO tracked_fixtures ({cols}) VALUES ({', '.join('?' for _ in fixture)})",
+                    list(fixture.values()),
+                )
+                for pred in record.get("predictions", []):
+                    row = {k: v for k, v in pred.items() if k in pred_cols}
+                    conn.execute(
+                        f"INSERT INTO tracked_predictions ({', '.join(row)}) VALUES ({', '.join('?' for _ in row)})",
+                        list(row.values()),
+                    )
+
+    def export_history(self) -> Path | None:
+        """Escribe todo el seguimiento (partidos + predicciones) en el histórico de texto."""
+        if self.history_path is None:
+            return None
+        with self._get_connection() as conn:
+            fixtures = [dict(r) for r in conn.execute("SELECT * FROM tracked_fixtures ORDER BY match_date, fixture_id")]
+            preds: dict[int, list[dict[str, Any]]] = {}
+            for r in conn.execute("SELECT * FROM tracked_predictions ORDER BY fixture_id, id"):
+                preds.setdefault(r["fixture_id"], []).append(dict(r))
+        self.history_path.parent.mkdir(parents=True, exist_ok=True)
+        lines = []
+        for fixture in fixtures:
+            fixture["predictions"] = preds.get(fixture["fixture_id"], [])
+            lines.append(json.dumps(fixture, ensure_ascii=False))
+        tmp = self.history_path.with_suffix(".tmp")
+        tmp.write_text("".join(line + "\n" for line in lines), encoding="utf-8")
+        tmp.replace(self.history_path)
+        return self.history_path
 
     def _get_connection(self) -> sqlite3.Connection:
         if self._memory_conn is not None:

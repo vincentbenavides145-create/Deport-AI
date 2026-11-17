@@ -5,13 +5,19 @@ Permite:
 2. Visualizar tablero de aciertos, fallos y rentabilidad (`report`).
 3. Ejecutar auditoría y post-mortem profundo con IA (`ai-review`).
 4. Recalcular y actualizar factores de calibración dinámica (`calibrate`).
+5. Subir el histórico de predicciones al repositorio (`sync`): commit + push a main.
+
+El histórico permanente es `history/predictions.jsonl` (dentro del repositorio). La base
+SQLite local se reconstruye desde ese archivo al iniciar una sesión nueva.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -118,6 +124,22 @@ def cmd_calibrate(args: argparse.Namespace) -> None:
     print(f"⚡ Calibración adaptativa completada: {updated} factores de liga y categorías actualizados en SQLite.")
 
 
+def cmd_sync(args: argparse.Namespace) -> None:
+    repo = Path(__file__).resolve().parent
+    db = DatabaseManager()
+    path = db.export_history()
+    rel = path.relative_to(repo)
+    subprocess.run(["git", "add", str(rel)], cwd=repo, check=True)
+    if subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=repo).returncode == 0:
+        print("El histórico ya está al día en git.")
+        return
+    subprocess.run(["git", "commit", "-m", f"Histórico de predicciones {date.today().isoformat()}"], cwd=repo, check=True)
+    push = subprocess.run(["git", "push", "origin", "HEAD:main"], cwd=repo)
+    if push.returncode != 0:
+        sys.exit(push.returncode)
+    print(f"📒 Histórico subido a main ({rel}).")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Gestor de seguimiento y aprendizaje dinámico de DEPORT AI")
     subparsers = parser.add_subparsers(dest="command", help="Comandos disponibles")
@@ -143,6 +165,10 @@ def main() -> None:
     sub_cal = subparsers.add_parser("calibrate", help="Recalcula factores de sesgo y contracción empírica")
     sub_cal.add_argument("--min-sample", type=int, default=30, help="Muestra mínima requerida (nunca menor a 30)")
     sub_cal.set_defaults(func=cmd_calibrate)
+
+    # sync
+    sub_sync = subparsers.add_parser("sync", help="Sube el histórico de predicciones al repositorio (main)")
+    sub_sync.set_defaults(func=cmd_sync)
 
     args = parser.parse_args()
     if not args.command:

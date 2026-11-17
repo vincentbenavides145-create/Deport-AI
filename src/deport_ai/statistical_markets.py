@@ -1115,8 +1115,7 @@ def select_statistical_markets(
     for item in selected:
         item.pop("group", None)
         item.pop("id", None)
-        item.pop("line", None)
-        item.pop("side", None)
+        # line/side se conservan: el seguimiento los necesita para liquidar Más/Menos.
         item.pop("evidence", None)
 
     return selected
