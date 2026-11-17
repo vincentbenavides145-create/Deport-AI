@@ -186,6 +186,55 @@ def _selection_key_v3(market: str, label: str, total: str = "", handicap: str = 
     return None
 
 
+# Margen mínimo de valor esperado (EV = probabilidad * cuota - 1) para mostrar una selección con cuota.
+MIN_EDGE = 0.03
+
+_DIRECT_KEYS = {
+    "match_1x2_home": "home_win",
+    "match_1x2_draw": "draw",
+    "match_1x2_away": "away_win",
+    "double_chance_1x": "double_chance_1x",
+    "double_chance_x2": "double_chance_x2",
+    "double_chance_12": "double_chance_12",
+    "dnb_home": "dnb_home",
+    "dnb_away": "dnb_away",
+    "btts_yes": "btts_yes",
+    "btts_no": "btts_no",
+    "clean_sheet_home": "clean_sheet_home",
+    "clean_sheet_away": "clean_sheet_away",
+    "first_half_over_05": "first_half_over_05",
+    "first_half_over_15": "first_half_over_15",
+    "first_half_under_15": "first_half_under_15",
+    "second_half_over_05": "second_half_over_05",
+    "second_half_over_15": "second_half_over_15",
+    "second_half_under_15": "second_half_under_15",
+}
+
+
+def odds_key_for_candidate(candidate_id: str | None) -> str | None:
+    """Traduce el id de un mercado del catálogo a la clave de `normalize_odds`."""
+    if not candidate_id:
+        return None
+    if candidate_id in _DIRECT_KEYS:
+        return _DIRECT_KEYS[candidate_id]
+    match = re.fullmatch(r"(goals_total|home_goals|away_goals|corners_total)_(over|under)_(\d+)", candidate_id)
+    if not match:
+        return None
+    group, side, tenths = match.groups()
+    line_code = f"{int(tenths) // 10}{int(tenths) % 10}"  # 25 -> "25", 105 -> "105"
+    if group == "goals_total":
+        return f"{side}_{line_code}"
+    if group == "home_goals":
+        return f"home_{side}_{line_code}"
+    if group == "away_goals":
+        return f"away_{side}_{line_code}"
+    return f"{side}_{line_code}_corners"
+
+
+def expected_value(probability: float, price: float) -> float:
+    return probability * price - 1.0
+
+
 def select_opportunities(
     probabilities: ProbabilityReport, odds: dict[str, float], maximum: int = 4
 ) -> list[dict[str, Any]]:

@@ -96,24 +96,62 @@ alterarlas ni completar campos ausentes.
   asumir que los goles de ambos equipos son independientes.
 - **Dixon-Coles:** corrección para 0–0, 0–1, 1–0 y 1–1 sobre esa matriz conjunta.
 - **Elo dinámico:** ventaja local y resultados recientes con mayor peso dentro de
-  la ventana consultada.
+  la ventana consultada. El prior inicial usa la tabla de niveles de club escalada
+  por `club_tier_scale`; ya no suma un bonus por diferencia de goles (esos partidos
+  ya entran en la forma reciente).
+- **Sin doble conteo:** el factor Elo se aplica con un peso `elo_weight` (0–1)
+  ajustado con datos, porque Elo y forma reciente salen de los mismos partidos. El
+  ajuste por nivel del rival (SoS) queda desactivado por defecto por el mismo motivo.
+- **Parámetros por liga (`model_params.json`):** rho de Dixon-Coles, peso Elo, peso
+  sede/global, peso temporada, escala de la tabla de clubes y dispersión de córners
+  y tarjetas. Sin archivo se usan valores por defecto conservadores.
 - **1X2, over/under y ambos marcan:** agregaciones de la matriz de marcadores.
 - **Córners y tiros:** producción del equipo combinada con concesión del rival,
   usando estimación robusta para limitar partidos extremos.
 - **Jugadores:** tasa observada por 90 minutos y probabilidad Poisson de registrar
   al menos un tiro al arco.
-- **Oportunidades:** solo se considera valor contra cuotas cuando Sportmonks entrega
-  precios comparables. Sin cuotas se etiquetan como señales estadísticas.
+- **Cuotas y valor:** si Sportmonks entrega cuotas, cada selección con precio lleva
+  `EV = probabilidad × cuota − 1`; las de EV < +3 % se descartan aunque sean muy
+  probables, y dentro de cada mercado se elige la de mayor EV. Sin cuotas se
+  muestran como señales estadísticas.
 
 ## Validación del modelo
 
-El módulo `deport_ai.evaluation` permite contrastar predicciones binarias ya
-generadas contra resultados conocidos, sin persistir nada: **Brier Score** para
-precisión probabilística, **Log Loss** para penalizar exceso de confianza y
-grupos de calibración para comparar probabilidad estimada vs. frecuencia real.
-Un Brier y un Log Loss menores son mejores; la calibración debe acercarse a la
-diagonal. Se recomienda evaluarlo fuera de muestra y por liga/mercado antes de
-usar probabilidades como apoyo de decisión.
+`backtest.py` ejecuta un backtest **walk-forward** (cada partido se predice solo con
+partidos anteriores) de **todos** los mercados, no solo goles:
+
+```powershell
+# Verificar el pipeline sin token (liga simulada)
+python backtest.py --synthetic
+
+# Backtest real: pasar TODOS los equipos de una liga (uno por línea)
+python backtest.py --teams-file laliga.txt --count 40 --output informe.md
+
+# Ajustar parámetros por máxima verosimilitud y guardarlos para la liga
+python backtest.py --teams-file laliga.txt --count 40 --fit --save-params
+
+# Medir ROI con cuotas históricas (si el plan las incluye)
+python backtest.py --teams-file laliga.txt --with-odds
+
+# Alimentar la calibración dinámica con resultados walk-forward reales
+python backtest.py --teams-file laliga.txt --save-calibration
+```
+
+El informe separa:
+
+1. **Lo que ve el usuario** (selecciones 60–88 % tras el filtro): probabilidad media
+   mostrada frente al acierto real. Una diferencia negativa indica sobreconfianza
+   por sesgo de selección.
+2. **Todos los mercados calculados**: calibración global por tramos.
+3. **Mercados no liquidables** con los datos disponibles (mitades, córners 1T, DNB con
+   empate, jugadores).
+
+Ajustar y evaluar con los mismos partidos es una medición optimista: lo correcto es
+ajustar con una temporada y evaluar con la siguiente.
+
+La calibración dinámica (`track.py calibrate`) solo se activa con 30 o más
+predicciones **reales** liquidadas por categoría, y aplica la corrección con un peso
+de credibilidad `n / (n + 50)`.
 
 ## Verificación
 
@@ -131,6 +169,8 @@ src/deport_ai/
 ├── fixture_contract.py # Contrato interno neutral de fixtures
 ├── stats_engine.py     # Poisson bivariado, Dixon-Coles, Elo, córners y tiros
 ├── evaluation.py       # Brier, Log Loss y calibración sin persistencia
+├── backtesting.py      # Backtest walk-forward de todos los mercados
+├── model_params.py     # Parámetros por liga y ajuste por máxima verosimilitud
 ├── service.py          # Orquestación datos → modelos → informe
 ├── llm.py              # Explicación opcional, nunca cálculo
 ├── formatter.py        # Formato fijo de salida

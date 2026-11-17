@@ -22,6 +22,16 @@ Cuando el usuario pida analizar un partido, pronósticos o predicciones de fútb
 12. **PROHIBIDO generar muros de texto:** Cada selección debe llevar una justificación concisa de **exactamente una sola línea**, comenzando con `  *Porque ...*`.
 13. **PROHIBIDO forzar categorías vacías (ESTRUCTURA ADAPTATIVA):** Si en una categoría no hay selecciones válidas del catálogo que alcancen el 60.0%, **NO muestres ese encabezado**. La respuesta debe fluir únicamente con los mercados donde el partido realmente ofrezca solidez estadística.
 
+## 💰 CUOTAS Y VALOR ESPERADO (cuando el plan de Sportmonks incluye cuotas)
+- Si una selección tiene cuota, el comando calcula su valor esperado: **EV = probabilidad × cuota − 1**.
+- Las selecciones con cuota y EV menor a +3% **se descartan aunque superen el 60%** (la cuota no paga el riesgo).
+- Dentro de cada mercado con cuotas se elige la selección de **mayor EV** (no la más probable), y el Pick Recomendado es la de mayor EV.
+- La línea se muestra como: `• **<Selección> — XX.X%** · cuota X.XX · EV +X.X%`. Sin cuotas, el formato no cambia.
+
+## 🧪 CALIBRACIÓN Y PARÁMETROS
+- La calibración dinámica solo se activa con **30 o más predicciones reales liquidadas** por categoría. Nunca se inventan datos para calibrar.
+- Los parámetros del modelo por liga se ajustan con `python backtest.py --teams-file <liga.txt> --fit --save-params` y se guardan en `model_params.json`.
+
 ## ⚡ MANEJO DE PARTIDOS EN VIVO
 Si un equipo está jugando un partido en directo en este momento, el motor calcula el análisis con todos los partidos finalizados previos, excluyendo de forma automática los datos incompletos del partido en vivo.
 

@@ -16,6 +16,7 @@ from .domain import (
     TeamMatch,
 )
 from .errors import InsufficientDataError
+from .model_params import DEFAULT_PARAMETERS, ModelParameters
 
 
 STAT_KEYS = {
@@ -909,6 +910,7 @@ def calculate_elo(
     away_league: int | None = None,
     home_name: str | None = None,
     away_name: str | None = None,
+    club_tier_scale: float = DEFAULT_PARAMETERS.club_tier_scale,
 ) -> tuple[float, float]:
     def default_rating(
         team_id: int,
@@ -925,18 +927,10 @@ def calculate_elo(
         else:
             base = 1550.0
 
-        # 2. Club Tier Stratification (Opción 2)
-        base += get_club_tier_offset(team_name, league_id)
-
-        # 3. Modificador Dinámico Universal por Diferencial de Goles en Liga Oficial
-        team_pool = matches or []
-        official = [m for m in team_pool if m.competition_weight >= 0.70]
-        sample = official if official else team_pool
-        if sample:
-            diffs = [float(m.goals_for - m.goals_against) for m in sample]
-            avg_gd = sum(diffs) / len(diffs)
-            performance_boost = max(-150.0, min(150.0, avg_gd * 50.0))
-            base += performance_boost
+        # 2. Prior por nivel de club (tabla manual), escalado por un parámetro ajustado con datos.
+        # No se suma un bonus por diferencia de goles: esos mismos partidos ya actualizan
+        # el Elo más abajo y alimentan la forma reciente (sería contarlos dos veces).
+        base += club_tier_scale * get_club_tier_offset(team_name, league_id)
 
         return round(base, 1)
 
@@ -990,7 +984,12 @@ def goal_probabilities(
     league_name: str | None = None,
     rest_days_home: float | None = None,
     rest_days_away: float | None = None,
+    params: ModelParameters | None = None,
 ) -> ProbabilityReport:
+    if params is None:
+        params = DEFAULT_PARAMETERS if rho == -0.08 else ModelParameters(rho=rho)
+    rho = params.rho
+    use_sos = params.use_sos
     if len(home_matches) < 3 or len(away_matches) < 3:
         raise InsufficientDataError(
             "Se necesitan al menos 3 partidos terminados de cada equipo para calcular goles."
@@ -998,32 +997,34 @@ def goal_probabilities(
 
     comp_profile = get_competition_profile(league_id, league_name)
 
-    home_venue_for = _goal_signal(home_matches, True, "goals_for", "stats_for")
-    home_venue_against = _goal_signal(home_matches, True, "goals_against", "stats_against")
-    away_venue_for = _goal_signal(away_matches, False, "goals_for", "stats_for")
-    away_venue_against = _goal_signal(away_matches, False, "goals_against", "stats_against")
+    home_venue_for = _goal_signal(home_matches, True, "goals_for", "stats_for", use_sos)
+    home_venue_against = _goal_signal(home_matches, True, "goals_against", "stats_against", use_sos)
+    away_venue_for = _goal_signal(away_matches, False, "goals_for", "stats_for", use_sos)
+    away_venue_against = _goal_signal(away_matches, False, "goals_against", "stats_against", use_sos)
 
     # Señales globales para contracción Bayesiana (Bayesian Shrinkage)
-    home_all_for = _goal_signal(home_matches, None, "goals_for", "stats_for")
-    home_all_against = _goal_signal(home_matches, None, "goals_against", "stats_against")
-    away_all_for = _goal_signal(away_matches, None, "goals_for", "stats_for")
-    away_all_against = _goal_signal(away_matches, None, "goals_against", "stats_against")
+    home_all_for = _goal_signal(home_matches, None, "goals_for", "stats_for", use_sos)
+    home_all_against = _goal_signal(home_matches, None, "goals_against", "stats_against", use_sos)
+    away_all_for = _goal_signal(away_matches, None, "goals_for", "stats_for", use_sos)
+    away_all_against = _goal_signal(away_matches, None, "goals_against", "stats_against", use_sos)
 
     season_home_for = _season_goal_average(home_season_stats, "for", "home")
     season_home_against = _season_goal_average(home_season_stats, "against", "home")
     season_away_for = _season_goal_average(away_season_stats, "for", "away")
     season_away_against = _season_goal_average(away_season_stats, "against", "away")
 
-    home_attack_v = _blend_available(home_venue_for, season_home_for)
-    home_defence_v = _blend_available(home_venue_against, season_home_against)
-    away_attack_v = _blend_available(away_venue_for, season_away_for)
-    away_defence_v = _blend_available(away_venue_against, season_away_against)
+    sw = params.season_weight
+    home_attack_v = _blend_available(home_venue_for, season_home_for, sw)
+    home_defence_v = _blend_available(home_venue_against, season_home_against, sw)
+    away_attack_v = _blend_available(away_venue_for, season_away_for, sw)
+    away_defence_v = _blend_available(away_venue_against, season_away_against, sw)
 
-    # Bayesian Shrinkage: 65% muestra de sede + 35% rendimiento global competitivo
-    home_attack = home_attack_v * 0.65 + home_all_for * 0.35
-    home_defence = home_defence_v * 0.65 + home_all_against * 0.35
-    away_attack = away_attack_v * 0.65 + away_all_for * 0.35
-    away_defence = away_defence_v * 0.65 + away_all_against * 0.35
+    # Contracción: muestra de sede frente a rendimiento global (peso ajustado por liga)
+    vw = params.venue_weight
+    home_attack = home_attack_v * vw + home_all_for * (1.0 - vw)
+    home_defence = home_defence_v * vw + home_all_against * (1.0 - vw)
+    away_attack = away_attack_v * vw + away_all_for * (1.0 - vw)
+    away_defence = away_defence_v * vw + away_all_against * (1.0 - vw)
 
     raw_home = math.sqrt(max(0.05, home_attack) * max(0.05, away_defence))
     raw_away = math.sqrt(max(0.05, away_attack) * max(0.05, home_defence))
@@ -1048,8 +1049,10 @@ def goal_probabilities(
         elif rest_days_away > 14.0:
             rest_impact_away = -0.05
 
-    elo_factor_h = math.exp(elo_delta / comp_profile.elo_scale)
-    elo_factor_a = math.exp(-elo_delta / comp_profile.elo_scale)
+    # El Elo y la forma reciente se construyen con los mismos partidos: aplicar el factor
+    # Elo completo los cuenta dos veces. elo_weight (ajustado con datos) fija su peso.
+    elo_factor_h = math.exp(params.elo_weight * elo_delta / comp_profile.elo_scale)
+    elo_factor_a = math.exp(-params.elo_weight * elo_delta / comp_profile.elo_scale)
 
     base_league_half = round(comp_profile.base_goals / 2.0, 2)
 
@@ -1123,13 +1126,14 @@ def goal_probabilities(
     dnb_away = (away_win / total_decisive) if total_decisive > 0 else 0.5
 
     # Goles en el 1er Tiempo (1T / 1H)
-    first_half_lambda = 0.45 * (lambda_home + lambda_away)
+    fh_share = params.first_half_share
+    first_half_lambda = fh_share * (lambda_home + lambda_away)
     first_half_over_05 = 1.0 - math.exp(-first_half_lambda)
     first_half_over_15 = 1.0 - math.exp(-first_half_lambda) * (1.0 + first_half_lambda)
     first_half_under_15 = 1.0 - first_half_over_15
 
     # Goles en el 2do Tiempo (2T / 2H) - Mayor volumen histórico (55% de goles)
-    second_half_lambda = 0.55 * (lambda_home + lambda_away)
+    second_half_lambda = (1.0 - fh_share) * (lambda_home + lambda_away)
     second_half_over_05 = 1.0 - math.exp(-second_half_lambda)
     second_half_over_15 = 1.0 - math.exp(-second_half_lambda) * (1.0 + second_half_lambda)
     second_half_under_15 = 1.0 - second_half_over_15
@@ -1161,8 +1165,8 @@ def goal_probabilities(
     dc_x2_and_btts = sum(matrix[h][a] for h in range(1, 11) for a in range(1, 11) if a >= h)
 
     # Ambos Marcan en 2do Tiempo (BTTS 2T)
-    lambda_h_2t = 0.55 * lambda_home
-    lambda_a_2t = 0.55 * lambda_away
+    lambda_h_2t = (1.0 - fh_share) * lambda_home
+    lambda_a_2t = (1.0 - fh_share) * lambda_away
     p_h_score_2t = 1.0 - math.exp(-lambda_h_2t)
     p_a_score_2t = 1.0 - math.exp(-lambda_a_2t)
     btts_second_half = p_h_score_2t * p_a_score_2t
@@ -1229,10 +1233,14 @@ def expected_metrics(
     league_id: int | None = None,
     league_name: str | None = None,
     starter_info: dict[int, dict[str, Any]] | None = None,
+    params: ModelParameters | None = None,
 ) -> ExpectedMetrics:
     comp_profile = get_competition_profile(league_id, league_name)
-    disp_corners = comp_profile.dispersion_corners
-    disp_cards = comp_profile.dispersion_cards
+    params = params or DEFAULT_PARAMETERS
+    disp_corners = (
+        params.dispersion_corners if params.dispersion_corners is not None else comp_profile.dispersion_corners
+    )
+    disp_cards = params.dispersion_cards if params.dispersion_cards is not None else comp_profile.dispersion_cards
     disp_shots = 0.10
     disp_offsides = 0.16
 
@@ -1949,7 +1957,9 @@ def _number(value: Any) -> float | None:
         return None
 
 
-def _venue_or_all(matches: list[TeamMatch], home: bool | None, attr: str) -> float:
+def _venue_or_all(
+    matches: list[TeamMatch], home: bool | None, attr: str, use_sos: bool = False
+) -> float:
     official = [m for m in matches if m.competition_weight >= 0.70]
     base_pool = official if len(official) >= 3 else matches
     if home is not None:
@@ -1958,7 +1968,8 @@ def _venue_or_all(matches: list[TeamMatch], home: bool | None, attr: str) -> flo
     else:
         pool = base_pool
     values = [
-        float(getattr(match, attr)) * get_sos_multiplier(match.opponent_name, match.league_id, attr)
+        float(getattr(match, attr))
+        * (get_sos_multiplier(match.opponent_name, match.league_id, attr) if use_sos else 1.0)
         for match in pool
     ]
     weights = [(0.86**i) * match.competition_weight for i, match in enumerate(pool)]
@@ -1969,10 +1980,14 @@ def _venue_or_all(matches: list[TeamMatch], home: bool | None, attr: str) -> flo
 
 
 def _goal_signal(
-    matches: list[TeamMatch], home: bool | None, goals_attribute: str, stats_attribute: str
+    matches: list[TeamMatch],
+    home: bool | None,
+    goals_attribute: str,
+    stats_attribute: str,
+    use_sos: bool = False,
 ) -> float:
     """Mezcla goles observados y xG si Sportmonks los entrega para una muestra suficiente."""
-    goals = _venue_or_all(matches, home, goals_attribute)
+    goals = _venue_or_all(matches, home, goals_attribute, use_sos)
     xg = _venue_stat_or_none(matches, home, stats_attribute, "expected_goals") if home is not None else None
     return goals if xg is None else goals * 0.65 + xg * 0.35
 
@@ -2041,8 +2056,8 @@ def _season_goal_average(data: dict[str, Any] | None, side: str, venue: str) -> 
     return _number(value)
 
 
-def _blend_available(recent: float, season: float | None) -> float:
-    return recent if season is None else recent * 0.65 + season * 0.35
+def _blend_available(recent: float, season: float | None, season_weight: float = 0.35) -> float:
+    return recent if season is None else recent * (1.0 - season_weight) + season * season_weight
 
 
 def _clamp(value: float, low: float, high: float) -> float:

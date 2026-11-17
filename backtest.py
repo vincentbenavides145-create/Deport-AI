@@ -1,16 +1,33 @@
-"""Script de Backtesting Histórico Walk-Forward para DEPORT AI.
+"""Backtest walk-forward y ajuste de parámetros de DEPORT AI.
 
-Ejecuta simulaciones estrictamente cronológicas sobre partidos pasados,
-garantizando cero sesgo retrospectivo (look-ahead bias) y publicando
-métricas de precisión demostrada: Brier Score, Log Loss y Calibración Decílica.
+Ejemplos (Windows / PowerShell):
+
+    # 1) Verificar el pipeline con una liga simulada (no requiere token)
+    python backtest.py --synthetic
+
+    # 2) Backtest REAL con Sportmonks: equipos de una misma liga, últimos 40 partidos
+    python backtest.py --teams "Real Madrid,Barcelona,Atletico Madrid,Sevilla,Valencia,Villarreal" --count 40
+
+    # 3) Ajustar parámetros por máxima verosimilitud y guardarlos para esa liga
+    python backtest.py --teams-file laliga.txt --count 40 --fit --save-params
+
+    # 4) Incluir cuotas históricas (si el plan las tiene) para medir ROI
+    python backtest.py --teams-file laliga.txt --with-odds
+
+    # 5) Sembrar la calibración dinámica con resultados walk-forward REALES
+    python backtest.py --teams-file laliga.txt --save-calibration
+
+Cada partido se predice solo con partidos anteriores a su fecha. Solo se evalúan
+partidos entre equipos de la lista (se necesita el historial de ambos), así que
+conviene pasar todos los equipos de una liga.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -18,292 +35,248 @@ from typing import Any
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-# Asegurar que src esté en el path
 _src = str(Path(__file__).resolve().parent / "src")
 if _src not in sys.path:
     sys.path.insert(0, _src)
 
-from deport_ai.config import Settings
-from deport_ai.domain import Team, TeamMatch
-from deport_ai.evaluation import evaluate_binary_predictions, evaluate_multiclass_1x2
-from deport_ai.sportmonks import SportmonksClient
-from deport_ai.stats_engine import calculate_elo, goal_probabilities
+from deport_ai.backtesting import (  # noqa: E402
+    BacktestResult,
+    build_fixtures,
+    estimate_count_dispersions,
+    load_from_sportmonks,
+    load_odds_from_sportmonks,
+    run_walk_forward,
+    scoreline_objective,
+    synthetic_league,
+)
+from deport_ai.model_params import (  # noqa: E402
+    DEFAULT_PARAMETERS,
+    ModelParameters,
+    fit_parameters,
+    load_parameters,
+    save_parameters,
+)
 
 
-def run_synthetic_backtest(n_matches: int = 100) -> dict[str, Any]:
-    """Genera una simulación histórica sintética de una liga completa para verificar el pipeline."""
-    import random
-    random.seed(42)
-
-    teams = [Team(i, f"Equipo {chr(65 + i)}", "País Test") for i in range(10)]
-    all_matches: list[TeamMatch] = []
-    
-    # Generar calendario de partidos
-    fixture_id = 1000
-    for round_num in range(18):
-        for i in range(0, 10, 2):
-            h_idx = (i + round_num) % 10
-            a_idx = (i + 1 + round_num) % 10
-            if h_idx == a_idx:
-                a_idx = (a_idx + 1) % 10
-            
-            # Asignar niveles de fuerza base
-            h_strength = 1.0 + (h_idx / 10.0) * 0.8
-            a_strength = 1.0 + (a_idx / 10.0) * 0.8
-            
-            h_lambda = h_strength * 1.4
-            a_lambda = a_strength * 1.0
-            
-            hg = min(7, max(0, int(random.gauss(h_lambda, 1.1))))
-            ag = min(7, max(0, int(random.gauss(a_lambda, 0.9))))
-            
-            date_str = f"2024-{(round_num // 3) + 1:02d}-{(round_num % 3) * 9 + 5:02d}T15:00:00Z"
-            all_matches.append(
-                TeamMatch(
-                    fixture_id=fixture_id,
-                    date=date_str,
-                    team_id=teams[h_idx].id,
-                    opponent_id=teams[a_idx].id,
-                    is_home=True,
-                    goals_for=hg,
-                    goals_against=ag,
-                    result="W" if hg > ag else "D" if hg == ag else "L",
-                    opponent_name=teams[a_idx].name,
-                    competition_weight=1.0,
-                    league_id=384,
-                )
-            )
-            all_matches.append(
-                TeamMatch(
-                    fixture_id=fixture_id,
-                    date=date_str,
-                    team_id=teams[a_idx].id,
-                    opponent_id=teams[h_idx].id,
-                    is_home=False,
-                    goals_for=ag,
-                    goals_against=hg,
-                    result="W" if ag > hg else "D" if ag == hg else "L",
-                    opponent_name=teams[h_idx].name,
-                    competition_weight=1.0,
-                    league_id=384,
-                )
-            )
-            fixture_id += 1
-
-    return evaluate_match_sequence(all_matches, min_history=6)
+def _pct(value: float | None) -> str:
+    return "—" if value is None else f"{value * 100:.1f}%"
 
 
-def evaluate_match_sequence(matches: list[TeamMatch], min_history: int = 6) -> dict[str, Any]:
-    """Evalúa una secuencia de partidos aplicando la regla estricta walk-forward."""
-    fixtures_dict: dict[int, tuple[TeamMatch, TeamMatch]] = {}
-    for m in matches:
-        if m.fixture_id not in fixtures_dict:
-            for comp in matches:
-                if comp.fixture_id == m.fixture_id and comp.team_id != m.team_id:
-                    home_m = m if m.is_home else comp
-                    away_m = comp if m.is_home else m
-                    fixtures_dict[m.fixture_id] = (home_m, away_m)
-                    break
-
-    fixtures = list(fixtures_dict.values())
-    fixtures.sort(key=lambda pair: pair[0].date)
-
-    probs_1x2: list[tuple[float, float, float]] = []
-    outcomes_1x2: list[str] = []
-
-    probs_over15: list[float] = []
-    outcomes_over15: list[int] = []
-
-    probs_over25: list[float] = []
-    outcomes_over25: list[int] = []
-
-    probs_btts: list[float] = []
-    outcomes_btts: list[int] = []
-
-    evaluated_count = 0
-
-    for idx, (target_h, target_a) in enumerate(fixtures):
-        current_date = target_h.date
-        history_home = [
-            m for m in matches
-            if m.team_id == target_h.team_id and m.date < current_date
-        ]
-        history_away = [
-            m for m in matches
-            if m.team_id == target_a.team_id and m.date < current_date
-        ]
-
-        if len(history_home) < min_history or len(history_away) < min_history:
-            continue
-
-        elo_h, elo_a = calculate_elo(
-            history_home,
-            history_away,
-            target_h.team_id,
-            target_a.team_id,
-            home_league=target_h.league_id,
-            away_league=target_a.league_id,
-        )
-
-        prob_report = goal_probabilities(
-            history_home,
-            history_away,
-            elo_h,
-            elo_a,
-            league_id=target_h.league_id,
-        )
-
-        actual_hg = target_h.goals_for
-        actual_ag = target_h.goals_against
-
-        # 1X2
-        probs_1x2.append((prob_report.home_win, prob_report.draw, prob_report.away_win))
-        outcomes_1x2.append(target_h.result)
-
-        # Over 1.5
-        probs_over15.append(prob_report.over_15)
-        outcomes_over15.append(1 if (actual_hg + actual_ag) >= 2 else 0)
-
-        # Over 2.5
-        probs_over25.append(prob_report.over_25)
-        outcomes_over25.append(1 if (actual_hg + actual_ag) >= 3 else 0)
-
-        # BTTS
-        probs_btts.append(prob_report.btts)
-        outcomes_btts.append(1 if (actual_hg > 0 and actual_ag > 0) else 0)
-
-        evaluated_count += 1
-
-    if evaluated_count == 0:
-        return {"error": "No se encontraron suficientes partidos con historial previo para evaluar."}
-
-    eval_1x2 = evaluate_multiclass_1x2(probs_1x2, outcomes_1x2)
-    eval_o15 = evaluate_binary_predictions(probs_over15, outcomes_over15, bins=5)
-    eval_o25 = evaluate_binary_predictions(probs_over25, outcomes_over25, bins=5)
-    eval_btts = evaluate_binary_predictions(probs_btts, outcomes_btts, bins=5)
-
-    return {
-        "evaluated_matches": evaluated_count,
-        "1x2": {
-            "brier_score": eval_1x2.brier_score,
-            "log_loss": eval_1x2.log_loss,
-            "accuracy": eval_1x2.accuracy,
-            "home_acc": eval_1x2.home_accuracy,
-            "draw_acc": eval_1x2.draw_accuracy,
-            "away_acc": eval_1x2.away_accuracy,
-        },
-        "over_15": {
-            "brier_score": eval_o15.brier_score,
-            "log_loss": eval_o15.log_loss,
-            "calibration": [
-                {
-                    "bin": f"{int(b.lower*100)}%-{int(b.upper*100)}%",
-                    "count": b.count,
-                    "predicted_avg": round(b.mean_predicted, 3) if b.mean_predicted is not None else None,
-                    "observed_avg": round(b.observed_frequency, 3) if b.observed_frequency is not None else None,
-                }
-                for b in eval_o15.calibration
-            ],
-        },
-        "over_25": {
-            "brier_score": eval_o25.brier_score,
-            "log_loss": eval_o25.log_loss,
-            "calibration": [
-                {
-                    "bin": f"{int(b.lower*100)}%-{int(b.upper*100)}%",
-                    "count": b.count,
-                    "predicted_avg": round(b.mean_predicted, 3) if b.mean_predicted is not None else None,
-                    "observed_avg": round(b.observed_frequency, 3) if b.observed_frequency is not None else None,
-                }
-                for b in eval_o25.calibration
-            ],
-        },
-        "btts": {
-            "brier_score": eval_btts.brier_score,
-            "log_loss": eval_btts.log_loss,
-        },
-    }
-
-
-def format_backtest_report(results: dict[str, Any], title: str = "Auditoría de Precisión Histórica") -> str:
-    """Formatea los resultados del backtesting en un informe profesional en Markdown."""
+def format_report(
+    result: BacktestResult,
+    title: str,
+    params: ModelParameters,
+    fitted_from: ModelParameters | None = None,
+) -> str:
+    summary = result.summary()
+    shown, every = summary["shown"], summary["all"]
     lines = [
         f"# 📊 {title}",
-        f"**Fecha de Auditoría:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
-        f"**Partidos Evaluados (Walk-Forward Estricto):** {results.get('evaluated_matches', 0)}",
+        f"**Fecha:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+        f"**Partidos evaluados (walk-forward):** {summary['evaluated_fixtures']} "
+        f"(omitidos por historial insuficiente: {summary['skipped_fixtures']})",
+        f"**Log-loss del marcador exacto:** {summary['scoreline_log_loss']}",
         "",
-        "---",
-        "",
-        "## 1. Mercado 1X2 (Resultado Final)",
-        f"- **Brier Score Multiclase:** `{results['1x2']['brier_score']}` *(Excelente < 0.55 | Aleatorio ~0.66)*",
-        f"- **Log Loss:** `{results['1x2']['log_loss']}`",
-        f"- **Precisión Directa (Hit Rate):** `{results['1x2']['accuracy'] * 100:.1f}%`",
-        f"  • Acierto en Victorias Locales: `{results['1x2']['home_acc'] * 100:.1f}%`",
-        f"  • Acierto en Empates: `{results['1x2']['draw_acc'] * 100:.1f}%`",
-        f"  • Acierto en Victorias Visitantes: `{results['1x2']['away_acc'] * 100:.1f}%`",
-        "",
-        "---",
-        "",
-        "## 2. Mercados de Goles y Calibración Decílica",
-        "",
-        "### Más de 1.5 Goles Totales",
-        f"- **Brier Score:** `{results['over_15']['brier_score']:.4f}` | **Log Loss:** `{results['over_15']['log_loss']:.4f}`",
-        "",
-        "| Rango Probabilidad | Muestra | Predicción Media | Frecuencia Real | Calibración |",
-        "|---|:---:|:---:|:---:|:---:|",
+        "## Parámetros usados",
+        f"- rho Dixon-Coles: `{params.rho}` · peso Elo: `{params.elo_weight}` · peso sede: `{params.venue_weight}` "
+        f"· peso temporada: `{params.season_weight}` · escala tabla de clubes: `{params.club_tier_scale}`",
+        f"- Dispersión córners: `{params.dispersion_corners}` · tarjetas: `{params.dispersion_cards}` "
+        f"(None = perfil de liga) · ajustado con datos: `{params.fitted}`",
     ]
-    for b in results["over_15"]["calibration"]:
-        if b["count"] > 0 and b["predicted_avg"] is not None and b["observed_avg"] is not None:
-            diff = abs(b["predicted_avg"] - b["observed_avg"])
-            cal_status = "🟢 Excelente" if diff < 0.08 else "🟡 Aceptable" if diff < 0.15 else "🔴 Desviado"
+    if fitted_from is not None and params.log_loss is not None:
+        lines.append(
+            f"- Ajuste: log-loss {params.baseline_log_loss} → {params.log_loss} "
+            f"sobre {params.sample_size} partidos"
+        )
+
+    lines += ["", "## 1. Lo que ve el usuario (selecciones mostradas, 60–88 %)"]
+    if shown.get("count"):
+        verdict = (
+            "🟢 bien calibrado" if abs(shown["gap"]) < 0.03
+            else "🟡 desviación moderada" if abs(shown["gap"]) < 0.07
+            else "🔴 sobreconfianza" if shown["gap"] < 0 else "🔴 infraconfianza"
+        )
+        lines += [
+            f"- Selecciones: **{shown['count']}** · probabilidad media mostrada: **{_pct(shown['mean_predicted'])}** "
+            f"· acierto real: **{_pct(shown['hit_rate'])}** · diferencia: **{shown['gap'] * 100:+.1f} pts** ({verdict})",
+            f"- Brier: `{shown['brier']}` · Log-loss: `{shown['log_loss']}`",
+        ]
+        if shown.get("roi") is not None:
+            lines.append(f"- ROI plano con cuota ({shown['priced']} apuestas con precio): **{shown['roi'] * 100:+.1f}%**")
+        lines += ["", "| Tramo | Muestra | Prob. media | Acierto real |", "|---|:---:|:---:|:---:|"]
+        for b in shown["calibration"]:
+            lines.append(f"| {b['bin']} | {b['count']} | {_pct(b['predicted'])} | {_pct(b['observed'])} |")
+        lines += ["", "| Categoría | Muestra | Prob. media | Acierto real | Diferencia | Brier | ROI |",
+                  "|---|:---:|:---:|:---:|:---:|:---:|:---:|"]
+        for cat, b in shown["by_category"].items():
+            roi = "—" if b["roi"] is None else f"{b['roi'] * 100:+.1f}%"
             lines.append(
-                f"| **{b['bin']}** | {b['count']} | {b['predicted_avg']*100:.1f}% | {b['observed_avg']*100:.1f}% | {cal_status} |"
+                f"| {cat} | {b['count']} | {_pct(b['mean_predicted'])} | {_pct(b['hit_rate'])} "
+                f"| {b['gap'] * 100:+.1f} | {b['brier']} | {roi} |"
             )
+    else:
+        lines.append("- Sin selecciones liquidables.")
 
-    lines.extend([
-        "",
-        "### Más de 2.5 Goles Totales",
-        f"- **Brier Score:** `{results['over_25']['brier_score']:.4f}` | **Log Loss:** `{results['over_25']['log_loss']:.4f}`",
-        "",
-        "| Rango Probabilidad | Muestra | Predicción Media | Frecuencia Real | Calibración |",
-        "|---|:---:|:---:|:---:|:---:|",
-    ])
-    for b in results["over_25"]["calibration"]:
-        if b["count"] > 0 and b["predicted_avg"] is not None and b["observed_avg"] is not None:
-            diff = abs(b["predicted_avg"] - b["observed_avg"])
-            cal_status = "🟢 Excelente" if diff < 0.08 else "🟡 Aceptable" if diff < 0.15 else "🔴 Desviado"
-            lines.append(
-                f"| **{b['bin']}** | {b['count']} | {b['predicted_avg']*100:.1f}% | {b['observed_avg']*100:.1f}% | {cal_status} |"
-            )
+    lines += ["", "## 2. Todos los mercados calculados (calibración global)"]
+    if every.get("count"):
+        lines += [
+            f"- Predicciones: {every['count']} · Brier: `{every['brier']}` · Log-loss: `{every['log_loss']}`",
+            "",
+            "| Tramo | Muestra | Prob. media | Acierto real |",
+            "|---|:---:|:---:|:---:|",
+        ]
+        for b in every["calibration"]:
+            lines.append(f"| {b['bin']} | {b['count']} | {_pct(b['predicted'])} | {_pct(b['observed'])} |")
 
-    lines.extend([
-        "",
-        "---",
-        "",
-        "## 3. Ambos Equipos Marcan (BTTS)",
-        f"- **Brier Score:** `{results['btts']['brier_score']:.4f}`",
-        f"- **Log Loss:** `{results['btts']['log_loss']:.4f}`",
-    ])
-
+    if summary["unsettled_markets"]:
+        lines += ["", "## 3. Mercados no liquidables con estos datos (no cuentan)"]
+        for market, count in summary["unsettled_markets"].items():
+            lines.append(f"- {market}: {count}")
+        lines.append("- *Mitades y córners 1T requieren datos por tiempo; DNB con empate es nulo; jugadores no se evalúan.*")
     return "\n".join(lines)
 
 
+def save_calibration_from_backtest(result: BacktestResult) -> int:
+    """Registra las selecciones mostradas y liquidadas como predicciones reales en SQLite."""
+    from deport_ai.dynamic_calibration import DynamicCalibrator
+    from deport_ai.storage import DatabaseManager
+
+    db = DatabaseManager()
+    by_fixture: dict[int, list[dict[str, Any]]] = {}
+    for record in result.records:
+        if record["shown"]:
+            by_fixture.setdefault(record["fixture_id"], []).append(record)
+    saved = 0
+    for fixture_id, records in by_fixture.items():
+        if db.get_fixture(fixture_id) is not None:
+            continue  # ya existe (p. ej. seguido en vivo): no se duplica
+        sample = result.samples[fixture_id]
+        db.save_fixture_and_predictions(
+            fixture_id=fixture_id,
+            home_team_id=sample.home.team_id,
+            home_team_name=sample.home_name,
+            away_team_id=sample.away.team_id,
+            away_team_name=sample.away_name,
+            league_id=sample.league_id,
+            league_name="Backtest walk-forward",
+            match_date=sample.date,
+            predictions=records,
+        )
+        db.update_fixture_result(fixture_id, result.actuals[fixture_id], status="FINISHED")
+        stored = db.get_predictions_for_fixture(fixture_id)
+        outcome = {(r["category"], r["market"], r["selection"]): r["won"] for r in records}
+        for pred in stored:
+            won = outcome.get((pred["category"], pred["market"], pred["selection"]))
+            if won is not None:
+                db.update_prediction_status(pred["id"], "WON" if won else "LOST")
+        saved += len(records)
+    DynamicCalibrator(db).recompute_calibrations()
+    return saved
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Auditoría y Backtesting Histórico de DEPORT AI")
-    parser.add_argument("--synthetic", action="store_true", help="Ejecuta simulación con datos sintéticos completos")
-    parser.add_argument("--matches", type=int, default=100, help="Número de partidos a evaluar")
-    parser.add_argument("--output", type=str, default="", help="Ruta de archivo para guardar el reporte")
+    parser = argparse.ArgumentParser(description="Backtest walk-forward y ajuste de parámetros de DEPORT AI")
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument("--synthetic", action="store_true", help="Liga simulada (verificación del pipeline)")
+    source.add_argument("--teams", type=str, default="", help="Equipos separados por coma (misma liga)")
+    source.add_argument("--teams-file", type=str, default="", help="Archivo con un equipo por línea")
+    parser.add_argument("--count", type=int, default=40, help="Partidos terminados por equipo a descargar")
+    parser.add_argument("--min-history", type=int, default=6, help="Partidos previos mínimos por equipo")
+    parser.add_argument("--window", type=int, default=12, help="Partidos previos usados por predicción")
+    parser.add_argument("--league-id", type=int, default=None, help="Liga a la que se asocian los parámetros")
+    parser.add_argument("--fit", action="store_true", help="Ajusta parámetros por máxima verosimilitud")
+    parser.add_argument("--save-params", action="store_true", help="Guarda los parámetros ajustados en model_params.json")
+    parser.add_argument("--as-default", action="store_true", help="Guarda los parámetros como globales (todas las ligas)")
+    parser.add_argument("--with-odds", action="store_true", help="Descarga cuotas por partido para medir ROI")
+    parser.add_argument("--save-calibration", action="store_true", help="Registra los resultados en la BD de calibración")
+    parser.add_argument("--output", type=str, default="", help="Guarda el informe en Markdown")
+    parser.add_argument("--json", type=str, default="", help="Guarda el resumen en JSON")
     args = parser.parse_args()
 
-    print("Iniciando auditoría de backtesting histórico...")
-    results = run_synthetic_backtest(n_matches=args.matches)
-    report_text = format_backtest_report(results, title="Auditoría de Precisión Histórica (DEPORT AI)")
+    client = None
+    if args.synthetic or not (args.teams or args.teams_file):
+        print("Liga simulada (sin token). Sirve para verificar el pipeline, no para medir el modelo real.")
+        matches_by_team, team_names = synthetic_league()
+        title = "Backtest walk-forward — liga simulada"
+    else:
+        from deport_ai.config import Settings
+        from deport_ai.sportmonks import SportmonksClient
 
-    print("\n" + report_text + "\n")
+        settings = Settings.from_env()
+        settings.validate()
+        client = SportmonksClient(
+            settings.sportmonks_api_token or "",
+            timeout=settings.timeout_seconds,
+            timezone=settings.timezone,
+            base_url=settings.sportmonks_base_url,
+        )
+        if args.teams_file:
+            queries = [line.strip() for line in Path(args.teams_file).read_text(encoding="utf-8").splitlines() if line.strip()]
+        else:
+            queries = [part.strip() for part in args.teams.split(",") if part.strip()]
+        print(f"Descargando historial de {len(queries)} equipos desde Sportmonks...")
+        matches_by_team, team_names = load_from_sportmonks(client, queries, args.count, log=print)
+        title = "Backtest walk-forward — datos reales Sportmonks"
+
+    fixtures = build_fixtures(matches_by_team, team_names)
+    if not fixtures:
+        print("No hay partidos entre los equipos indicados. Usa equipos de una misma liga.")
+        sys.exit(1)
+    leagues = [f.league_id for f in fixtures if f.league_id is not None]
+    league_id = args.league_id if args.league_id is not None else (max(set(leagues), key=leagues.count) if leagues else None)
+    print(f"Partidos entre equipos del conjunto: {len(fixtures)} · liga principal: {league_id}")
+
+    params = load_parameters(league_id) if not args.fit else DEFAULT_PARAMETERS
+    fitted_from = None
+    if args.fit:
+        print("Ajustando parámetros (descenso por coordenadas, walk-forward)...")
+        objective = scoreline_objective(fixtures, matches_by_team, args.min_history, args.window)
+        fitted_from = params
+        params = fit_parameters(objective, start=params)
+        params = replace(
+            params,
+            fitted_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            **estimate_count_dispersions(fixtures),
+        )
+        if args.save_params:
+            key = "default" if args.as_default or league_id is None else str(league_id)
+            path = save_parameters(key, params)
+            print(f"Parámetros guardados en {path} (clave '{key}').")
+        print(
+            "⚠️ El backtest siguiente usa los mismos partidos del ajuste (dentro de muestra). "
+            "Para una medición limpia, ajusta con una temporada y evalúa con otra."
+        )
+
+    odds_by_fixture = None
+    if args.with_odds and client is not None:
+        print("Descargando cuotas históricas...")
+        odds_by_fixture = load_odds_from_sportmonks(client, fixtures)
+        print(f"Partidos con cuotas: {len(odds_by_fixture)}")
+
+    print("Ejecutando backtest de todos los mercados...")
+    result = run_walk_forward(
+        fixtures,
+        matches_by_team,
+        params=params,
+        min_history=args.min_history,
+        window=args.window,
+        odds_by_fixture=odds_by_fixture,
+    )
+    report = format_report(result, title, params, fitted_from)
+    print("\n" + report + "\n")
 
     if args.output:
-        Path(args.output).write_text(report_text, encoding="utf-8")
-        print(f"Reporte guardado exitosamente en: {args.output}")
+        Path(args.output).write_text(report, encoding="utf-8")
+        print(f"Informe guardado en {args.output}")
+    if args.json:
+        Path(args.json).write_text(json.dumps(result.summary(), ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"Resumen JSON guardado en {args.json}")
+    if args.save_calibration:
+        if client is None:
+            print("No se guarda calibración con datos simulados.")
+        else:
+            saved = save_calibration_from_backtest(result)
+            print(f"Calibración actualizada con {saved} predicciones walk-forward reales.")
 
 
 if __name__ == "__main__":

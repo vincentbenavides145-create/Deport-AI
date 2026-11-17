@@ -9,6 +9,7 @@ from .dynamic_calibration import DynamicCalibrator
 from .errors import LiveMatchError
 from .fixture_contract import FINISHED_STATUSES, to_match_ref
 from .llm import LLMExplainer
+from .model_params import load_parameters
 from .odds import normalize_odds, select_opportunities
 from .parser import parse_match_query
 from .statistical_markets import select_statistical_markets, select_top_recommended_pick
@@ -155,6 +156,7 @@ class AnalysisService:
         target_league_id = fixture.league_id if fixture and fixture.league_id else home_league
         target_league_name = fixture.league_name if fixture else None
 
+        model_params = load_parameters(target_league_id)
         elo_home, elo_away = calculate_elo(
             home_matches,
             away_matches,
@@ -166,6 +168,7 @@ class AnalysisService:
             away_league=away_league,
             home_name=home.name,
             away_name=away.name,
+            club_tier_scale=model_params.club_tier_scale,
         )
         altitude_impact = detect_altitude_impact(home.id, home.name, away.id, away.name)
         probabilities = goal_probabilities(
@@ -180,6 +183,7 @@ class AnalysisService:
             league_name=target_league_name,
             rest_days_home=rest_days_home,
             rest_days_away=rest_days_away,
+            params=model_params,
         )
         player_rows = extract_player_shots(details.values())
         expected = expected_metrics(
@@ -194,6 +198,7 @@ class AnalysisService:
             league_id=target_league_id,
             league_name=target_league_name,
             starter_info=starter_info if starter_info else None,
+            params=model_params,
         )
 
         if lineups:
@@ -246,6 +251,7 @@ class AnalysisService:
             calibration=calibration,
             recent_home=home_matches,
             recent_away=away_matches,
+            odds=odds,
         )
         top_pick = select_top_recommended_pick(
             statistical_markets,

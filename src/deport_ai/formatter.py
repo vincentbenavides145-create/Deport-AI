@@ -1139,7 +1139,7 @@ def format_adaptive_report(report: AnalysisReport) -> str:
                 expl = f"Porque {expl}"
             expl = f"*{expl}*"
         lines.append("### ⭐ PICK RECOMENDADO POR EL MODELO (AI Top Pick)")
-        lines.append(f"• **{sel} — {prob * 100:.1f}%**  ")
+        lines.append(f"• **{sel} — {prob * 100:.1f}%**{_value_suffix(top_pick)}  ")
         lines.append(f"  {expl}  ")
         if top_pick.get("requires_starter_confirmation"):
             lines.append("  *(Requiere confirmar titularidad oficial)*.  ")
@@ -1182,7 +1182,7 @@ def format_adaptive_report(report: AnalysisReport) -> str:
                 if not expl.lower().startswith("porque"):
                     expl = f"Porque {expl}"
                 expl = f"*{expl}*"
-            lines.append(f"• **{sel} — {prob * 100:.1f}%**  ")
+            lines.append(f"• **{sel} — {prob * 100:.1f}%**{_value_suffix(item)}  ")
             lines.append(f"  {expl}  ")
             if item.get("requires_starter_confirmation"):
                 lines.append("  *(Requiere confirmar titularidad oficial)*.  ")
@@ -1220,3 +1220,11 @@ def format_adaptive_report(report: AnalysisReport) -> str:
 
     return "\n".join(lines)
 
+
+
+def _value_suffix(item: dict[str, Any]) -> str:
+    """Cuota y valor esperado cuando la selección tiene precio de mercado."""
+    price, edge = item.get("odds"), item.get("edge")
+    if not price or edge is None:
+        return ""
+    return f" · cuota {float(price):.2f} · EV {float(edge) * 100:+.1f}%"

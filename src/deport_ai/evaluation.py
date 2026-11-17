@@ -117,20 +117,37 @@ def log_loss(probabilities: Sequence[float], outcomes: Sequence[int | bool]) -> 
 
 
 def calibration_bins(
-    probabilities: Sequence[float], outcomes: Sequence[int | bool], bins: int = 10
+    probabilities: Sequence[float],
+    outcomes: Sequence[int | bool],
+    bins: int | Sequence[float] = 10,
 ) -> list[CalibrationBin]:
+    """Agrupa por tramos de probabilidad. `bins` es un número de tramos iguales o
+    una lista ascendente de bordes (p. ej. [0.60, 0.65, ..., 0.88])."""
     probabilities, outcomes = _validated_pairs(probabilities, outcomes)
-    if bins < 2:
-        raise ValueError("bins debe ser al menos 2.")
+    if isinstance(bins, int):
+        if bins < 2:
+            raise ValueError("bins debe ser al menos 2.")
+        edges = [index / bins for index in range(bins + 1)]
+    else:
+        edges = [float(edge) for edge in bins]
+        if len(edges) < 2 or edges != sorted(edges):
+            raise ValueError("Los bordes deben ser al menos dos y ascendentes.")
 
-    grouped: list[list[tuple[float, int]]] = [[] for _ in range(bins)]
+    count = len(edges) - 1
+    grouped: list[list[tuple[float, int]]] = [[] for _ in range(count)]
     for probability, outcome in zip(probabilities, outcomes):
-        index = min(int(probability * bins), bins - 1)
+        if probability < edges[0] or probability > edges[-1]:
+            continue
+        index = count - 1
+        for position in range(count):
+            if probability < edges[position + 1]:
+                index = position
+                break
         grouped[index].append((probability, outcome))
 
     result: list[CalibrationBin] = []
     for index, values in enumerate(grouped):
-        lower, upper = index / bins, (index + 1) / bins
+        lower, upper = edges[index], edges[index + 1]
         if values:
             mean_predicted = sum(value[0] for value in values) / len(values)
             observed = sum(value[1] for value in values) / len(values)

@@ -12,6 +12,7 @@ from .markets_catalog import (
     build_declarative_catalog,
 )
 from .dynamic_calibration import MIN_CALIBRATION_SAMPLE
+from .odds import MIN_EDGE, expected_value, odds_key_for_candidate
 from .presentation_catalog import MarketPresentationCatalog, get_exigence_score
 from .stats_engine import negative_binomial_pmf
 
@@ -854,10 +855,12 @@ def _get_concept_group(candidate: dict[str, Any]) -> str:
     return group
 
 
-def _candidate_rank_key(c: dict[str, Any]) -> tuple[float, float]:
+def _candidate_rank_key(c: dict[str, Any]) -> tuple[float, float, float, float]:
     """Calcula el orden de prioridad entre campeones de subfamilias del mismo concepto.
 
-    Prioriza la probabilidad más alta (Opción 1: máxima seguridad) y desempata con el margen direccional.
+    Con cuota disponible manda el valor esperado (EV): una selección con valor demostrado
+    frente al mercado precede a una sin cuota. Sin cuotas, prioriza la probabilidad más
+    alta y desempata con el margen direccional.
     """
     prob = float(c.get("probability", 0.0))
     side = c.get("side")
@@ -869,7 +872,9 @@ def _candidate_rank_key(c: dict[str, Any]) -> tuple[float, float]:
             directional_margin = round(float(proj) - float(line), 2)
         elif side == "under":
             directional_margin = round(float(line) - float(proj), 2)
-    return (prob, directional_margin)
+    edge = c.get("edge")
+    has_edge = 1.0 if edge is not None else 0.0
+    return (has_edge, float(edge) if edge is not None else 0.0, prob, directional_margin)
 
 
 def select_statistical_markets(
@@ -883,6 +888,8 @@ def select_statistical_markets(
     calibration: Any = None,
     recent_home: list[TeamMatch] | None = None,
     recent_away: list[TeamMatch] | None = None,
+    odds: dict[str, float] | None = None,
+    min_edge: float = MIN_EDGE,
 ) -> list[dict[str, Any]]:
     """Aplica la capa de presentación:
     1. Filtra candidatos estrictamente según MarketPresentationCatalog (excluye triviales y no catalogados).
@@ -892,6 +899,10 @@ def select_statistical_markets(
     5. Deduplica por concepto/grupo priorizando probabilidad y margen direccional proyectado.
     6. Agrupa por categoría, limitando a un máximo de 4 selecciones (orden descendente).
     7. Oculta cualquier categoría sin selecciones válidas.
+
+    Si hay cuotas (`odds`, claves de `normalize_odds`), cada selección con precio recibe
+    `odds` y `edge` (EV = prob × cuota − 1). Las de EV < `min_edge` se descartan aunque
+    sean muy probables, y dentro de cada subfamilia se elige la de mayor EV.
     """
     candidates = calculate_candidate_markets(
         home, away, probabilities, expected, recent_home=recent_home, recent_away=recent_away
@@ -935,6 +946,15 @@ def select_statistical_markets(
         if prob > maximum_probability:
             continue
 
+        price = (odds or {}).get(odds_key_for_candidate(c.get("id")) or "")
+        if price and price > 1.0:
+            edge = round(expected_value(prob, price), 4)
+            if edge < min_edge:
+                # La cuota no paga el riesgo: valor esperado insuficiente o negativo.
+                continue
+            c["odds"] = price
+            c["edge"] = edge
+
         eligible.append(c)
 
     # 2. Agrupación por subfamilia
@@ -946,7 +966,11 @@ def select_statistical_markets(
     # 3. Dentro de cada subfamilia, elegir la selección de MAYOR PROBABILIDAD (Opción 1: más segura dentro del rango)
     subfamily_champions: list[dict[str, Any]] = []
     for sub_items in by_subfamily.values():
-        champion = max(sub_items, key=lambda x: (x["probability"], -abs(get_exigence_score(x))))
+        priced = [x for x in sub_items if x.get("edge") is not None]
+        if priced:
+            champion = max(priced, key=lambda x: (x["edge"], x["probability"]))
+        else:
+            champion = max(sub_items, key=lambda x: (x["probability"], -abs(get_exigence_score(x))))
         subfamily_champions.append(champion)
 
     # 4. Deduplicación por concepto global / grupo único
@@ -1063,6 +1087,11 @@ def select_top_recommended_pick(
     stable_pool = [m for m in selected_markets if not m.get("requires_starter_confirmation")]
     pool = stable_pool if stable_pool else selected_markets
 
+    # Con cuotas, el pick recomendado es el de mayor valor esperado (no el más probable).
+    priced_pool = [m for m in pool if m.get("edge") is not None]
+    if priced_pool:
+        pool = priced_pool
+
     def score_candidate(item: dict[str, Any]) -> float:
         prob = float(item.get("probability", 0.0))
         bonus = 0.0
@@ -1075,7 +1104,10 @@ def select_top_recommended_pick(
             cat_weight = 0.95
         return (prob + bonus) * cat_weight
 
-    best = max(pool, key=score_candidate)
+    if priced_pool:
+        best = max(pool, key=lambda item: (item["edge"], item["probability"]))
+    else:
+        best = max(pool, key=score_candidate)
 
     return {
         "market": best.get("market"),
@@ -1084,5 +1116,6 @@ def select_top_recommended_pick(
         "probability": best.get("probability"),
         "explanation": best.get("explanation"),
         "requires_starter_confirmation": best.get("requires_starter_confirmation", False),
+        **({"odds": best["odds"], "edge": best["edge"]} if best.get("edge") is not None else {}),
     }
 

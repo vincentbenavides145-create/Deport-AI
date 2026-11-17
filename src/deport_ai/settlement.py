@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from .fixture_contract import FINISHED_STATUSES
 from .storage import DatabaseManager
 
 logger = logging.getLogger("deport_ai.settlement")
+
+# Resultado de `evaluate_prediction` para mercados que el liquidador no sabe evaluar.
+UNSUPPORTED = "UNSUPPORTED"
 
 
 def extract_match_actual_stats(fixture_detail: dict[str, Any]) -> dict[str, Any] | None:
@@ -65,6 +69,9 @@ def extract_match_actual_stats(fixture_detail: dict[str, Any]) -> dict[str, Any]
 
     shots_on_home = _get_stat(home_stats, ("Shots on Goal", "SHOTS_ON_TARGET"))
     shots_on_away = _get_stat(away_stats, ("Shots on Goal", "SHOTS_ON_TARGET"))
+
+    fouls_home = _get_stat(home_stats, ("Fouls", "FOULS"))
+    fouls_away = _get_stat(away_stats, ("Fouls", "FOULS"))
 
     offsides_home = _get_stat(home_stats, ("Offsides", "OFFSIDES"))
     offsides_away = _get_stat(away_stats, ("Offsides", "OFFSIDES"))
@@ -143,6 +150,8 @@ def extract_match_actual_stats(fixture_detail: dict[str, Any]) -> dict[str, Any]
         "shots_on_away": shots_on_away,
         "offsides_home": offsides_home,
         "offsides_away": offsides_away,
+        "fouls_home": fouls_home,
+        "fouls_away": fouls_away,
         "woodwork_hit": total_woodwork,
         "player_stats": player_stats,
     }
@@ -168,9 +177,10 @@ def evaluate_prediction(
         if hg is None or ag is None:
             return "PENDING"
 
-        if selection == f"Victoria {home_name}":
+        # 1X2: el catálogo usa el nombre del equipo como selección.
+        if selection in (home_name, f"Victoria {home_name}"):
             return "WON" if hg > ag else "LOST"
-        if selection == f"Victoria {away_name}":
+        if selection in (away_name, f"Victoria {away_name}"):
             return "WON" if ag > hg else "LOST"
         if selection == "Empate":
             return "WON" if hg == ag else "LOST"
@@ -213,6 +223,16 @@ def evaluate_prediction(
             return "WON" if hg >= ag and (hg + ag) < 3.5 else "LOST"
         if "(X2) y Menos de 3.5" in selection:
             return "WON" if ag >= hg and (hg + ag) < 3.5 else "LOST"
+        if selection.endswith("y Ambos Marcan"):
+            both = hg > 0 and ag > 0
+            if "(1X)" in selection:
+                return "WON" if both and hg >= ag else "LOST"
+            if "(X2)" in selection:
+                return "WON" if both and ag >= hg else "LOST"
+            if selection == f"{home_name} gana y Ambos Marcan":
+                return "WON" if both and hg > ag else "LOST"
+            if selection == f"{away_name} gana y Ambos Marcan":
+                return "WON" if both and ag > hg else "LOST"
         if "gana y Más de 1.5" in selection:
             if home_name in selection:
                 return "WON" if hg > ag and (hg + ag) > 1.5 else "LOST"
@@ -224,6 +244,12 @@ def evaluate_prediction(
         if hg is None or ag is None:
             return "PENDING"
         total_goals = hg + ag
+
+        # Multigoles (rango cerrado de goles totales)
+        multigoal = re.fullmatch(r"(\d+) a (\d+) goles", selection.strip())
+        if multigoal:
+            low, high = int(multigoal.group(1)), int(multigoal.group(2))
+            return "WON" if low <= total_goals <= high else "LOST"
 
         # Combos BTTS + Over
         if "Ambos marcan y Más de 2.5" in selection:
@@ -298,6 +324,13 @@ def evaluate_prediction(
                 return "WON" if (sh_tot > line if side == "over" else sh_tot < line) else "LOST"
 
     # 4. CATEGORÍA: CÓRNERS
+    if category == "Córners" and selection.startswith("1T "):
+        # Córners del primer tiempo: sin el dato por mitad no se puede liquidar.
+        c1h = actual.get("corners_first_half")
+        if c1h is None or line is None:
+            return "PENDING"
+        return "WON" if (c1h > line if side == "over" else c1h < line) else "LOST"
+
     if category == "Córners":
         ch = actual.get("corners_home")
         ca = actual.get("corners_away")
@@ -411,6 +444,25 @@ def evaluate_prediction(
                 return "PENDING"
             return "WON" if wood > 0 else "LOST"
 
+    # 8b. CATEGORÍA: FALTAS
+    if category in ("Faltas", "Faltas y Disciplina"):
+        f_h = actual.get("fouls_home")
+        f_a = actual.get("fouls_away")
+        if f_h is None or f_a is None:
+            return "PENDING"
+        if "comete más faltas" in selection:
+            if home_name in selection:
+                return "WON" if f_h > f_a else "LOST"
+            if away_name in selection:
+                return "WON" if f_a > f_h else "LOST"
+        if home_name in selection and line is not None:
+            return "WON" if (f_h > line if side == "over" else f_h < line) else "LOST"
+        if away_name in selection and line is not None:
+            return "WON" if (f_a > line if side == "over" else f_a < line) else "LOST"
+        if line is not None:
+            tot_fouls = f_h + f_a
+            return "WON" if (tot_fouls > line if side == "over" else tot_fouls < line) else "LOST"
+
     # 9. CATEGORÍA: JUGADORES
     if category == "Jugadores":
         player_stats = actual.get("player_stats")
@@ -450,7 +502,9 @@ def evaluate_prediction(
         if "anota" in selection.lower():
             return "WON" if p_goals >= 1 else "LOST"
 
-    return "LOST"
+    # Mercado no reconocido por el liquidador: no se cuenta como perdido (antes sí,
+    # lo que contaminaba el acierto histórico y la calibración).
+    return UNSUPPORTED
 
 
 class SettlementEngine:
@@ -490,6 +544,8 @@ class SettlementEngine:
                 home_name=fixture_row["home_team_name"],
                 away_name=fixture_row["away_team_name"],
             )
+            if outcome == UNSUPPORTED:
+                outcome = "VOID"
 
             odds = pred.get("odds")
             pnl = 0.0
