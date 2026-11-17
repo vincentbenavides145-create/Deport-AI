@@ -1,0 +1,1124 @@
+{
+  "fecha": "2026-11-17",
+  "generado_con": "python analyze.py \"<Local> vs <Visitante>\" --report --no-track",
+  "nota": "Predicciones tal cual las imprimió el comando; resultado/estado se completan al liquidar.",
+  "partidos": [
+    {
+      "fixture_id": 19900378,
+      "starting_at_utc": "2026-11-17 23:00:00",
+      "league": "Friendly International",
+      "league_id": 1082,
+      "home": "Argentina",
+      "home_id": 18644,
+      "away": "Costa Rica",
+      "away_id": 18598,
+      "partido": "Argentina vs Costa Rica",
+      "confianza": "🟡 Media (18 partidos analizados, 14 con estadísticas completas, alineaciones no confirmadas oficialmente)",
+      "pick_recomendado": {
+        "seleccion": "Argentina saca más córners (Experimental)",
+        "probabilidad": 86.6,
+        "resultado": null
+      },
+      "selecciones": [
+        {
+          "categoria": "Resultado",
+          "seleccion": "Argentina gana a cero",
+          "probabilidad": 73.7,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Más de 2.5 goles",
+          "probabilidad": 83.7,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Argentina Más de 2.5 goles",
+          "probabilidad": 80.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "No (BTTS No)",
+          "probabilidad": 75.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Argentina no recibe gol",
+          "probabilidad": 74.9,
+          "resultado": null
+        },
+        {
+          "categoria": "Mercados por Mitad",
+          "seleccion": "1T Más de 0.5 goles",
+          "probabilidad": 87.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Mercados por Mitad",
+          "seleccion": "Habrá gol en ambas mitades",
+          "probabilidad": 80.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Mercados por Mitad",
+          "seleccion": "Argentina anota en ambas mitades",
+          "probabilidad": 78.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Mercados por Mitad",
+          "seleccion": "2T Más de 1.5 goles",
+          "probabilidad": 72.3,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "Argentina saca más córners (Experimental)",
+          "probabilidad": 86.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "Argentina Más de 3.5 córners",
+          "probabilidad": 83.4,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "Costa Rica Menos de 3.5 córners",
+          "probabilidad": 79.2,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "1T Menos de 5.5 córners",
+          "probabilidad": 73.1,
+          "resultado": null
+        },
+        {
+          "categoria": "Tarjetas",
+          "seleccion": "Argentina Menos de 2.5 tarjetas",
+          "probabilidad": 80.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Tarjetas",
+          "seleccion": "Menos de 4.5 tarjetas",
+          "probabilidad": 66.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Tarjetas",
+          "seleccion": "Costa Rica Más de 1.5 tarjetas",
+          "probabilidad": 61.1,
+          "resultado": null
+        },
+        {
+          "categoria": "Tarjetas",
+          "seleccion": "Ambos equipos reciben al menos 1 tarjeta",
+          "probabilidad": 60.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Faltas y Disciplina",
+          "seleccion": "Argentina Menos de 12.5 faltas",
+          "probabilidad": 69.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Faltas y Disciplina",
+          "seleccion": "Costa Rica Más de 10.5 faltas",
+          "probabilidad": 68.1,
+          "resultado": null
+        },
+        {
+          "categoria": "Faltas y Disciplina",
+          "seleccion": "Menos de 27.5 faltas",
+          "probabilidad": 66.7,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Argentina Más de 3.5 tiros a puerta",
+          "probabilidad": 87.9,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Costa Rica Menos de 3.5 tiros a puerta",
+          "probabilidad": 85.9,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Argentina Más de 10.5 remates",
+          "probabilidad": 85.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Más de 6.5 tiros a puerta",
+          "probabilidad": 73.5,
+          "resultado": null
+        },
+        {
+          "categoria": "Fueras de Juego (Offsides)",
+          "seleccion": "Menos de 3.5 fueras de juego",
+          "probabilidad": 81.4,
+          "resultado": null
+        },
+        {
+          "categoria": "Fueras de Juego (Offsides)",
+          "seleccion": "Argentina Menos de 2.5 fueras de juego",
+          "probabilidad": 76.2,
+          "resultado": null
+        },
+        {
+          "categoria": "Jugadores",
+          "seleccion": "Lionel Messi 2+ remates",
+          "probabilidad": 74.7,
+          "resultado": null
+        },
+        {
+          "categoria": "Jugadores",
+          "seleccion": "Julián Alvarez 1+ tiro a puerta",
+          "probabilidad": 63.9,
+          "resultado": null
+        },
+        {
+          "categoria": "Jugadores",
+          "seleccion": "Nico Paz 2+ remates",
+          "probabilidad": 61.4,
+          "resultado": null
+        }
+      ],
+      "proyecciones": {
+        "Goles estimados": "4.64 (Argentina: 4.35 | Costa Rica: 0.29)",
+        "Córners estimados": "9.32",
+        "Tarjetas estimadas": "3.77",
+        "Remates estimados": "22.7",
+        "Marcador más probable": "4 - 0 (14.6%)"
+      },
+      "resultado_real": null,
+      "estado": "PENDIENTE",
+      "reporte": "reportes/argentina-vs-costa-rica.md"
+    },
+    {
+      "fixture_id": 19883486,
+      "starting_at_utc": "2026-11-17 23:00:00",
+      "league": "Friendly International",
+      "league_id": 1082,
+      "home": "Chile",
+      "home_id": 18774,
+      "away": "Colombia",
+      "away_id": 18720,
+      "partido": "Chile vs Colombia",
+      "confianza": "🟡 Media (23 partidos analizados, 16 con estadísticas completas, alineaciones no confirmadas oficialmente)",
+      "pick_recomendado": {
+        "seleccion": "Chile Menos de 5.5 córners",
+        "probabilidad": 83.7,
+        "resultado": null
+      },
+      "selecciones": [
+        {
+          "categoria": "Resultado",
+          "seleccion": "Chile o Empate (1X)",
+          "probabilidad": 71.1,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Chile Menos de 2.5 goles",
+          "probabilidad": 82.4,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Más de 1.5 goles",
+          "probabilidad": 73.2,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "2 a 5 goles",
+          "probabilidad": 67.4,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Colombia Menos de 1.5 goles",
+          "probabilidad": 67.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Mercados por Mitad",
+          "seleccion": "2T Más de 0.5 goles",
+          "probabilidad": 76.3,
+          "resultado": null
+        },
+        {
+          "categoria": "Mercados por Mitad",
+          "seleccion": "1T Más de 0.5 goles",
+          "probabilidad": 69.2,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "Chile Menos de 5.5 córners",
+          "probabilidad": 83.7,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "1T Menos de 5.5 córners",
+          "probabilidad": 74.3,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "Colombia Más de 3.5 córners",
+          "probabilidad": 73.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "Colombia saca más córners (Experimental)",
+          "probabilidad": 67.7,
+          "resultado": null
+        },
+        {
+          "categoria": "Tarjetas",
+          "seleccion": "Colombia Menos de 2.5 tarjetas",
+          "probabilidad": 73.7,
+          "resultado": null
+        },
+        {
+          "categoria": "Tarjetas",
+          "seleccion": "Menos de 4.5 tarjetas",
+          "probabilidad": 70.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Faltas y Disciplina",
+          "seleccion": "Chile Más de 10.5 faltas",
+          "probabilidad": 69.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Faltas y Disciplina",
+          "seleccion": "Más de 21.5 faltas",
+          "probabilidad": 68.7,
+          "resultado": null
+        },
+        {
+          "categoria": "Faltas y Disciplina",
+          "seleccion": "Colombia Más de 10.5 faltas",
+          "probabilidad": 66.1,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Chile Menos de 12.5 remates",
+          "probabilidad": 81.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Chile Menos de 4.5 tiros a puerta",
+          "probabilidad": 79.2,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Menos de 26.5 remates",
+          "probabilidad": 70.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Colombia Más de 10.5 remates",
+          "probabilidad": 67.5,
+          "resultado": null
+        },
+        {
+          "categoria": "Fueras de Juego (Offsides)",
+          "seleccion": "Chile Menos de 2.5 fueras de juego",
+          "probabilidad": 80.4,
+          "resultado": null
+        },
+        {
+          "categoria": "Fueras de Juego (Offsides)",
+          "seleccion": "Más de 2.5 fueras de juego",
+          "probabilidad": 65.5,
+          "resultado": null
+        },
+        {
+          "categoria": "Fueras de Juego (Offsides)",
+          "seleccion": "Colombia Más de 1.5 fueras de juego",
+          "probabilidad": 62.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Especiales del Partido",
+          "seleccion": "Tiro al palo en el partido",
+          "probabilidad": 78.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Jugadores",
+          "seleccion": "Cucho Hernández 2+ remates",
+          "probabilidad": 67.9,
+          "resultado": null
+        },
+        {
+          "categoria": "Jugadores",
+          "seleccion": "James Rodríguez 1+ tiro a puerta",
+          "probabilidad": 60.8,
+          "resultado": null
+        }
+      ],
+      "proyecciones": {
+        "Goles estimados": "2.62 (Chile: 1.44 | Colombia: 1.18)",
+        "Córners estimados": "9.12",
+        "Tarjetas estimadas": "3.51",
+        "Remates estimados": "22.5",
+        "Marcador más probable": "1 - 1 (13.5%)"
+      },
+      "resultado_real": null,
+      "estado": "PENDIENTE",
+      "reporte": "reportes/chile-vs-colombia.md"
+    },
+    {
+      "fixture_id": 19900377,
+      "starting_at_utc": "2026-11-17 23:30:00",
+      "league": "Friendly International",
+      "league_id": 1082,
+      "home": "Ecuador",
+      "home_id": 18573,
+      "away": "Bolivia",
+      "away_id": 18825,
+      "partido": "Ecuador vs Bolivia",
+      "confianza": "🟡 Media (22 partidos analizados, 15 con estadísticas completas, alineaciones no confirmadas oficialmente)",
+      "pick_recomendado": {
+        "seleccion": "Bolivia Menos de 4.5 córners",
+        "probabilidad": 82.6,
+        "resultado": null
+      },
+      "selecciones": [
+        {
+          "categoria": "Resultado",
+          "seleccion": "Ecuador o Empate (1X) y Más de 1.5 goles",
+          "probabilidad": 76.5,
+          "resultado": null
+        },
+        {
+          "categoria": "Resultado",
+          "seleccion": "Ecuador gana a cero",
+          "probabilidad": 75.3,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "No (BTTS No)",
+          "probabilidad": 82.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Ecuador no recibe gol",
+          "probabilidad": 81.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Más de 1.5 goles",
+          "probabilidad": 76.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Ecuador Más de 1.5 goles",
+          "probabilidad": 73.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Mercados por Mitad",
+          "seleccion": "2T Más de 0.5 goles",
+          "probabilidad": 78.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Mercados por Mitad",
+          "seleccion": "1T Más de 0.5 goles",
+          "probabilidad": 71.9,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "Bolivia Menos de 4.5 córners",
+          "probabilidad": 82.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "Ecuador Más de 3.5 córners",
+          "probabilidad": 79.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "Ecuador saca más córners (Experimental)",
+          "probabilidad": 79.4,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "1T Menos de 5.5 córners",
+          "probabilidad": 73.4,
+          "resultado": null
+        },
+        {
+          "categoria": "Tarjetas",
+          "seleccion": "Bolivia Menos de 2.5 tarjetas",
+          "probabilidad": 82.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Tarjetas",
+          "seleccion": "Menos de 4.5 tarjetas",
+          "probabilidad": 78.4,
+          "resultado": null
+        },
+        {
+          "categoria": "Faltas y Disciplina",
+          "seleccion": "Menos de 27.5 faltas",
+          "probabilidad": 81.9,
+          "resultado": null
+        },
+        {
+          "categoria": "Faltas y Disciplina",
+          "seleccion": "Ecuador Menos de 12.5 faltas",
+          "probabilidad": 74.1,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Bolivia Menos de 12.5 remates",
+          "probabilidad": 82.3,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Bolivia Menos de 4.5 tiros a puerta",
+          "probabilidad": 80.5,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Ecuador Más de 3.5 tiros a puerta",
+          "probabilidad": 75.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Ecuador Más de 10.5 remates",
+          "probabilidad": 74.5,
+          "resultado": null
+        },
+        {
+          "categoria": "Fueras de Juego (Offsides)",
+          "seleccion": "Bolivia Menos de 1.5 fueras de juego",
+          "probabilidad": 86.9,
+          "resultado": null
+        },
+        {
+          "categoria": "Fueras de Juego (Offsides)",
+          "seleccion": "Menos de 3.5 fueras de juego",
+          "probabilidad": 83.3,
+          "resultado": null
+        },
+        {
+          "categoria": "Fueras de Juego (Offsides)",
+          "seleccion": "Ecuador Menos de 2.5 fueras de juego",
+          "probabilidad": 82.1,
+          "resultado": null
+        },
+        {
+          "categoria": "Jugadores",
+          "seleccion": "Keny Arroyo 2+ remates",
+          "probabilidad": 85.9,
+          "resultado": null
+        }
+      ],
+      "proyecciones": {
+        "Goles estimados": "2.82 (Ecuador: 2.62 | Bolivia: 0.20)",
+        "Córners estimados": "9.27",
+        "Tarjetas estimadas": "2.98",
+        "Remates estimados": "23.6",
+        "Marcador más probable": "2 - 0 (20.7%)"
+      },
+      "resultado_real": null,
+      "estado": "PENDIENTE",
+      "reporte": "reportes/ecuador-vs-bolivia.md"
+    },
+    {
+      "fixture_id": 19904925,
+      "starting_at_utc": "2026-11-17 23:30:00",
+      "league": "Friendly International",
+      "league_id": 1082,
+      "home": "Uruguay",
+      "home_id": 15251,
+      "away": "Dominican Republic",
+      "away_id": 18921,
+      "partido": "Uruguay vs Dominican Republic",
+      "confianza": "🟡 Media (18 partidos analizados, 17 con estadísticas completas, alineaciones no confirmadas oficialmente)",
+      "pick_recomendado": {
+        "seleccion": "Más de 1.5 goles",
+        "probabilidad": 85.7,
+        "resultado": null
+      },
+      "selecciones": [
+        {
+          "categoria": "Resultado",
+          "seleccion": "Uruguay o Empate (1X)",
+          "probabilidad": 83.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Resultado",
+          "seleccion": "DNB Uruguay",
+          "probabilidad": 78.4,
+          "resultado": null
+        },
+        {
+          "categoria": "Resultado",
+          "seleccion": "Uruguay o Empate (1X) y Más de 1.5 goles",
+          "probabilidad": 71.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Resultado",
+          "seleccion": "Uruguay",
+          "probabilidad": 61.5,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Más de 1.5 goles",
+          "probabilidad": 85.7,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "2 a 5 goles",
+          "probabilidad": 71.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Dominican Republic Menos de 1.5 goles",
+          "probabilidad": 66.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Uruguay Más de 1.5 goles",
+          "probabilidad": 66.4,
+          "resultado": null
+        },
+        {
+          "categoria": "Mercados por Mitad",
+          "seleccion": "2T Más de 0.5 goles",
+          "probabilidad": 85.2,
+          "resultado": null
+        },
+        {
+          "categoria": "Mercados por Mitad",
+          "seleccion": "1T Más de 0.5 goles",
+          "probabilidad": 79.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Mercados por Mitad",
+          "seleccion": "Habrá gol en ambas mitades",
+          "probabilidad": 67.3,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "1T Menos de 5.5 córners",
+          "probabilidad": 83.5,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "Uruguay Menos de 5.5 córners",
+          "probabilidad": 83.2,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "Menos de 10.5 córners",
+          "probabilidad": 79.2,
+          "resultado": null
+        },
+        {
+          "categoria": "Tarjetas",
+          "seleccion": "Uruguay Menos de 2.5 tarjetas",
+          "probabilidad": 69.3,
+          "resultado": null
+        },
+        {
+          "categoria": "Tarjetas",
+          "seleccion": "Menos de 4.5 tarjetas",
+          "probabilidad": 65.2,
+          "resultado": null
+        },
+        {
+          "categoria": "Tarjetas",
+          "seleccion": "Ambos equipos reciben al menos 1 tarjeta",
+          "probabilidad": 64.2,
+          "resultado": null
+        },
+        {
+          "categoria": "Faltas y Disciplina",
+          "seleccion": "Dominican Republic Menos de 12.5 faltas",
+          "probabilidad": 74.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Faltas y Disciplina",
+          "seleccion": "Menos de 27.5 faltas",
+          "probabilidad": 72.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Faltas y Disciplina",
+          "seleccion": "Uruguay Más de 10.5 faltas",
+          "probabilidad": 62.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Menos de 26.5 remates",
+          "probabilidad": 78.3,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Uruguay Menos de 12.5 remates",
+          "probabilidad": 74.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Dominican Republic Menos de 12.5 remates",
+          "probabilidad": 68.2,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Uruguay Menos de 4.5 tiros a puerta",
+          "probabilidad": 65.7,
+          "resultado": null
+        },
+        {
+          "categoria": "Fueras de Juego (Offsides)",
+          "seleccion": "Dominican Republic Menos de 2.5 fueras de juego",
+          "probabilidad": 80.4,
+          "resultado": null
+        },
+        {
+          "categoria": "Fueras de Juego (Offsides)",
+          "seleccion": "Uruguay Menos de 2.5 fueras de juego",
+          "probabilidad": 66.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Fueras de Juego (Offsides)",
+          "seleccion": "Más de 2.5 fueras de juego",
+          "probabilidad": 62.5,
+          "resultado": null
+        },
+        {
+          "categoria": "Jugadores",
+          "seleccion": "Darwin Núñez 1+ tiro a puerta",
+          "probabilidad": 63.2,
+          "resultado": null
+        }
+      ],
+      "proyecciones": {
+        "Goles estimados": "3.47 (Uruguay: 2.28 | Dominican Republic: 1.19)",
+        "Córners estimados": "7.55",
+        "Tarjetas estimadas": "3.88",
+        "Remates estimados": "20.7",
+        "Marcador más probable": "2 - 1 (9.7%)"
+      },
+      "resultado_real": null,
+      "estado": "PENDIENTE",
+      "reporte": "reportes/uruguay-vs-dominican-republic.md"
+    },
+    {
+      "fixture_id": 19878001,
+      "starting_at_utc": "2026-11-17 13:10:00",
+      "league": "Friendly International",
+      "league_id": 1082,
+      "home": "Japan",
+      "home_id": 18597,
+      "away": "Paraguay",
+      "away_id": 18723,
+      "partido": "Japan vs Paraguay",
+      "confianza": "🟢 Alta (22 partidos analizados, 16 con estadísticas completas, alineación titular confirmada oficialmente)",
+      "pick_recomendado": {
+        "seleccion": "Paraguay Menos de 2.5 goles",
+        "probabilidad": 87.7,
+        "resultado": null
+      },
+      "selecciones": [
+        {
+          "categoria": "Resultado",
+          "seleccion": "Japan o Empate (1X)",
+          "probabilidad": 72.7,
+          "resultado": null
+        },
+        {
+          "categoria": "Resultado",
+          "seleccion": "DNB Japan",
+          "probabilidad": 61.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Paraguay Menos de 2.5 goles",
+          "probabilidad": 87.7,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Japan Menos de 2.5 goles",
+          "probabilidad": 79.1,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Más de 1.5 goles",
+          "probabilidad": 76.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "2 a 5 goles",
+          "probabilidad": 68.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Mercados por Mitad",
+          "seleccion": "2T Más de 0.5 goles",
+          "probabilidad": 78.3,
+          "resultado": null
+        },
+        {
+          "categoria": "Mercados por Mitad",
+          "seleccion": "1T Más de 0.5 goles",
+          "probabilidad": 71.4,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "1T Menos de 5.5 córners",
+          "probabilidad": 85.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "Japan Menos de 4.5 córners",
+          "probabilidad": 82.2,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "Menos de 10.5 córners",
+          "probabilidad": 82.1,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "Paraguay saca más córners (Experimental)",
+          "probabilidad": 62.4,
+          "resultado": null
+        },
+        {
+          "categoria": "Tarjetas",
+          "seleccion": "Japan Menos de 2.5 tarjetas",
+          "probabilidad": 74.4,
+          "resultado": null
+        },
+        {
+          "categoria": "Tarjetas",
+          "seleccion": "Ambos equipos reciben al menos 1 tarjeta",
+          "probabilidad": 67.3,
+          "resultado": null
+        },
+        {
+          "categoria": "Tarjetas",
+          "seleccion": "Paraguay Más de 1.5 tarjetas",
+          "probabilidad": 67.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Faltas y Disciplina",
+          "seleccion": "Japan Más de 10.5 faltas",
+          "probabilidad": 63.7,
+          "resultado": null
+        },
+        {
+          "categoria": "Faltas y Disciplina",
+          "seleccion": "Menos de 27.5 faltas",
+          "probabilidad": 62.4,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Menos de 26.5 remates",
+          "probabilidad": 81.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Japan Menos de 12.5 remates",
+          "probabilidad": 78.1,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Paraguay Menos de 12.5 remates",
+          "probabilidad": 70.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Más de 6.5 tiros a puerta",
+          "probabilidad": 68.2,
+          "resultado": null
+        },
+        {
+          "categoria": "Fueras de Juego (Offsides)",
+          "seleccion": "Paraguay Menos de 2.5 fueras de juego",
+          "probabilidad": 80.9,
+          "resultado": null
+        },
+        {
+          "categoria": "Fueras de Juego (Offsides)",
+          "seleccion": "Menos de 3.5 fueras de juego",
+          "probabilidad": 76.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Fueras de Juego (Offsides)",
+          "seleccion": "Japan Menos de 1.5 fueras de juego",
+          "probabilidad": 76.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Jugadores",
+          "seleccion": "Kodai Sano 2+ remates",
+          "probabilidad": 71.0,
+          "resultado": null
+        }
+      ],
+      "proyecciones": {
+        "Goles estimados": "2.78 (Japan: 1.57 | Paraguay: 1.21)",
+        "Córners estimados": "7.18",
+        "Tarjetas estimadas": "4.38",
+        "Remates estimados": "19.8",
+        "Marcador más probable": "1 - 1 (12.8%)"
+      },
+      "resultado_real": null,
+      "estado": "PENDIENTE",
+      "reporte": "reportes/japan-vs-paraguay.md"
+    },
+    {
+      "fixture_id": 19902405,
+      "starting_at_utc": "2026-11-17 15:30:00",
+      "league": "Friendly International",
+      "league_id": 1082,
+      "home": "Saudi Arabia",
+      "home_id": 18562,
+      "away": "Uzbekistan",
+      "away_id": 18745,
+      "partido": "Saudi Arabia vs Uzbekistan",
+      "confianza": "🟡 Media (25 partidos analizados, 16 con estadísticas completas, alineaciones no confirmadas oficialmente)",
+      "pick_recomendado": {
+        "seleccion": "Saudi Arabia Menos de 5.5 córners",
+        "probabilidad": 87.8,
+        "resultado": null
+      },
+      "selecciones": [
+        {
+          "categoria": "Resultado",
+          "seleccion": "Saudi Arabia o Empate (1X)",
+          "probabilidad": 82.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Resultado",
+          "seleccion": "DNB Saudi Arabia",
+          "probabilidad": 76.4,
+          "resultado": null
+        },
+        {
+          "categoria": "Resultado",
+          "seleccion": "Saudi Arabia o Empate (1X) y Más de 1.5 goles",
+          "probabilidad": 62.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Uzbekistan Menos de 1.5 goles",
+          "probabilidad": 76.5,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Saudi Arabia Menos de 2.5 goles",
+          "probabilidad": 74.4,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "Más de 1.5 goles",
+          "probabilidad": 74.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Goles y Anotaciones",
+          "seleccion": "2 a 5 goles",
+          "probabilidad": 67.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Mercados por Mitad",
+          "seleccion": "2T Más de 0.5 goles",
+          "probabilidad": 77.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Mercados por Mitad",
+          "seleccion": "1T Más de 0.5 goles",
+          "probabilidad": 69.9,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "Saudi Arabia Menos de 5.5 córners",
+          "probabilidad": 87.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "Menos de 9.5 córners",
+          "probabilidad": 85.2,
+          "resultado": null
+        },
+        {
+          "categoria": "Córners",
+          "seleccion": "1T Menos de 4.5 córners",
+          "probabilidad": 83.2,
+          "resultado": null
+        },
+        {
+          "categoria": "Tarjetas",
+          "seleccion": "Uzbekistan Menos de 2.5 tarjetas",
+          "probabilidad": 87.6,
+          "resultado": null
+        },
+        {
+          "categoria": "Tarjetas",
+          "seleccion": "Menos de 4.5 tarjetas",
+          "probabilidad": 82.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Faltas y Disciplina",
+          "seleccion": "Menos de 27.5 faltas",
+          "probabilidad": 65.5,
+          "resultado": null
+        },
+        {
+          "categoria": "Faltas y Disciplina",
+          "seleccion": "Uzbekistan Más de 10.5 faltas",
+          "probabilidad": 62.2,
+          "resultado": null
+        },
+        {
+          "categoria": "Faltas y Disciplina",
+          "seleccion": "Saudi Arabia Menos de 12.5 faltas",
+          "probabilidad": 60.1,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Menos de 26.5 remates",
+          "probabilidad": 85.8,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Saudi Arabia Menos de 12.5 remates",
+          "probabilidad": 79.5,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Uzbekistan Menos de 12.5 remates",
+          "probabilidad": 78.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Remates y Tiros a Puerta",
+          "seleccion": "Saudi Arabia Menos de 4.5 tiros a puerta",
+          "probabilidad": 68.0,
+          "resultado": null
+        },
+        {
+          "categoria": "Fueras de Juego (Offsides)",
+          "seleccion": "Más de 2.5 fueras de juego",
+          "probabilidad": 75.5,
+          "resultado": null
+        },
+        {
+          "categoria": "Fueras de Juego (Offsides)",
+          "seleccion": "Saudi Arabia Menos de 2.5 fueras de juego",
+          "probabilidad": 68.5,
+          "resultado": null
+        },
+        {
+          "categoria": "Fueras de Juego (Offsides)",
+          "seleccion": "Uzbekistan Más de 1.5 fueras de juego",
+          "probabilidad": 68.4,
+          "resultado": null
+        }
+      ],
+      "proyecciones": {
+        "Goles estimados": "2.67 (Saudi Arabia: 1.75 | Uzbekistan: 0.92)",
+        "Córners estimados": "6.05",
+        "Tarjetas estimadas": "2.68",
+        "Remates estimados": "18.7",
+        "Marcador más probable": "1 - 1 (12.0%)"
+      },
+      "resultado_real": null,
+      "estado": "PENDIENTE",
+      "reporte": "reportes/saudi-arabia-vs-uzbekistan.md"
+    }
+  ],
+  "no_analizados": [
+    {
+      "partido": "Russia vs Venezuela",
+      "fixture_id": 19902406,
+      "error": "Error en el análisis: 'Russia' es ambiguo: Borussia Dortmund o Borussia Mönchengladbach. Escribe el país o el nombre completo."
+    }
+  ]
+}
