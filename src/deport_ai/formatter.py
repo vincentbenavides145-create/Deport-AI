@@ -4,6 +4,7 @@ from collections import defaultdict
 from statistics import fmean
 from typing import Any
 
+from .dynamic_calibration import MIN_CALIBRATION_SAMPLE
 from .domain import AnalysisReport, TeamMatch
 from .stats_engine import detect_altitude_impact, form_line, top_scores
 
@@ -1116,7 +1117,7 @@ def format_adaptive_report(report: AnalysisReport) -> str:
     # 2. Confianza
     cal_info = getattr(report, "dynamic_calibration_info", None)
     cal_str = ""
-    if cal_info and getattr(cal_info, "active", False) and getattr(cal_info, "sample_size", 0) >= 5:
+    if cal_info and getattr(cal_info, "active", False) and getattr(cal_info, "sample_size", 0) >= MIN_CALIBRATION_SAMPLE:
         cal_str = f", ⚡ Calibración Dinámica: {cal_info.sample_size} apuestas auditadas, {cal_info.overall_hit_rate * 100:.1f}% acierto"
 
     if report.confidence:

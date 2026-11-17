@@ -8,6 +8,11 @@ from typing import Any
 from .domain import ExpectedMetrics, ProbabilityReport
 from .storage import DatabaseManager
 
+# Mínimo de predicciones REALES liquidadas por categoría antes de alterar probabilidades.
+MIN_CALIBRATION_SAMPLE = 30
+# Peso de credibilidad: con n predicciones, la corrección aplicada es n / (n + CREDIBILITY_K).
+CREDIBILITY_K = 50.0
+
 
 @dataclass
 class DynamicCalibrationSummary:
@@ -20,7 +25,7 @@ class DynamicCalibrationSummary:
     bias_offsets: dict[str, float]
 
     def badge_text(self) -> str:
-        if not self.active or self.sample_size < 5:
+        if not self.active or self.sample_size < MIN_CALIBRATION_SAMPLE:
             return "🟡 Calibración preliminar (acumulando muestra)"
         return (
             f"🟢 Calibración Dinámica Activa ({self.sample_size} apuestas auditadas | "
@@ -33,114 +38,24 @@ class DynamicCalibrator:
 
     def __init__(self, db: DatabaseManager) -> None:
         self.db = db
+        try:
+            self.purge_synthetic_seed()
+        except Exception:
+            pass
 
-    def auto_seed_if_needed(self, matches: list[Any], league_id: int | None) -> None:
-        """Si no existen calibraciones registradas, inicializa factores a partir de los partidos finalizados disponibles."""
-        existing = self.db.get_calibration(league_id=league_id)
-        if not existing and league_id:
-            existing = self.db.get_calibration(league_id=0)
-        if existing:
-            return
+    def purge_synthetic_seed(self) -> int:
+        """Elimina los registros ficticios creados por versiones anteriores (auto-seed).
 
-        if not matches or len(matches) < 3:
-            return
+        Esas versiones generaban predicciones con probabilidades fijas y estadísticas
+        rivales inventadas. Se borran y la calibración se recalcula solo con datos reales.
+        """
+        removed = self.db.purge_synthetic_seed()
+        if removed:
+            self.db.clear_calibration()
+            self.recompute_calibrations()
+        return removed
 
-        for m in matches:
-            if getattr(m, "goals_for", None) is None or getattr(m, "goals_against", None) is None:
-                continue
-
-            tot_g = m.goals_for + m.goals_against
-            fid = getattr(m, "fixture_id", 0)
-            if not fid:
-                continue
-
-            stats_for = getattr(m, "stats_for", {}) or {}
-            corners = stats_for.get("corner_kicks")
-            cards = stats_for.get("yellow_cards")
-
-            preds = [
-                {
-                    "category": "Goles",
-                    "market": "Goles Totales",
-                    "selection": "Más de 1.5 goles",
-                    "line": 1.5,
-                    "side": "over",
-                    "probability": 0.76,
-                    "projection": 2.8,
-                },
-                {
-                    "category": "Resultado",
-                    "market": "Doble Oportunidad",
-                    "selection": f"Doble oportunidad ({getattr(m, 'opponent_name', 'Equipo')} o Empate) (1X)",
-                    "line": None,
-                    "side": "1x2",
-                    "probability": 0.72,
-                },
-            ]
-            if corners is not None:
-                preds.append(
-                    {
-                        "category": "Córners",
-                        "market": "Córners Totales",
-                        "selection": "Más de 7.5 córners",
-                        "line": 7.5,
-                        "side": "over",
-                        "probability": 0.68,
-                        "projection": 9.5,
-                    }
-                )
-            if cards is not None:
-                preds.append(
-                    {
-                        "category": "Tarjetas",
-                        "market": "Tarjetas Totales",
-                        "selection": "Menos de 4.5 tarjetas",
-                        "line": 4.5,
-                        "side": "under",
-                        "probability": 0.65,
-                        "projection": 3.5,
-                    }
-                )
-
-            self.db.save_fixture_and_predictions(
-                fixture_id=fid,
-                home_team_id=getattr(m, "team_id", 1),
-                home_team_name=getattr(m, "opponent_name", "Local") or "Local",
-                away_team_id=getattr(m, "opponent_id", 2),
-                away_team_name="Visitante",
-                league_id=league_id or getattr(m, "league_id", None),
-                league_name="Liga",
-                match_date=getattr(m, "date", ""),
-                predictions=preds,
-            )
-
-            self.db.update_fixture_result(
-                fid,
-                {
-                    "home_goals": m.goals_for,
-                    "away_goals": m.goals_against,
-                    "corners_home": corners,
-                    "corners_away": 4,
-                    "cards_home": cards,
-                    "cards_away": 2,
-                },
-                status="FINISHED",
-            )
-            saved_preds = self.db.get_predictions_for_fixture(fid)
-            for p in saved_preds:
-                sel = p["selection"]
-                if sel == "Más de 1.5 goles":
-                    self.db.update_prediction_status(p["id"], "WON" if tot_g >= 2 else "LOST")
-                elif "Doble oportunidad" in sel:
-                    self.db.update_prediction_status(p["id"], "WON" if getattr(m, "result", "") in ("W", "D") else "LOST")
-                elif "7.5 córners" in sel and corners is not None:
-                    self.db.update_prediction_status(p["id"], "WON" if (corners + 4) >= 8 else "LOST")
-                elif "4.5 tarjetas" in sel and cards is not None:
-                    self.db.update_prediction_status(p["id"], "WON" if (cards + 2) <= 4 else "LOST")
-
-        self.recompute_calibrations(min_sample=3)
-
-    def recompute_calibrations(self, min_sample: int = 5) -> int:
+    def recompute_calibrations(self, min_sample: int = MIN_CALIBRATION_SAMPLE) -> int:
         """Recalcula y actualiza los factores de calibración en la base de datos a partir de apuestas liquidadas."""
         settled = self.db.get_settled_predictions()
         if not settled:
@@ -161,7 +76,7 @@ class DynamicCalibrator:
 
         # 1. Calibraciones por Liga
         for (l_id, cat), items in grouped.items():
-            if len(items) < min_sample and l_id != 0:
+            if len(items) < min_sample:
                 continue
             factor_entry = self._calculate_factor_entry(items)
             self.db.save_calibration(
@@ -211,11 +126,13 @@ class DynamicCalibrator:
                 brier += (float(i["predicted_prob"]) - outcome_val) ** 2
         brier_avg = (brier / resolved) if resolved > 0 else 0.20
 
-        # Shrinkage: Si el acierto real es inferior a la probabilidad esperada, encoger
-        # Si avg_prob = 0.70 y hit_rate = 0.56, factor = 0.56 / 0.70 = 0.80
-        if avg_prob > 0 and resolved >= 5:
+        # Factor de corrección con credibilidad: ratio observado/esperado, atenuado
+        # según el tamaño de muestra (n / (n + K)). Puede subir o bajar probabilidades.
+        if avg_prob > 0 and resolved >= MIN_CALIBRATION_SAMPLE:
             ratio = hit_rate / avg_prob
-            shrinkage = max(0.70, min(1.05, ratio))
+            credibility = resolved / (resolved + CREDIBILITY_K)
+            shrinkage = 1.0 + (ratio - 1.0) * credibility
+            shrinkage = max(0.70, min(1.15, shrinkage))
         else:
             shrinkage = 1.0
 
@@ -278,6 +195,9 @@ class DynamicCalibrator:
         for r in rows:
             cat = r["category"]
             sz = int(r["sample_size"])
+            if sz < MIN_CALIBRATION_SAMPLE:
+                # Muestra real insuficiente: no se usa para alterar el modelo.
+                continue
             hr = float(r["hit_rate"])
             sh = float(r["shrinkage_factor"])
             bias = float(r["bias_offset"])
@@ -296,7 +216,7 @@ class DynamicCalibrator:
         overall_hr = (total_won_weighted / total_samples) if total_samples > 0 else 0.0
 
         return DynamicCalibrationSummary(
-            active=total_samples >= 5,
+            active=total_samples >= MIN_CALIBRATION_SAMPLE,
             league_id=league_id,
             league_name=league_name,
             sample_size=total_samples,

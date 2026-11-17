@@ -145,17 +145,16 @@ def test_full_dynamic_closed_loop():
     assert "Diagnóstico y Auditoría de Pronósticos" in diagnostic
     assert "Rendimiento Empírico por Mercado" in diagnostic
 
-    # 6. Recalcular calibración dinámica
+    # 6. Recalcular calibración: un solo partido real NO alcanza la muestra mínima
     calibrator = DynamicCalibrator(db)
-    updated = calibrator.recompute_calibrations(min_sample=1)
-    assert updated > 0
+    calibrator.recompute_calibrations()
 
-    # 7. Segundo análisis: ahora con calibración dinámica activa
+    # 7. Segundo análisis: la calibración sigue inactiva y no se muestra badge
     report_calibrated = service.analyze("Real Madrid vs Barcelona")
     cal_info = report_calibrated.dynamic_calibration_info
     assert cal_info is not None
-    assert cal_info.sample_size > 0
+    assert cal_info.active is False
 
-    # Formatear reporte adaptativo y comprobar que muestra el badge de calibración dinámica
     rendered_md = format_adaptive_report(report_calibrated)
-    assert "⚡ Calibración Dinámica:" in rendered_md
+    assert "⚡ Calibración Dinámica:" not in rendered_md
+    assert "acierto real" not in rendered_md

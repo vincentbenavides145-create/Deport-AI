@@ -114,7 +114,7 @@ def cmd_ai_review(args: argparse.Namespace) -> None:
 def cmd_calibrate(args: argparse.Namespace) -> None:
     db = DatabaseManager()
     calibrator = DynamicCalibrator(db)
-    updated = calibrator.recompute_calibrations(min_sample=args.min_sample)
+    updated = calibrator.recompute_calibrations(min_sample=max(30, args.min_sample))
     print(f"⚡ Calibración adaptativa completada: {updated} factores de liga y categorías actualizados en SQLite.")
 
 
@@ -141,7 +141,7 @@ def main() -> None:
 
     # calibrate
     sub_cal = subparsers.add_parser("calibrate", help="Recalcula factores de sesgo y contracción empírica")
-    sub_cal.add_argument("--min-sample", type=int, default=5, help="Muestra mínima requerida")
+    sub_cal.add_argument("--min-sample", type=int, default=30, help="Muestra mínima requerida (nunca menor a 30)")
     sub_cal.set_defaults(func=cmd_calibrate)
 
     args = parser.parse_args()

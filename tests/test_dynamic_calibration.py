@@ -31,7 +31,7 @@ def test_dynamic_calibrator_recompute():
                 "probability": 0.75,
                 "projection": 11.0,
             }
-            for i in range(10)
+            for i in range(40)
         ],
     )
 
@@ -48,16 +48,16 @@ def test_dynamic_calibrator_recompute():
 
     preds = db.get_predictions_for_fixture(1)
     for idx, p in enumerate(preds):
-        status = "WON" if idx < 6 else "LOST"
+        status = "WON" if idx < 24 else "LOST"
         db.update_prediction_status(p["id"], status)
 
     calibrator = DynamicCalibrator(db)
-    updated = calibrator.recompute_calibrations(min_sample=5)
+    updated = calibrator.recompute_calibrations()
     assert updated >= 1
 
     summary = calibrator.get_calibration_summary(league_id=564, league_name="La Liga")
     assert summary.active is True
-    assert summary.sample_size == 10
+    assert summary.sample_size == 40
     assert summary.overall_hit_rate == 0.60
     assert "Córners" in summary.category_factors
     assert summary.bias_offsets.get("Córners") == -3.0  # (8 - 11)
@@ -71,7 +71,7 @@ def test_dynamic_calibration_applied_to_projections():
     db.save_calibration(
         league_id=100,
         category="Córners",
-        sample_size=12,
+        sample_size=60,
         hit_rate=0.75,
         brier_score=0.18,
         bias_offset=-2.0,
@@ -116,7 +116,7 @@ def test_dynamic_shrinkage_prunes_low_confidence_bets():
     db.save_calibration(
         league_id=200,
         category="Tarjetas",
-        sample_size=15,
+        sample_size=45,
         hit_rate=0.40,
         brier_score=0.35,
         bias_offset=0.0,
@@ -149,3 +149,30 @@ def test_dynamic_shrinkage_prunes_low_confidence_bets():
     markets = select_statistical_markets(home, away, probs, expected, calibration=summary)
     for m in markets:
         assert m["category"] != "Tarjetas" or m["probability"] >= 0.60
+
+
+def test_small_real_sample_does_not_activate_calibration():
+    db = DatabaseManager(":memory:")
+    db.save_calibration(
+        league_id=300, category="Córners", sample_size=12, hit_rate=0.90,
+        brier_score=0.1, bias_offset=-3.0, shrinkage_factor=1.10,
+    )
+    summary = DynamicCalibrator(db).get_calibration_summary(league_id=300)
+    assert summary.active is False
+    assert summary.category_factors == {}
+
+
+def test_purges_legacy_synthetic_seed():
+    db = DatabaseManager(":memory:")
+    db.save_fixture_and_predictions(
+        fixture_id=77, home_team_id=1, home_team_name="Rival", away_team_id=2,
+        away_team_name="Visitante", league_id=564, league_name="Liga",
+        match_date="2026-01-01", predictions=[{
+            "category": "Goles", "market": "Goles Totales", "selection": "Más de 1.5 goles",
+            "line": 1.5, "side": "over", "probability": 0.76,
+        }],
+    )
+    db.save_calibration(564, "Goles", 40, 0.9, 0.1, 0.0, 1.1)
+    DynamicCalibrator(db)
+    assert db.get_fixture(77) is None
+    assert db.get_calibration() == []

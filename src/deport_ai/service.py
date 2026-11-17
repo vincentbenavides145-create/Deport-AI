@@ -225,9 +225,6 @@ class AnalysisService:
                     if filtered_scorers:
                         expected.anytime_goalscorers[team_id] = filtered_scorers
 
-        # Inicializar calibración automática a partir de la muestra histórica si la BD está vacía
-        self.calibrator.auto_seed_if_needed(home_matches + away_matches, target_league_id)
-
         # Calibración dinámica adaptativa basada en resultados empíricos
         calibration = self.calibrator.get_calibration_summary(target_league_id, target_league_name)
         if calibration.active:

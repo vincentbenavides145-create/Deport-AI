@@ -398,6 +398,31 @@ class DatabaseManager:
                 ),
             )
 
+    def purge_synthetic_seed(self) -> int:
+        """Borra los partidos ficticios que generaba el antiguo auto-seed de calibración.
+
+        Se identifican por la firma exacta que usaba ese código: visitante 'Visitante'
+        y liga 'Liga'. Devuelve el número de partidos eliminados.
+        """
+        with self._get_connection() as conn:
+            ids = [
+                row[0]
+                for row in conn.execute(
+                    "SELECT fixture_id FROM tracked_fixtures "
+                    "WHERE away_team_name = 'Visitante' AND league_name = 'Liga'"
+                ).fetchall()
+            ]
+            if not ids:
+                return 0
+            marks = ",".join("?" for _ in ids)
+            conn.execute(f"DELETE FROM tracked_predictions WHERE fixture_id IN ({marks})", ids)
+            conn.execute(f"DELETE FROM tracked_fixtures WHERE fixture_id IN ({marks})", ids)
+            return len(ids)
+
+    def clear_calibration(self) -> None:
+        with self._get_connection() as conn:
+            conn.execute("DELETE FROM dynamic_calibration")
+
     def get_calibration(
         self,
         league_id: int | None = None,

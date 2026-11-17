@@ -11,6 +11,7 @@ from .markets_catalog import (
     MarketDefinition,
     build_declarative_catalog,
 )
+from .dynamic_calibration import MIN_CALIBRATION_SAMPLE
 from .presentation_catalog import MarketPresentationCatalog, get_exigence_score
 from .stats_engine import negative_binomial_pmf
 
@@ -916,15 +917,17 @@ def select_statistical_markets(
             hit_rate = f_info.get("hit_rate", 0.0)
             sample_size = f_info.get("sample_size", 0)
 
-            if shrinkage < 1.0:
-                prob = round(prob * shrinkage, 4)
+            if shrinkage != 1.0:
+                prob = round(min(0.99, prob * shrinkage), 4)
                 c["probability"] = prob
 
-            if sample_size >= 5 and hit_rate >= 0.70:
+            if sample_size >= MIN_CALIBRATION_SAMPLE and hit_rate >= 0.70:
                 c["dynamic_verified"] = True
                 if not c.get("explanation", "").endswith("."):
                     c["explanation"] = c.get("explanation", "") + "."
-                c["explanation"] += f" (Validación dinámica: {hit_rate * 100:.1f}% acierto histórico)."
+                c["explanation"] += (
+                    f" (Categoría con {hit_rate * 100:.1f}% de acierto real en {sample_size} predicciones liquidadas)."
+                )
 
         if prob < minimum_probability:
             continue
@@ -1062,7 +1065,7 @@ def select_top_recommended_pick(
 
     def score_candidate(item: dict[str, Any]) -> float:
         prob = float(item.get("probability", 0.0))
-        bonus = 0.05 if item.get("dynamic_verified") else 0.0
+        bonus = 0.0
         cat = str(item.get("category", ""))
         # Ponderación por estabilidad de mercado
         cat_weight = 1.0
