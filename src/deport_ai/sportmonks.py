@@ -27,6 +27,8 @@ def _number(value: Any) -> float | None:
 
 
 DEFAULT_BASE_URL = "https://api.sportmonks.com/v3/football"
+# Valor de SPORTMONKS_API_TOKEN cuando un proxy de red inyecta el token real.
+PROXY_INJECTED_TOKEN = "proxy-injected"
 DETAIL_INCLUDES = (
     "participants;scores;statistics.type;lineups.details.type;"
     "league;season;state;formations"
@@ -398,7 +400,11 @@ class SportmonksClient:
         cache_key = path + "?" + json.dumps(clean, sort_keys=True, default=str)
         if cache_key in self._cache:
             return self._cache[cache_key]
-        request_params = {**clean, "api_token": self.api_token, "timezone": self.timezone}
+        request_params = {**clean, "timezone": self.timezone}
+        if self.api_token and self.api_token != PROXY_INJECTED_TOKEN:
+            request_params["api_token"] = self.api_token
+        # Con PROXY_INJECTED_TOKEN el token lo añade un proxy (encabezado Authorization),
+        # así que no se envía en la URL.
         response = None
         for attempt in range(3):
             try:
