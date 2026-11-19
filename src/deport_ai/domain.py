@@ -54,6 +54,7 @@ class PlayerShot:
     minutes: float
     total_shots: float = 0.0
     goals: float = 0.0
+    total_shots_known: bool = True  # False si el total se estimó desde los tiros a puerta
 
 
 @dataclass(frozen=True)

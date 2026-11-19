@@ -141,7 +141,9 @@ class AnalysisService:
         starter_info: dict[int, dict[str, Any]] = {}
         lineups_confirmed = False
         if lineups:
-            lineups_confirmed = lineups_are_confirmed(lineups)
+            # Un once publicado horas antes puede ser solo probable: se toma como oficial
+            # únicamente cerca del inicio (ambos equipos y a <= 60 minutos).
+            lineups_confirmed = lineups_are_official(lineups, fixture.date if fixture else None)
             for team_info in lineups:
                 starters = team_info.get("startXI", [])
                 for p in starters:
@@ -216,15 +218,16 @@ class AnalysisService:
             for team_id in (home.id, away.id):
                 if team_id in starter_names and starter_names[team_id]:
                     valid_names = starter_names[team_id]
-                    # Con once confirmado solo quedan los titulares (aunque la lista quede vacía),
-                    # marcados como titulares para no pedir otra confirmación.
+                    # Solo quedan los titulares del once publicado (aunque la lista quede vacía).
+                    # Si el once aún no es oficial, siguen requiriendo confirmar titularidad.
+                    starter_flag = True if lineups_confirmed else None
                     expected.player_shots[team_id] = [
-                        {**p, "is_starter": True}
+                        {**p, "is_starter": starter_flag}
                         for p in expected.player_shots.get(team_id, [])
                         if any(s in p["name"].lower() or p["name"].lower() in s for s in valid_names)
                     ]
                     expected.anytime_goalscorers[team_id] = [
-                        {**p, "is_starter": True}
+                        {**p, "is_starter": starter_flag}
                         for p in expected.anytime_goalscorers.get(team_id, [])
                         if any(s in p["name"].lower() or p["name"].lower() in s for s in valid_names)
                     ]
@@ -251,6 +254,7 @@ class AnalysisService:
             recent_home=home_matches,
             recent_away=away_matches,
             odds=odds,
+            exclude_categories=unreliable_categories(home_matches, away_matches, target_league_id),
         )
         top_pick = select_top_recommended_pick(
             statistical_markets,
@@ -489,6 +493,66 @@ def _sources(
 def lineups_are_confirmed(lineups: list[dict[str, Any]] | None) -> bool:
     """Solo hay alineación confirmada cuando ambos equipos publicaron su once titular."""
     return sum(1 for team_info in lineups or [] if team_info.get("startXI")) >= 2
+
+
+# Ventana antes del inicio en la que un once publicado se considera oficial.
+OFFICIAL_LINEUP_WINDOW_MINUTES = 60
+
+
+def lineups_are_official(
+    lineups: list[dict[str, Any]] | None,
+    kickoff_iso: str | None,
+    now: datetime | None = None,
+    window_minutes: int = OFFICIAL_LINEUP_WINDOW_MINUTES,
+) -> bool:
+    """Once de ambos equipos publicado y a `window_minutes` o menos del inicio.
+
+    Sportmonks publica onces con horas de anticipación que pueden ser probables; antes de
+    la ventana se tratan como no confirmados.
+    """
+    if not lineups_are_confirmed(lineups) or not kickoff_iso:
+        return False
+    try:
+        kickoff = datetime.fromisoformat(str(kickoff_iso).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if kickoff.tzinfo is None:
+        kickoff = kickoff.replace(tzinfo=timezone.utc)
+    current = now or datetime.now(timezone.utc)
+    return (kickoff - current).total_seconds() <= window_minutes * 60
+
+
+# Cobertura mínima de un dato en la competición para ofrecer sus mercados.
+MIN_COVERAGE_SAMPLE = 4
+MIN_OFFSIDES_COVERAGE = 0.8
+
+
+def unreliable_categories(
+    home_matches: list[Any], away_matches: list[Any], league_id: int | None
+) -> set[str]:
+    """Categorías que no conviene ofrecer porque la competición no suele publicar el dato.
+
+    Se mide sobre los partidos recientes de ambos equipos en la misma competición que
+    tienen estadísticas completas: si en menos del 80% aparecen los fueras de juego, ese
+    mercado no se podría liquidar con fiabilidad.
+    """
+    if league_id is None:
+        # Sin partido programado no se conoce la competición: se usa la más frecuente.
+        counts = Counter(m.league_id for m in list(home_matches) + list(away_matches) if getattr(m, "league_id", None))
+        if not counts:
+            return set()
+        league_id = counts.most_common(1)[0][0]
+    seen: dict[int, Any] = {}
+    for match in list(home_matches) + list(away_matches):
+        stats = getattr(match, "stats_for", {}) or {}
+        if getattr(match, "league_id", None) == league_id and ("corner_kicks" in stats or "total_shots" in stats):
+            seen[match.fixture_id] = match
+    if len(seen) < MIN_COVERAGE_SAMPLE:
+        return set()
+    with_offsides = sum(1 for match in seen.values() if "offsides" in match.stats_for)
+    if with_offsides / len(seen) < MIN_OFFSIDES_COVERAGE:
+        return {"Fueras de juego"}
+    return set()
 
 
 def _primary_league_id(rows: list[dict[str, Any]]) -> int | None:

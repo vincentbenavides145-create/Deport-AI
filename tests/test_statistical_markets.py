@@ -56,6 +56,8 @@ def test_extended_statistical_markets_are_model_only_and_deduplicated():
                 "probability_two_plus": 0.74,
                 "probability_three_plus": 0.51,
                 "probability_sot_one_plus": 0.66,
+                "history_shots": [3, 2, 4, 2, 3, 1, 2, 3],
+                "history_sot": [1, 1, 0, 1, 2, 1, 1, 0],
             }]
         },
     )

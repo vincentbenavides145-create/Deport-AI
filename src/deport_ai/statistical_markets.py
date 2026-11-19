@@ -14,7 +14,7 @@ from .markets_catalog import (
 from .dynamic_calibration import MIN_CALIBRATION_SAMPLE
 from .odds import MIN_EDGE, expected_value, odds_key_for_candidate
 from .presentation_catalog import MarketPresentationCatalog, get_exigence_score
-from .stats_engine import negative_binomial_pmf, stat_value
+from .stats_engine import CARDS_KEY, negative_binomial_pmf, stat_value
 
 
 MINIMUM_PROBABILITY = 0.60
@@ -69,6 +69,7 @@ def _calc_comparison_1x2(rate_a: float | None, rate_b: float | None, alpha: floa
 _STAT_LABELS: dict[str, str] = {
     "corner_kicks": "saques de esquina",
     "yellow_cards": "tarjetas",
+    "cards": "tarjetas",
     "fouls": "faltas",
     "total_shots": "remates",
     "shots_on_goal": "tiros a puerta",
@@ -78,8 +79,8 @@ _STAT_LABELS: dict[str, str] = {
 _TEAM_STAT_GROUPS: dict[str, tuple[str, str]] = {
     "corners_home": ("home", "corner_kicks"),
     "corners_away": ("away", "corner_kicks"),
-    "cards_home": ("home", "yellow_cards"),
-    "cards_away": ("away", "yellow_cards"),
+    "cards_home": ("home", CARDS_KEY),
+    "cards_away": ("away", CARDS_KEY),
     "fouls_home": ("home", "fouls"),
     "fouls_away": ("away", "fouls"),
     "shots_home": ("home", "total_shots"),
@@ -91,7 +92,7 @@ _TEAM_STAT_GROUPS: dict[str, tuple[str, str]] = {
 }
 _TOTAL_STAT_GROUPS: dict[str, str] = {
     "corners_total": "corner_kicks",
-    "cards_total": "yellow_cards",
+    "cards_total": CARDS_KEY,
     "fouls_total": "fouls",
     "shots_total": "total_shots",
     "shots_on_total": "shots_on_goal",
@@ -99,7 +100,7 @@ _TOTAL_STAT_GROUPS: dict[str, str] = {
 }
 _STAT_1X2_GROUPS: dict[str, tuple[str, str]] = {
     "corners_1x2": ("corner_kicks", "sacó más córners"),
-    "cards_1x2": ("yellow_cards", "recibió más tarjetas"),
+    "cards_1x2": (CARDS_KEY, "recibió más tarjetas"),
     "shots_on_1x2": ("shots_on_goal", "tuvo más tiros a puerta"),
     "fouls_1x2": ("fouls", "cometió más faltas"),
 }
@@ -366,9 +367,9 @@ def _explain_market(
 
     if grp in ("both_teams_card", "both_teams_2_cards", "both_teams_corners", "both_teams_shots_on"):
         if grp == "both_teams_card":
-            key, thresh, label = "yellow_cards", 1, "1+ tarjeta"
+            key, thresh, label = CARDS_KEY, 1, "1+ tarjeta"
         elif grp == "both_teams_2_cards":
-            key, thresh, label = "yellow_cards", 2, "2+ tarjetas"
+            key, thresh, label = CARDS_KEY, 2, "2+ tarjetas"
         elif grp == "both_teams_corners":
             key, thresh = "corner_kicks", (4 if "4+" in sel else 3)
             label = f"{thresh}+ córners"
@@ -1005,6 +1006,7 @@ def select_statistical_markets(
     recent_away: list[TeamMatch] | None = None,
     odds: dict[str, float] | None = None,
     min_edge: float = MIN_EDGE,
+    exclude_categories: set[str] | frozenset[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Aplica la capa de presentación:
     1. Filtra candidatos estrictamente según MarketPresentationCatalog (excluye triviales y no catalogados).
@@ -1024,6 +1026,7 @@ def select_statistical_markets(
     )
 
     # 1. Filtro estricto por MarketPresentationCatalog y rango de probabilidad óptimo
+    excluded = set(exclude_categories or ())
     eligible: list[dict[str, Any]] = []
     cat_factors = getattr(calibration, "category_factors", {}) if calibration else {}
 
@@ -1059,7 +1062,13 @@ def select_statistical_markets(
             continue
 
         # Filtro de coherencia: la justificación citada debe respaldar la probabilidad.
-        if evidence_contradicts(prob, c.get("evidence"), c.get("group") in STAT_EVIDENCE_GROUPS):
+        if c.get("category") in excluded:
+            continue
+        group = str(c.get("group") or "")
+        is_player = group.startswith("player_")
+        # Las props de jugador exigen siempre historial real (sin él no se publican).
+        evidence = c.get("evidence") if not is_player else (c.get("evidence") or {"hits": 0, "n": 0})
+        if evidence_contradicts(prob, evidence, group in STAT_EVIDENCE_GROUPS or is_player):
             continue
 
         if prob > maximum_probability:
@@ -1121,6 +1130,21 @@ def select_statistical_markets(
     return selected
 
 
+def _player_evidence(history: list[float], threshold: int) -> tuple[dict[str, Any], float | None]:
+    values = [float(v) for v in history or []]
+    hits = sum(1 for v in values if v >= threshold)
+    return _evidence(hits, len(values)), (fmean(values) if values else None)
+
+
+def _player_explanation(name: str, label: str, evidence: dict[str, Any], avg: float | None, unit: str) -> str:
+    if not evidence["n"]:
+        return f"Porque {name} no tiene historial suficiente como titular."
+    return (
+        f"Porque {name} registró {label} en {evidence['hits']} de sus últimos {evidence['n']} partidos "
+        f"como titular (promedio {avg:.1f} {unit})."
+    )
+
+
 def _add_player_candidates(
     candidates: list[dict[str, Any]],
     team: Team,
@@ -1133,32 +1157,35 @@ def _add_player_candidates(
             continue
         needs_confirmation = player.get("is_starter") is not True
         group = f"player_shots:{team.id}:{name.lower()}"
-        projection = _number(player.get("expected_per_match"))
-        for selection, prob in (
-            ("2+ remates", _number(player.get("probability_two_plus"))),
-            ("3+ remates", _number(player.get("probability_three_plus"))),
-            ("4+ remates", _number(player.get("probability_four_plus"))),
-            ("1+ tiro a puerta", _number(player.get("probability_sot_one_plus"))),
-            ("2+ tiros a puerta", _number(player.get("probability_sot_two_plus"))),
+        projection = _number(player.get("expected_total_shots"))
+        for selection, prob, history_key, threshold, unit in (
+            ("2+ remates", _number(player.get("probability_two_plus")), "history_shots", 2, "remates"),
+            ("3+ remates", _number(player.get("probability_three_plus")), "history_shots", 3, "remates"),
+            ("4+ remates", _number(player.get("probability_four_plus")), "history_shots", 4, "remates"),
+            ("1+ tiro a puerta", _number(player.get("probability_sot_one_plus")), "history_sot", 1, "tiros a puerta"),
+            ("2+ tiros a puerta", _number(player.get("probability_sot_two_plus")), "history_sot", 2, "tiros a puerta"),
         ):
-            if prob is not None:
-                item: dict[str, Any] = {
-                    "id": f"player_shot_{team.id}_{name.lower()}_{selection.replace('+', 'plus').replace(' ', '_')}",
-                    "category": "Jugadores",
-                    "group": group,
-                    "market": f"Remates de {name} ({team.name})",
-                    "selection": f"{name} {selection}",
-                    "line": None,
-                    "side": "player",
-                    "probability": round(prob, 4),
-                    "basis": "Proyección del modelo estadístico; no incluye cuota ni valoración frente a una casa.",
-                    "explanation": f"Porque {name} registra un promedio de {projection:.2f} remates esperados por partido." if projection else f"Porque {name} mantiene una alta frecuencia ofensiva.",
-                }
-                if needs_confirmation:
-                    item["requires_starter_confirmation"] = True
-                if projection is not None:
-                    item["projection"] = round(projection, 2)
-                candidates.append(item)
+            if prob is None:
+                continue
+            evidence, avg = _player_evidence(player.get(history_key) or [], threshold)
+            item: dict[str, Any] = {
+                "id": f"player_shot_{team.id}_{name.lower()}_{selection.replace('+', 'plus').replace(' ', '_')}",
+                "category": "Jugadores",
+                "group": group,
+                "market": f"Remates de {name} ({team.name})",
+                "selection": f"{name} {selection}",
+                "line": None,
+                "side": "player",
+                "probability": round(prob, 4),
+                "basis": "Proyección del modelo estadístico; no incluye cuota ni valoración frente a una casa.",
+                "explanation": _player_explanation(name, selection, evidence, avg, unit),
+                "evidence": evidence,
+            }
+            if needs_confirmation:
+                item["requires_starter_confirmation"] = True
+            if projection is not None:
+                item["projection"] = round(projection, 2)
+            candidates.append(item)
 
 
 def _add_scorer_candidates(
@@ -1170,6 +1197,7 @@ def _add_scorer_candidates(
         name = str(player.get("name") or "").strip()
         prob = _number(player.get("probability_goal"))
         if name and prob is not None and player.get("is_starter") is not False:
+            evidence, avg = _player_evidence(player.get("history_goals") or [], 1)
             item = {
                 "id": f"player_goal_{team.id}_{name.lower()}",
                 "category": "Jugadores",
@@ -1180,7 +1208,8 @@ def _add_scorer_candidates(
                 "side": "player",
                 "probability": round(prob, 4),
                 "basis": "Proyección del modelo estadístico; no incluye cuota ni valoración frente a una casa.",
-                "explanation": f"Porque {name} es la principal referencia ofensiva de {team.name}.",
+                "explanation": _player_explanation(name, "gol", evidence, avg, "goles"),
+                "evidence": evidence,
             }
             if player.get("is_starter") is not True:
                 item["requires_starter_confirmation"] = True

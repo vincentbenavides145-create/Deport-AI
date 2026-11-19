@@ -30,6 +30,10 @@ Cuando el usuario pida analizar un partido, pronósticos o predicciones de fútb
 - Mercados correlacionados comparten familia y solo se muestra una selección por familia: {1X2, doble oportunidad, DNB, combinadas de resultado}, {Ambos marcan, valla invicta, gana a cero} y {goles totales, multigoles}.
 - El Pick Recomendado no se repite dentro de su categoría.
 - Los amistosos internacionales usan un perfil propio (Elo con peso máximo 0.15 y tope de 3.5 / 3.0 goles esperados).
+- Las tarjetas se proyectan y liquidan igual: amarillas + rojas (0 si el partido no publica tarjetas).
+- Las props de jugador solo se publican con al menos 6 partidos como titular y citan ese historial real ("2+ remates en X de N").
+- Un once publicado solo cuenta como confirmado si ambos equipos lo publicaron y faltan 60 minutos o menos para el inicio; antes, las props siguen requiriendo confirmar titularidad.
+- Los fueras de juego no se ofrecen si la competición los publica en menos del 80% de los partidos recientes de ambos equipos.
 
 ## 📒 HISTÓRICO DE PREDICCIONES (OBLIGATORIO)
 - `analyze.py` registra automáticamente cada predicción y además la escribe en `history/predictions.jsonl`, dentro del repositorio. Es el histórico permanente: las sesiones en la nube son temporales y la base SQLite local se pierde al cerrarlas (se reconstruye sola desde ese archivo).

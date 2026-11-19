@@ -285,7 +285,9 @@ def extract_player_shots(details: Iterable[dict[str, Any]]) -> list[PlayerShot]:
                 goal_data = stats.get("goals", {})
                 minutes = _number(games.get("minutes")) or 0.0
                 on_target = _number(shot_data.get("on")) or 0.0
-                total_raw = _number(shot_data.get("total")) or _number(shot_data.get("shots"))
+                total_raw = _number(shot_data.get("total"))
+                if total_raw is None:
+                    total_raw = _number(shot_data.get("shots"))
                 total_shots = float(total_raw) if total_raw is not None else float(max(on_target, round(on_target * 2.2, 1)))
                 goals_raw = _number(goal_data.get("scored")) or _number(goal_data.get("total")) or _number(entry.get("goals")) or 0.0
                 if player.get("id") is not None and minutes > 0:
@@ -298,6 +300,7 @@ def extract_player_shots(details: Iterable[dict[str, Any]]) -> list[PlayerShot]:
                             minutes=float(minutes),
                             total_shots=float(total_shots),
                             goals=float(goals_raw),
+                            total_shots_known=total_raw is not None,
                         )
                     )
     return shots
@@ -1493,8 +1496,8 @@ def expected_metrics(
     if tot_woodwork is not None and tot_woodwork > 0:
         over_05_woodwork = round(1.0 - math.exp(-tot_woodwork), 4)
 
-    cards_home = _expected_count(home_matches, away_matches, True, False, "yellow_cards")
-    cards_away = _expected_count(away_matches, home_matches, False, True, "yellow_cards")
+    cards_home = _expected_count(home_matches, away_matches, True, False, CARDS_KEY)
+    cards_away = _expected_count(away_matches, home_matches, False, True, CARDS_KEY)
     total_cards = (cards_home + cards_away) if (cards_home is not None and cards_away is not None) else None
     over_15_cards = None
     over_25_cards = None
@@ -1785,12 +1788,21 @@ def _poisson(k: int, rate: float) -> float:
 # Estadísticas de evento raro que Sportmonks solo publica cuando ocurren: en un partido
 # con estadísticas completas, su ausencia significa 0 (no "dato faltante"). Promediar
 # solo los partidos donde aparecen infla la proyección (p. ej. tiros al palo).
-SPARSE_EVENT_KEYS = frozenset({"hit_woodwork"})
+# Las tarjetas también se omiten cuando un equipo no recibe ninguna.
+SPARSE_EVENT_KEYS = frozenset({"hit_woodwork", "yellow_cards", "red_cards"})
+# Clave compuesta: tarjetas totales = amarillas + rojas, como liquidan las casas de apuestas.
+CARDS_KEY = "cards"
 _DETAIL_MARKER_KEYS = ("total_shots", "shots_on_goal", "corner_kicks")
 
 
 def stat_value(stats: dict[str, float], key: str) -> float | None:
     """Valor de una estadística, tratando como 0 los eventos raros ausentes en partidos detallados."""
+    if key == CARDS_KEY:
+        yellow = stat_value(stats, "yellow_cards")
+        red = stat_value(stats, "red_cards")
+        if yellow is None and red is None:
+            return None
+        return (yellow or 0.0) + (red or 0.0)
     if key in stats:
         return float(stats[key])
     if key in SPARSE_EVENT_KEYS and any(marker in stats for marker in _DETAIL_MARKER_KEYS):
@@ -1854,6 +1866,10 @@ def _team_baseline_stat(matches: list[TeamMatch], key: str) -> float | None:
     return round(sum(v * w for v, w in zip(values, weights)) / total_w, 2) if total_w > 0 else _robust_count_mean(values)
 
 
+# Minutos mínimos para contar un partido como titular en el historial del jugador.
+PLAYER_START_MINUTES = 45.0
+
+
 def _player_probabilities(
     rows: list[PlayerShot],
     team_id: int,
@@ -1876,6 +1892,11 @@ def _player_probabilities(
         per90 = shots_sum / total_minutes * 90
         sot_sum = sum(item.shots_on_target for item in entries)
         sot_per90 = sot_sum / total_minutes * 90
+        # Historial real partido a partido (solo como titular y con remates publicados),
+        # que justifica y valida las props del jugador.
+        starts = [item for item in entries if item.minutes >= PLAYER_START_MINUTES]
+        history_shots = [item.total_shots for item in starts if item.total_shots_known]
+        history_sot = [item.shots_on_target for item in starts]
 
         # Titularidad y minutos esperados
         p_info = starter_info.get(entries[0].player_id) if starter_info else None
@@ -1932,6 +1953,8 @@ def _player_probabilities(
                 "probability_sot_one_plus": round(prob_sot_1, 4),
                 "probability_sot_two_plus": round(prob_sot_2, 4),
                 "probability_sot_three_plus": round(prob_sot_3, 4),
+                "history_shots": history_shots,
+                "history_sot": history_sot,
             }
         )
     result.sort(key=lambda item: item["probability_two_plus"], reverse=True)
@@ -1993,6 +2016,7 @@ def _anytime_goalscorer_probabilities(
                 "goals_observed": goals_sum,
                 "expected_goals": round(expected_goals, 2),
                 "probability_goal": round(prob_goal, 4),
+                "history_goals": [item.goals for item in entries if item.minutes >= PLAYER_START_MINUTES],
             }
         )
     result.sort(key=lambda item: item["probability_goal"], reverse=True)

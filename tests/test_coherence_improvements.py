@@ -245,7 +245,13 @@ def test_lineups_need_both_teams():
 
 def test_player_props_follow_confirmed_starter_status():
     def shots(is_starter):
-        return [{"name": "Nueve", "expected_per_match": 3.0, "probability_two_plus": 0.75, "is_starter": is_starter}]
+        return [{
+            "name": "Nueve",
+            "expected_total_shots": 3.0,
+            "probability_two_plus": 0.75,
+            "is_starter": is_starter,
+            "history_shots": [3, 2, 2, 3, 2, 1, 4, 2],
+        }]
 
     starter = select_statistical_markets(HOME, AWAY, _probabilities(), ExpectedMetrics(player_shots={1: shots(True)}))
     prop = next(m for m in starter if m["category"] == "Jugadores")

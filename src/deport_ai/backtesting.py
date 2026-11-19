@@ -24,7 +24,7 @@ from .errors import InsufficientDataError
 from .evaluation import brier_score, calibration_bins, log_loss
 from .model_params import DEFAULT_PARAMETERS, ModelParameters, estimate_dispersion
 from .settlement import evaluate_prediction
-from .stats_engine import calculate_elo, expected_metrics, goal_probabilities
+from .stats_engine import CARDS_KEY, calculate_elo, expected_metrics, goal_probabilities, stat_value
 from .statistical_markets import calculate_candidate_markets, select_statistical_markets
 
 SELECTED_BINS = [0.60, 0.65, 0.70, 0.75, 0.80, 0.88]
@@ -112,8 +112,9 @@ def actual_from_fixture(sample: FixtureSample) -> dict[str, Any]:
         return int(value) if value is not None else None
 
     def cards(stats: dict[str, float]) -> int | None:
-        yellow = stat(stats, "yellow_cards")
-        return None if yellow is None else yellow + (stat(stats, "red_cards") or 0)
+        # Amarillas + rojas, con 0 cuando el partido detallado no publica tarjetas.
+        value = stat_value(stats, CARDS_KEY)
+        return None if value is None else int(value)
 
     wood_h, wood_a = stat(home_stats, "hit_woodwork"), stat(away_stats, "hit_woodwork")
     return {
