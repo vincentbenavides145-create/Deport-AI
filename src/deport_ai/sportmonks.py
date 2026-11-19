@@ -443,6 +443,14 @@ class SportmonksClient:
     def resolve_team(self, query: str) -> Team:
         return self._resolve_team(query)[0]
 
+    def _search_has_exact_name(self, query: str) -> bool:
+        try:
+            rows = self._get(f"teams/search/{quote(query, safe='')}", per_page=TEAM_SEARCH_PAGE_SIZE) or []
+        except Exception:
+            return False
+        target = _normalize(query)
+        return any(_normalize(str(row.get("name") or "")) == target for row in rows)
+
     def _resolve_team(self, query: str) -> tuple[Team, list[Team]]:
         """Equipo elegido y, si hubo homónimos exactos, los equipos empatados con él."""
         cleaned = re.sub(r"\s+", " ", query).strip()
@@ -450,7 +458,9 @@ class SportmonksClient:
         override_id = TEAM_ID_OVERRIDES.get(norm)
         if not override_id:
             close = get_close_matches(norm, TEAM_ID_OVERRIDES.keys(), n=1, cutoff=0.88)
-            if close:
+            # Una coincidencia aproximada con la lista de alias no debe ganarle a un equipo
+            # que Sportmonks tiene con ese nombre exacto ("Internacional" no es "Internazionale").
+            if close and not self._search_has_exact_name(cleaned):
                 override_id = TEAM_ID_OVERRIDES[close[0]]
         if override_id:
             try:

@@ -140,3 +140,31 @@ def test_resolve_match_without_ambiguity_matches_resolve_team():
     client = FakeSearchClient({"russia": RUSSIA_ROWS, "venezuela": VENEZUELA_ROWS})
     first, second = client.resolve_match("Russia", "Venezuela")
     assert (first, second) == (Team(18702, "Russia", "1"), Team(18711, "Venezuela", "1"))
+
+
+INTERNACIONAL_ROWS = _rows(
+    (2696, "Internacional", "domestic"),
+    (9952, "Internacional de Bogotá", "domestic"),
+    (28155, "Internacional", "domestic"),
+)
+
+
+class FakeOverrideClient(FakeSearchClient):
+    """Como FakeSearchClient, pero la ficha del equipo de la lista de alias sí existe."""
+
+    def _get(self, path, **params):
+        if path == "teams/2930":
+            return {"id": 2930, "name": "Inter", "country_id": 251}
+        return super()._get(path, **params)
+
+
+def test_fuzzy_alias_does_not_beat_exact_search_name():
+    # "internacional" se parece a "internazionale" (Inter de Milán), pero Sportmonks tiene
+    # equipos llamados exactamente "Internacional": gana la búsqueda.
+    searches = {"internacional": INTERNACIONAL_ROWS, "vasco da gama": _rows((696, "Vasco da Gama", "domestic"))}
+    client = FakeOverrideClient(searches, fixtures={frozenset((696, 2696))})
+    assert client.resolve_team("Internacional").id in {2696, 28155}
+    home, away = client.resolve_match("Vasco da Gama", "Internacional")
+    assert (home.id, away.id) == (696, 2696)
+    # Un nombre sin coincidencia exacta en la búsqueda sigue usando la lista de alias.
+    assert FakeOverrideClient({}).resolve_team("Inter").id == 2930
