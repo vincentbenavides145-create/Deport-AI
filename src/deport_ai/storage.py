@@ -256,12 +256,13 @@ class DatabaseManager:
                     )
 
     def get_pending_fixtures(self) -> list[dict[str, Any]]:
-        """Recupera todos los fixtures en estado PENDING."""
+        """Fixtures por liquidar: pendientes, o cerrados que aún tienen predicciones pendientes."""
         with self._get_connection() as conn:
             rows = conn.execute(
                 """
                 SELECT * FROM tracked_fixtures
                 WHERE status = 'PENDING'
+                   OR fixture_id IN (SELECT fixture_id FROM tracked_predictions WHERE status = 'PENDING')
                 ORDER BY match_date ASC
                 """
             ).fetchall()

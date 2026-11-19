@@ -626,6 +626,25 @@ class SportmonksClient:
                 result[fixture_id] = self._fixtures[fixture_id]
         return result
 
+    def first_half_corners(self, fixture_id: int) -> dict[int, int] | None:
+        """Córners del primer tiempo por equipo (id -> córners), desde las estadísticas por periodo."""
+        try:
+            raw = self._get(f"fixtures/{fixture_id}", include="periods.statistics.type")
+        except Exception:
+            return None
+        for period in (raw or {}).get("periods") or []:
+            if str(period.get("description") or "").lower() not in {"1st-half", "1st half", "first half"}:
+                continue
+            corners: dict[int, int] = {}
+            for row in period.get("statistics") or []:
+                if (row.get("type") or {}).get("developer_name") != "CORNERS":
+                    continue
+                value = (row.get("data") or {}).get("value")
+                if row.get("participant_id") is not None and value is not None:
+                    corners[int(row["participant_id"])] = int(value)
+            return corners or None
+        return None
+
     def coverage(self, league_id: int, season: int) -> dict[str, Any]:
         """Verifica dinámicamente qué características están soportadas por plan y liga."""
         return {
@@ -848,6 +867,11 @@ def _convert_fixture(raw: dict[str, Any], timezone_name: str = "UTC") -> dict[st
         "halftime": {
             "home": _period_score(raw.get("scores", []), home_id, "1ST_HALF"),
             "away": _period_score(raw.get("scores", []), away_id, "1ST_HALF"),
+        },
+        # En Sportmonks "2ND_HALF" es el marcador acumulado; solo el 2T es "2ND_HALF_ONLY".
+        "second_half": {
+            "home": _period_score(raw.get("scores", []), home_id, "2ND_HALF_ONLY"),
+            "away": _period_score(raw.get("scores", []), away_id, "2ND_HALF_ONLY"),
         },
         "statistics": _convert_statistics(raw.get("statistics", []), participants),
         "players": _convert_players(raw.get("lineups", []), participants),

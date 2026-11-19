@@ -59,6 +59,12 @@ def extract_match_actual_stats(fixture_detail: dict[str, Any]) -> dict[str, Any]
 
     cards_home = _get_stat(home_stats, ("Yellow Cards", "YELLOW_CARDS", "YELLOWCARDS"))
     cards_away = _get_stat(away_stats, ("Yellow Cards", "YELLOW_CARDS", "YELLOWCARDS"))
+    # Sportmonks omite las tarjetas cuando un equipo no recibió ninguna: en un partido con
+    # estadísticas completas, su ausencia es 0 y no un dato faltante.
+    if cards_home is None and _is_detailed(home_stats):
+        cards_home = 0
+    if cards_away is None and _is_detailed(away_stats):
+        cards_away = 0
     reds_home = _get_stat(home_stats, ("Red Cards", "RED_CARDS", "REDCARDS")) or 0
     reds_away = _get_stat(away_stats, ("Red Cards", "RED_CARDS", "REDCARDS")) or 0
     # En casas de apuestas estándar, total tarjetas suele ser amarillas + rojas (o amarillas)
@@ -81,26 +87,31 @@ def extract_match_actual_stats(fixture_detail: dict[str, Any]) -> dict[str, Any]
     woodwork_a = _get_stat(away_stats, ("Hit Woodwork", "HIT_WOODWORK", "WOODWORK")) or 0
     total_woodwork = woodwork_h + woodwork_a
 
-    # Estadísticas por mitad si existen en scores o detalles
-    first_half_home = None
-    first_half_away = None
-    second_half_home = None
-    second_half_away = None
-    for sc in fixture_detail.get("scores", []):
+    # Goles por mitad. El cliente entrega "halftime" (1T) y "second_half" (solo 2T);
+    # un payload crudo trae "scores", donde "2ND_HALF" es acumulado y "2ND_HALF_ONLY" es el 2T.
+    halftime = fixture_detail.get("halftime") or {}
+    second = fixture_detail.get("second_half") or {}
+    first_half_home = _int_or_none(halftime.get("home"))
+    first_half_away = _int_or_none(halftime.get("away"))
+    second_half_home = _int_or_none(second.get("home"))
+    second_half_away = _int_or_none(second.get("away"))
+    for sc in fixture_detail.get("scores", []) or []:
         desc = str(sc.get("description") or "").upper()
         p_id = int(sc.get("participant_id") or -1)
-        g_val = (sc.get("score") or {}).get("goals")
-        if g_val is not None:
-            if "1ST" in desc or "HALF_TIME" in desc or "HT" in desc:
-                if p_id == home_id:
-                    first_half_home = int(g_val)
-                elif p_id == away_id:
-                    first_half_away = int(g_val)
-            elif "2ND" in desc:
-                if p_id == home_id:
-                    second_half_home = int(g_val)
-                elif p_id == away_id:
-                    second_half_away = int(g_val)
+        g_val = _int_or_none((sc.get("score") or {}).get("goals"))
+        if g_val is None or p_id not in (home_id, away_id):
+            continue
+        is_home = p_id == home_id
+        if desc == "1ST_HALF":
+            if is_home and first_half_home is None:
+                first_half_home = g_val
+            elif not is_home and first_half_away is None:
+                first_half_away = g_val
+        elif desc == "2ND_HALF_ONLY":
+            if is_home and second_half_home is None:
+                second_half_home = g_val
+            elif not is_home and second_half_away is None:
+                second_half_away = g_val
 
     # Si hay 1T y final pero no 2T específico, 2T = final - 1T
     if home_goals is not None and first_half_home is not None and second_half_home is None:
@@ -155,7 +166,21 @@ def extract_match_actual_stats(fixture_detail: dict[str, Any]) -> dict[str, Any]
         "fouls_away": fouls_away,
         "woodwork_hit": total_woodwork,
         "player_stats": player_stats,
+        # Si el partido tiene estadísticas completas pero no publica un dato, no se registró:
+        # esas selecciones se anulan en vez de quedar pendientes para siempre.
+        "detailed": _is_detailed(home_stats) and _is_detailed(away_stats),
     }
+
+
+def _is_detailed(stats: dict[str, float]) -> bool:
+    return any(key in stats for key in ("Corner Kicks", "Total Shots", "Shots on Goal", "CORNERS", "SHOTS_TOTAL"))
+
+
+def _int_or_none(value: Any) -> int | None:
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 def evaluate_prediction(
@@ -334,8 +359,10 @@ def evaluate_prediction(
     if category == "Córners" and selection.startswith("1T "):
         # Córners del primer tiempo: sin el dato por mitad no se puede liquidar.
         c1h = actual.get("corners_first_half")
-        if c1h is None or line is None:
+        if line is None:
             return "PENDING"
+        if c1h is None:
+            return "VOID" if actual.get("detailed") else "PENDING"
         return "WON" if (c1h > line if side == "over" else c1h < line) else "LOST"
 
     if category == "Córners":
@@ -434,7 +461,9 @@ def evaluate_prediction(
         off_h = actual.get("offsides_home")
         off_a = actual.get("offsides_away")
         if off_h is None or off_a is None:
-            return "PENDING"
+            # Sportmonks publica los fueras de juego incluso en 0: si faltan en un partido
+            # con estadísticas completas, el dato no se registró y no es liquidable.
+            return "VOID" if actual.get("detailed") else "PENDING"
         tot_off = off_h + off_a
         if home_name in selection and line is not None:
             return "WON" if (off_h > line if side == "over" else off_h < line) else "LOST"
@@ -536,9 +565,20 @@ class SettlementEngine:
         if not actual_stats:
             return {"fixture_id": fixture_id, "status": "STILL_PENDING_OR_IN_PLAY"}
 
+        predictions = self.db.get_predictions_for_fixture(fixture_id)
+        needs_1h_corners = any(
+            p["status"] == "PENDING" and str(p.get("selection") or "").startswith("1T ") and "córner" in str(p.get("selection") or "")
+            for p in predictions
+        )
+        if needs_1h_corners and hasattr(self.api, "first_half_corners"):
+            by_team = self.api.first_half_corners(fixture_id) or {}
+            home_id = int(fixture_row.get("home_team_id") or -1)
+            away_id = int(fixture_row.get("away_team_id") or -1)
+            if home_id in by_team and away_id in by_team:
+                actual_stats["corners_first_half"] = by_team[home_id] + by_team[away_id]
+
         self.db.update_fixture_result(fixture_id, actual_stats, status="FINISHED")
 
-        predictions = self.db.get_predictions_for_fixture(fixture_id)
         settled_summary = {"won": 0, "lost": 0, "void": 0, "total": len(predictions)}
 
         for pred in predictions:
