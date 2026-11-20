@@ -52,6 +52,8 @@ FLASHSCORE_LEAGUES: dict[int, tuple[str, str]] = {
     600: ("turkey/super-lig", "split"),
     779: ("usa/mls", "calendar"),
     636: ("argentina/liga-profesional", "calendar"),
+    959: ("united-arab-emirates/uae-league", "split"),
+    743: ("mexico/liga-mx", "split"),
 }
 
 # Estadísticas que se leen de la pestaña "Stats" (etiqueta en inglés -> clave).
