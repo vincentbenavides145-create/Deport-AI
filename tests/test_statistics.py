@@ -292,8 +292,8 @@ def test_altitude_veto_and_starting_xi_clause_in_formatter():
     assert "[⚠️ Sujeto a Titularidad Oficial]" in rendered
     assert "Cláusula de Titularidad:" in rendered
 
-    # 4. Remates y tiros a puerta de equipo destacados
-    assert "Remates de Equipo / Tiros a Puerta:" in rendered
+    # 4. Remates y tiros al arco de equipo destacados
+    assert "Remates de Equipo / Tiros al Arco:" in rendered
 
 
 def test_smart_player_prop_and_line_escalation_for_heavy_favorites():

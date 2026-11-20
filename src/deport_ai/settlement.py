@@ -183,6 +183,25 @@ def _int_or_none(value: Any) -> int | None:
         return None
 
 
+_OLD_SHOTS_ON_TARGET_LABELS = (
+    ("TIROS A PUERTA", "TIROS AL ARCO"),
+    ("Tiros a Puerta", "Tiros al Arco"),
+    ("Tiros a puerta", "Tiros al arco"),
+    ("tiros a puerta", "tiros al arco"),
+    ("Tiro a puerta", "Tiro al arco"),
+    ("tiro a puerta", "tiro al arco"),
+)
+
+
+def rename_shots_on_target(text: str | None) -> str:
+    """Nombre antiguo ("tiros a puerta") al actual ("tiros al arco"); mismo mercado."""
+    if not text:
+        return text or ""
+    for old, new in _OLD_SHOTS_ON_TARGET_LABELS:
+        text = text.replace(old, new)
+    return text
+
+
 def evaluate_prediction(
     prediction: dict[str, Any],
     actual: dict[str, Any],
@@ -190,8 +209,8 @@ def evaluate_prediction(
     away_name: str,
 ) -> str:
     """Evalúa una predicción contra los resultados reales. Devuelve 'WON', 'LOST' o 'VOID'."""
-    category = prediction.get("category", "")
-    selection = prediction.get("selection", "")
+    category = rename_shots_on_target(prediction.get("category", ""))
+    selection = rename_shots_on_target(prediction.get("selection", ""))
     side = prediction.get("side")
     line = prediction.get("line")
     if line is None or side not in ("over", "under"):
@@ -417,22 +436,22 @@ def evaluate_prediction(
         if line is not None:
             return "WON" if (tot_cards > line if side == "over" else tot_cards < line) else "LOST"
 
-    # 6. CATEGORÍA: REMATES Y TIROS A PUERTA
-    if category in ("Remates y Tiros a Puerta", "Remates", "Tiros a puerta"):
+    # 6. CATEGORÍA: REMATES Y TIROS AL ARCO
+    if category in ("Remates y Tiros al Arco", "Remates", "Tiros al arco"):
         sh_h = actual.get("shots_home")
         sh_a = actual.get("shots_away")
         sot_h = actual.get("shots_on_home")
         sot_a = actual.get("shots_on_away")
 
-        # Tiros a puerta
+        # Tiros al arco
         if "puerta" in selection.lower() or "arco" in selection.lower():
             if sot_h is None or sot_a is None:
                 return "PENDING"
             tot_sot = sot_h + sot_a
 
-            if "3+ tiros a puerta" in selection:
+            if "3+ tiros al arco" in selection:
                 return "WON" if sot_h >= 3 and sot_a >= 3 else "LOST"
-            if "más tiros a puerta" in selection:
+            if "más tiros al arco" in selection:
                 if home_name in selection:
                     return "WON" if sot_h > sot_a else "LOST"
                 if away_name in selection:
@@ -531,9 +550,9 @@ def evaluate_prediction(
             return "WON" if p_shots >= 3 else "LOST"
         if "2+ remates" in selection:
             return "WON" if p_shots >= 2 else "LOST"
-        if "2+ tiros a puerta" in selection:
+        if "2+ tiros al arco" in selection:
             return "WON" if p_sot >= 2 else "LOST"
-        if "1+ tiro a puerta" in selection:
+        if "1+ tiro al arco" in selection:
             return "WON" if p_sot >= 1 else "LOST"
         if "anota" in selection.lower():
             return "WON" if p_goals >= 1 else "LOST"

@@ -369,39 +369,39 @@ def build_declarative_catalog(home_name: str, away_name: str) -> list[MarketDefi
                 )
             )
 
-    # 4. Tiros a Puerta Totales (Mínima informativa: +4.5)
+    # 4. Tiros al Arco Totales (Mínima informativa: +4.5)
     for line in [4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5]:
         catalog.append(
             MarketDefinition(
                 id=f"shots_on_total_over_{int(line*10)}",
-                category="Tiros a puerta",
+                category="Tiros al arco",
                 group="shots_on_total",
-                selection_template=f"Más de {line} tiros a puerta",
-                market_template="Tiros a puerta totales",
+                selection_template=f"Más de {line} tiros al arco",
+                market_template="Tiros al arco totales",
                 line=line,
                 side="over",
                 probability_source="neg_bin_shots_on_total",
                 projection_source="total_shots_on",
-                explanation_template="Porque el modelo proyecta {projection:.1f} tiros a puerta totales.",
+                explanation_template="Porque el modelo proyecta {projection:.1f} tiros al arco totales.",
             )
         )
     for line in [7.5, 8.5, 9.5]:
         catalog.append(
             MarketDefinition(
                 id=f"shots_on_total_under_{int(line*10)}",
-                category="Tiros a puerta",
+                category="Tiros al arco",
                 group="shots_on_total",
-                selection_template=f"Menos de {line} tiros a puerta",
-                market_template="Tiros a puerta totales",
+                selection_template=f"Menos de {line} tiros al arco",
+                market_template="Tiros al arco totales",
                 line=line,
                 side="under",
                 probability_source="neg_bin_shots_on_total",
                 projection_source="total_shots_on",
-                explanation_template="Porque el modelo proyecta {projection:.1f} tiros a puerta totales.",
+                explanation_template="Porque el modelo proyecta {projection:.1f} tiros al arco totales.",
             )
         )
 
-    # Tiros a Puerta de Equipo (Mínima informativa: +2.5)
+    # Tiros al Arco de Equipo (Mínima informativa: +2.5)
     for team_prefix, team_name, prob_src, proj_src in [
         ("shots_on_home", home_name, "neg_bin_shots_on_home", "shots_on_home"),
         ("shots_on_away", away_name, "neg_bin_shots_on_away", "shots_on_away"),
@@ -410,41 +410,41 @@ def build_declarative_catalog(home_name: str, away_name: str) -> list[MarketDefi
             catalog.append(
                 MarketDefinition(
                     id=f"{team_prefix}_over_{int(line*10)}",
-                    category="Tiros a puerta",
+                    category="Tiros al arco",
                     group=team_prefix,
-                    selection_template=f"{team_name} Más de {line} tiros a puerta",
-                    market_template=f"Tiros a puerta de {team_name}",
+                    selection_template=f"{team_name} Más de {line} tiros al arco",
+                    market_template=f"Tiros al arco de {team_name}",
                     line=line,
                     side="over",
                     probability_source=prob_src,
                     projection_source=proj_src,
-                    explanation_template=f"Porque el modelo proyecta {{projection:.1f}} tiros a puerta para {team_name}.",
+                    explanation_template=f"Porque el modelo proyecta {{projection:.1f}} tiros al arco para {team_name}.",
                 )
             )
         for line in [2.5, 3.5, 4.5]:
             catalog.append(
                 MarketDefinition(
                     id=f"{team_prefix}_under_{int(line*10)}",
-                    category="Tiros a puerta",
+                    category="Tiros al arco",
                     group=team_prefix,
-                    selection_template=f"{team_name} Menos de {line} tiros a puerta",
-                    market_template=f"Tiros a puerta de {team_name}",
+                    selection_template=f"{team_name} Menos de {line} tiros al arco",
+                    market_template=f"Tiros al arco de {team_name}",
                     line=line,
                     side="under",
                     probability_source=prob_src,
                     projection_source=proj_src,
-                    explanation_template=f"Porque el modelo proyecta {{projection:.1f}} tiros a puerta para {team_name}.",
+                    explanation_template=f"Porque el modelo proyecta {{projection:.1f}} tiros al arco para {team_name}.",
                 )
             )
 
-    # Tiros a puerta: Mercados combinados y comparativos (Creativos)
+    # Tiros al arco: Mercados combinados y comparativos (Creativos)
     catalog.extend([
         MarketDefinition(
             id="both_teams_shots_on_3",
-            category="Tiros a puerta",
+            category="Tiros al arco",
             group="both_teams_shots_on",
-            selection_template="Ambos equipos tienen 3+ tiros a puerta",
-            market_template="Tiros a puerta combinados",
+            selection_template="Ambos equipos tienen 3+ tiros al arco",
+            market_template="Tiros al arco combinados",
             line=2.5,
             side="binary",
             probability_source="both_teams_shots_on_3",
@@ -453,10 +453,10 @@ def build_declarative_catalog(home_name: str, away_name: str) -> list[MarketDefi
         ),
         MarketDefinition(
             id="shots_on_1x2_home",
-            category="Tiros a puerta",
+            category="Tiros al arco",
             group="shots_on_1x2",
-            selection_template=f"{home_name} tiene más tiros a puerta",
-            market_template="Tiros a puerta 1X2",
+            selection_template=f"{home_name} tiene más tiros al arco",
+            market_template="Tiros al arco 1X2",
             line=None,
             side="1x2",
             probability_source="shots_on_1x2_home",
@@ -465,10 +465,10 @@ def build_declarative_catalog(home_name: str, away_name: str) -> list[MarketDefi
         ),
         MarketDefinition(
             id="shots_on_1x2_away",
-            category="Tiros a puerta",
+            category="Tiros al arco",
             group="shots_on_1x2",
-            selection_template=f"{away_name} tiene más tiros a puerta",
-            market_template="Tiros a puerta 1X2",
+            selection_template=f"{away_name} tiene más tiros al arco",
+            market_template="Tiros al arco 1X2",
             line=None,
             side="1x2",
             probability_source="shots_on_1x2_away",

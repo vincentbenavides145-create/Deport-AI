@@ -78,7 +78,7 @@ def test_evaluate_player_props_and_void():
 
     # Jugador activo
     assert evaluate_prediction({"category": "Jugadores", "selection": "Mohamed Salah 3+ remates"}, actual, home, away) == "WON"
-    assert evaluate_prediction({"category": "Jugadores", "selection": "Mohamed Salah 2+ tiros a puerta"}, actual, home, away) == "WON"
+    assert evaluate_prediction({"category": "Jugadores", "selection": "Mohamed Salah 2+ tiros al arco"}, actual, home, away) == "WON"
     assert evaluate_prediction({"category": "Jugadores", "selection": "Mohamed Salah Anota en cualquier momento"}, actual, home, away) == "WON"
 
     # Jugador que no jugó (minutos = 0 o ausente) -> VOID
@@ -126,7 +126,7 @@ def test_evaluate_creative_and_combo_markets():
     assert evaluate_prediction({"category": "Resultado", "selection": "Sunderland gana y Más de 1.5 goles"}, actual, home, away) == "LOST"
     assert evaluate_prediction({"category": "Goles", "selection": "Ambos marcan y Más de 2.5 goles"}, actual, home, away) == "WON"
 
-    # Tiros a puerta combinados y 1X2
-    assert evaluate_prediction({"category": "Remates y Tiros a Puerta", "selection": "Ambos equipos tienen 3+ tiros a puerta"}, actual, home, away) == "WON"
-    assert evaluate_prediction({"category": "Remates y Tiros a Puerta", "selection": "Manchester City tiene más tiros a puerta"}, actual, home, away) == "WON"
-    assert evaluate_prediction({"category": "Remates y Tiros a Puerta", "selection": "Sunderland tiene más tiros a puerta"}, actual, home, away) == "LOST"
+    # Tiros al arco combinados y 1X2
+    assert evaluate_prediction({"category": "Remates y Tiros al Arco", "selection": "Ambos equipos tienen 3+ tiros al arco"}, actual, home, away) == "WON"
+    assert evaluate_prediction({"category": "Remates y Tiros al Arco", "selection": "Manchester City tiene más tiros al arco"}, actual, home, away) == "WON"
+    assert evaluate_prediction({"category": "Remates y Tiros al Arco", "selection": "Sunderland tiene más tiros al arco"}, actual, home, away) == "LOST"

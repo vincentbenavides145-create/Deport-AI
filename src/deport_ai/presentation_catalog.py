@@ -145,8 +145,8 @@ class MarketPresentationCatalog:
         "2+ remates",
         "3+ remates",
         "4+ remates",
-        "1+ tiro a puerta",
-        "2+ tiros a puerta",
+        "1+ tiro al arco",
+        "2+ tiros al arco",
         "Anota en cualquier momento",
     }
 
@@ -202,9 +202,9 @@ class MarketPresentationCatalog:
             if group == "combo_result_goals":
                 return any(op in selection for op in (" y Más de 1.5", " y Menos de 3.5", " y Más de 2.5"))
             if group == "both_teams_shots_on":
-                return "3+ tiros a puerta" in selection
+                return "3+ tiros al arco" in selection
             if group == "shots_on_1x2":
-                return "más tiros a puerta" in selection
+                return "más tiros al arco" in selection
             if group == "multigoals":
                 return any(allowed in selection for allowed in ("1 a 3 goles", "2 a 4 goles", "2 a 5 goles"))
             if group == "combo_1x2_btts":
@@ -241,9 +241,9 @@ def get_exigence_score(candidate: dict[str, Any]) -> float:
         return 3.0
     if "2+ remates" in selection:
         return 2.0
-    if "2+ tiros a puerta" in selection:
+    if "2+ tiros al arco" in selection:
         return 2.0
-    if "1+ tiro a puerta" in selection:
+    if "1+ tiro al arco" in selection:
         return 1.0
 
     if "4+ córners" in selection:

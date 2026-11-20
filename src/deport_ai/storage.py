@@ -74,6 +74,9 @@ class DatabaseManager:
                         list(row.values()),
                     )
 
+        with self._get_connection() as conn:
+            _migrate_shots_on_target_labels(conn)
+
     def export_history(self) -> Path | None:
         """Escribe todo el seguimiento (partidos + predicciones) en el histórico de texto."""
         if self.history_path is None:
@@ -179,6 +182,7 @@ class DatabaseManager:
             pred_cols = {row[1] for row in conn.execute("PRAGMA table_info(tracked_predictions)")}
             if "highlight" not in pred_cols:
                 conn.execute("ALTER TABLE tracked_predictions ADD COLUMN highlight TEXT")
+            _migrate_shots_on_target_labels(conn)
 
     def save_fixture_and_predictions(
         self,
@@ -591,3 +595,29 @@ class DatabaseManager:
                 "overall_hit_rate": round(hit_rate, 4),
                 "by_category": by_category,
             }
+
+
+def _migrate_shots_on_target_labels(conn: sqlite3.Connection) -> None:
+    """"Tiros a puerta" pasó a llamarse "Tiros al arco": se renombran los registros guardados
+    para que el acierto por categoría y la calibración sigan sumando en un solo nombre."""
+    from .settlement import rename_shots_on_target
+
+    rows = conn.execute(
+        "SELECT id, category, market, selection, explanation FROM tracked_predictions "
+        "WHERE category LIKE '%a puerta%' OR market LIKE '%a puerta%' OR selection LIKE '%a puerta%' "
+        "OR explanation LIKE '%a puerta%'"
+    ).fetchall()
+    for row in rows:
+        conn.execute(
+            "UPDATE tracked_predictions SET category = ?, market = ?, selection = ?, explanation = ? WHERE id = ?",
+            (
+                rename_shots_on_target(row[1]),
+                rename_shots_on_target(row[2]),
+                rename_shots_on_target(row[3]),
+                rename_shots_on_target(row[4]),
+                row[0],
+            ),
+        )
+    # La calibración se recalcula con `track.py update`; las filas con el nombre viejo sobran.
+    conn.execute("DELETE FROM dynamic_calibration WHERE category LIKE '%a puerta%'")
+

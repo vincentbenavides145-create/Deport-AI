@@ -22,7 +22,7 @@ MARKETS = [
     _m("Faltas", "Más de 21.5 faltas", 0.80),
     _m("Remates", "Local Más de 10.5 remates", 0.79),
     _m("Goles", "Visitante Menos de 1.5 goles", 0.78),
-    _m("Tiros a puerta", "Más de 6.5 tiros a puerta", 0.74),  # bajo 75%: fuera
+    _m("Tiros al arco", "Más de 6.5 tiros al arco", 0.74),  # bajo 75%: fuera
 ]
 PICK = {"selection": "Más de 1.5 goles", "probability": 0.87, "category": "Goles", "explanation": "Porque sí."}
 

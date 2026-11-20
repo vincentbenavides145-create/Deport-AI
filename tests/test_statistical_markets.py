@@ -231,11 +231,11 @@ def test_metric_families_evaluate_low_medium_high_lines():
     assert "Más de 21.5 remates" in shot_lines
     assert "Más de 29.5 remates" in shot_lines
 
-    # Tiros a puerta: debe evaluar +4.5 (baja), +7.5 (media), +10.5 (alta)
-    sot_lines = {c["selection"] for c in candidates if c["category"] == "Tiros a puerta" and "totales" in c["market"]}
-    assert "Más de 4.5 tiros a puerta" in sot_lines
-    assert "Más de 7.5 tiros a puerta" in sot_lines
-    assert "Más de 10.5 tiros a puerta" in sot_lines
+    # Tiros al arco: debe evaluar +4.5 (baja), +7.5 (media), +10.5 (alta)
+    sot_lines = {c["selection"] for c in candidates if c["category"] == "Tiros al arco" and "totales" in c["market"]}
+    assert "Más de 4.5 tiros al arco" in sot_lines
+    assert "Más de 7.5 tiros al arco" in sot_lines
+    assert "Más de 10.5 tiros al arco" in sot_lines
 
     # Offsides: debe evaluar +1.5 (baja), +3.5 (media), +5.5 (alta)
     offside_lines = {c["selection"] for c in candidates if c["category"] == "Fueras de juego" and "totales" in c["market"]}

@@ -178,11 +178,11 @@ def format_report(report: AnalysisReport) -> str:
             lines.append(f"- Remates Equipo: {report.away.name} Menos de 8.5 remates ({_pct(expected.under_85_shots_away)})")
 
     if expected.over_105_shots_on is not None and expected.over_105_shots_on >= 0.60:
-        lines.append(f"- Tiros al Arco: Más de 10.5 tiros a puerta ({_pct(expected.over_105_shots_on)})")
+        lines.append(f"- Tiros al Arco: Más de 10.5 tiros al arco ({_pct(expected.over_105_shots_on)})")
     elif expected.over_85_shots_on is not None and expected.over_85_shots_on >= 0.60:
-        lines.append(f"- Tiros al Arco: Más de 8.5 tiros a puerta ({_pct(expected.over_85_shots_on)})")
+        lines.append(f"- Tiros al Arco: Más de 8.5 tiros al arco ({_pct(expected.over_85_shots_on)})")
     elif expected.over_75_shots_on is not None and expected.over_75_shots_on >= 0.60:
-        lines.append(f"- Tiros al Arco: Más de 7.5 tiros a puerta ({_pct(expected.over_75_shots_on)})")
+        lines.append(f"- Tiros al Arco: Más de 7.5 tiros al arco ({_pct(expected.over_75_shots_on)})")
 
     if expected.over_65_shots_on_home is not None and expected.over_65_shots_on_home >= 0.60:
         lines.append(f"- Tiros al Arco: {report.home.name} Más de 6.5 al arco ({_pct(expected.over_65_shots_on_home)})")
@@ -344,11 +344,11 @@ def _select_smart_player_prop(pl: dict[str, Any], team_name: str) -> dict[str, A
 
     # 1. Tiros al arco (Shots on Target - máxima liquidez y valor)
     if sot3 >= 0.60:
-        candidates.append({"desc": "3+ Tiros al Arco (a puerta)", "prob": sot3, "short": f"{name} 3+ Tiros al Arco", "priority": 1})
+        candidates.append({"desc": "3+ Tiros al Arco", "prob": sot3, "short": f"{name} 3+ Tiros al Arco", "priority": 1})
     if sot2 >= 0.60:
-        candidates.append({"desc": "2+ Tiros al Arco (a puerta)", "prob": sot2, "short": f"{name} 2+ Tiros al Arco", "priority": 2})
+        candidates.append({"desc": "2+ Tiros al Arco", "prob": sot2, "short": f"{name} 2+ Tiros al Arco", "priority": 2})
     if sot1 >= 0.60:
-        candidates.append({"desc": "1+ Tiro al Arco (a puerta)", "prob": sot1, "short": f"{name} 1+ Tiro al Arco", "priority": 3})
+        candidates.append({"desc": "1+ Tiro al Arco", "prob": sot1, "short": f"{name} 1+ Tiro al Arco", "priority": 3})
 
     # 2. Remates totales escalados (5+, 4+, 3+, 2+)
     if p5 >= 0.60:
@@ -864,7 +864,7 @@ def _build_unexploited_section(report: AnalysisReport) -> list[str]:
     else:
         lines.append("1. 👟 Remates de Jugador: Sin jugadores con volumen suficiente (≥60%).")
 
-    # Sub-bullet de Remates y Tiros a Puerta por Equipo (Baja Varianza)
+    # Sub-bullet de Remates y Tiros al Arco por Equipo (Baja Varianza)
     team_shot_highlights: list[str] = []
     shot_fav = fav_team if (is_heavy_fav and fav_team) else report.home
     if shot_fav == report.home:
@@ -901,7 +901,7 @@ def _build_unexploited_section(report: AnalysisReport) -> list[str]:
         team_shot_highlights.append(f"Tiro al Palo ({_pct(expected.over_05_woodwork)})")
 
     if team_shot_highlights:
-        lines.append(f"   • Remates de Equipo / Tiros a Puerta: {' | '.join(team_shot_highlights)}")
+        lines.append(f"   • Remates de Equipo / Tiros al Arco: {' | '.join(team_shot_highlights)}")
 
     # 2. Fueras de Juego (Offsides) - Selección Inteligente de Over / Under
     tot_offsides = _sum_optional(expected.offsides_home, expected.offsides_away)
@@ -1157,7 +1157,7 @@ def format_adaptive_report(report: AnalysisReport, full: bool = False) -> str:
         ("Córners", "#### 🚩 Córners"),
         ("Tarjetas", "#### 🟨 Tarjetas"),
         ("Faltas", "#### 🛑 Faltas y Disciplina"),
-        ("Remates y Tiros a Puerta", "#### 🎯 Remates y Tiros a Puerta"),
+        ("Remates y Tiros al Arco", "#### 🎯 Remates y Tiros al Arco"),
         ("Fueras de juego", "#### 🚩 Fueras de Juego (Offsides)"),
         ("Especiales", "#### 💥 Especiales del Partido"),
         ("Jugadores", "#### 👟 Jugadores"),
@@ -1167,8 +1167,8 @@ def format_adaptive_report(report: AnalysisReport, full: bool = False) -> str:
     markets_by_cat: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for m in report.statistical_markets:
         cat = m.get("category", "")
-        if cat in ("Remates", "Tiros a puerta"):
-            markets_by_cat["Remates y Tiros a Puerta"].append(m)
+        if cat in ("Remates", "Tiros al arco"):
+            markets_by_cat["Remates y Tiros al Arco"].append(m)
         else:
             markets_by_cat[cat].append(m)
 

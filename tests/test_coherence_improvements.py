@@ -189,7 +189,7 @@ def test_result_wording_has_no_venue_claims_and_dnb_ignores_draws():
 
 def test_no_club_wording_and_shots_on_target_uses_real_key():
     rec = [_match(i, 1, 1, stats_for={"shots_on_goal": 5, "total_shots": 12}, stats_against={"shots_on_goal": 2, "total_shots": 8}) for i in range(8)]
-    text, ev = _explain_market(_defn("shots_on_1x2", "Local tiene más tiros a puerta"), HOME, AWAY, None, 0.7, rec, rec)
+    text, ev = _explain_market(_defn("shots_on_1x2", "Local tiene más tiros al arco"), HOME, AWAY, None, 0.7, rec, rec)
     assert ev["hits"] == 8
     text, _ = _explain_market(_defn("shots_total", "Menos de 26.5 remates", 26.5, "under"), HOME, AWAY, 20.0, 0.7, rec, rec)
     assert "clubes" not in text

@@ -80,7 +80,7 @@ Si un equipo está jugando un partido en directo en este momento, el motor calcu
 • **<Selección con prob ≥ 60.0%> — XX.X%**  
   *Porque <justificación en 1 sola línea>.*
 
-#### 🎯 Remates y Tiros a Puerta *(si hay Remates Totales, al Arco o de Equipo ≥ 60%)*
+#### 🎯 Remates y Tiros al Arco *(si hay Remates Totales, al Arco o de Equipo ≥ 60%)*
 • **<Selección con prob ≥ 60.0%> — XX.X%**  
   *Porque <justificación en 1 sola línea>.*
 
@@ -92,7 +92,7 @@ Si un equipo está jugando un partido en directo en este momento, el motor calcu
 • **<Selección con prob ≥ 60.0%> — XX.X%**  
   *Porque <justificación en 1 sola línea>.*
 
-#### 👟 Jugadores *(si hay Remates, Tiros a Puerta o Goleadores de jugadores ≥ 60%)*
+#### 👟 Jugadores *(si hay Remates, Tiros al Arco o Goleadores de jugadores ≥ 60%)*
 • **<Nombre Jugador> <Línea de remates/tiros al arco con prob ≥ 60.0%> — XX.X%**  
   *Porque <justificación en 1 sola línea>.*  
   *(Requiere confirmar titularidad oficial)*.

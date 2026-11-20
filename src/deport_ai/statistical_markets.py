@@ -76,7 +76,7 @@ _STAT_LABELS: dict[str, str] = {
     "cards": "tarjetas",
     "fouls": "faltas",
     "total_shots": "remates",
-    "shots_on_goal": "tiros a puerta",
+    "shots_on_goal": "tiros al arco",
     "offsides": "fueras de juego",
 }
 # group -> (lado del equipo, clave de estadística)
@@ -105,7 +105,7 @@ _TOTAL_STAT_GROUPS: dict[str, str] = {
 _STAT_1X2_GROUPS: dict[str, tuple[str, str]] = {
     "corners_1x2": ("corner_kicks", "sacó más córners"),
     "cards_1x2": (CARDS_KEY, "recibió más tarjetas"),
-    "shots_on_1x2": ("shots_on_goal", "tuvo más tiros a puerta"),
+    "shots_on_1x2": ("shots_on_goal", "tuvo más tiros al arco"),
     "fouls_1x2": ("fouls", "cometió más faltas"),
 }
 # Mercados que dependen de estadísticas de partido (no de goles): exigen muestra mínima.
@@ -324,7 +324,7 @@ def _explain_market(
             return f"Porque el modelo proyecta {proj_val:.2f} goles en el partido, con margen para marcar en ambos tiempos.", None
         return fallback()
 
-    # 6. Estadísticas por equipo (córners, tarjetas, faltas, remates, tiros a puerta, offsides)
+    # 6. Estadísticas por equipo (córners, tarjetas, faltas, remates, tiros al arco, offsides)
     if grp in _TEAM_STAT_GROUPS and line is not None:
         team_side, key = _TEAM_STAT_GROUPS[grp]
         team, rec = (home, recent_home) if team_side == "home" else (away, recent_away)
@@ -378,7 +378,7 @@ def _explain_market(
             key, thresh = "corner_kicks", (4 if "4+" in sel else 3)
             label = f"{thresh}+ córners"
         else:
-            key, thresh, label = "shots_on_goal", 3, "3+ tiros a puerta"
+            key, thresh, label = "shots_on_goal", 3, "3+ tiros al arco"
         pairs = [
             (own, opp)
             for own, opp in ((stat_value(m.stats_for, key), stat_value(m.stats_against, key)) for m in combined)
@@ -606,7 +606,7 @@ def calculate_candidate_markets(
                 attr_name = f"{'over' if defn.side == 'over' else 'under'}_{int(defn.line * 10)}_shots_away"
                 prob = getattr(expected, attr_name, None)
 
-        # 4. Tiros a puerta
+        # 4. Tiros al arco
         elif defn.probability_source == "neg_bin_shots_on_total":
             if total_shots_on is not None and total_shots_on > 0:
                 prob = _calc_count_over(total_shots_on, disp_shots, defn.line) if defn.side == "over" else _calc_count_under(total_shots_on, disp_shots, defn.line)
@@ -734,7 +734,7 @@ def calculate_candidate_markets(
             if matrix:
                 prob = round(sum(matrix[0][a] for a in range(1, len(matrix[0]))), 4)
 
-        # 9. Mercados Creativos (Tarjetas mutuas, Córners mutuos, Tiros a puerta mutuos, Combos)
+        # 9. Mercados Creativos (Tarjetas mutuas, Córners mutuos, Tiros al arco mutuos, Combos)
         elif defn.probability_source == "both_teams_card":
             if expected.cards_home is not None and expected.cards_away is not None:
                 p_h_0 = negative_binomial_pmf(0, expected.cards_home, disp_cards)
@@ -913,7 +913,7 @@ def _get_subfamily_key(candidate: dict[str, Any]) -> str:
     selection = str(candidate.get("selection", ""))
 
     if group.startswith("player_shots"):
-        if "tiro a puerta" in selection:
+        if "tiro al arco" in selection:
             return f"{group}:sot"
         return f"{group}:shots"
     if group.startswith("player_goal"):
@@ -1167,8 +1167,8 @@ def _add_player_candidates(
             ("2+ remates", _number(player.get("probability_two_plus")), "history_shots", 2, "remates"),
             ("3+ remates", _number(player.get("probability_three_plus")), "history_shots", 3, "remates"),
             ("4+ remates", _number(player.get("probability_four_plus")), "history_shots", 4, "remates"),
-            ("1+ tiro a puerta", _number(player.get("probability_sot_one_plus")), "history_sot", 1, "tiros a puerta"),
-            ("2+ tiros a puerta", _number(player.get("probability_sot_two_plus")), "history_sot", 2, "tiros a puerta"),
+            ("1+ tiro al arco", _number(player.get("probability_sot_one_plus")), "history_sot", 1, "tiros al arco"),
+            ("2+ tiros al arco", _number(player.get("probability_sot_two_plus")), "history_sot", 2, "tiros al arco"),
         ):
             if prob is None:
                 continue
@@ -1283,7 +1283,7 @@ def select_top_recommended_pick(
 # resultados reales, sin mercados por mitad. En 20 partidos reales, las 5 más probables de
 # estas categorías acertaron 91% frente a 78% del reporte completo.
 FEATURED_CATEGORIES: frozenset[str] = frozenset(
-    {"Goles", "Faltas", "Remates", "Tiros a puerta", "Córners", "Resultado"}
+    {"Goles", "Faltas", "Remates", "Tiros al arco", "Córners", "Resultado"}
 )
 FEATURED_LIMIT = 5
 FEATURED_MIN_PROBABILITY = 0.75
