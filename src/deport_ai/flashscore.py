@@ -64,7 +64,9 @@ STAT_LABELS: dict[str, str] = {
 }
 
 SHOW_MORE_SELECTOR = "div[data-testid='wcl-section-footer'] button"
-SHOW_MORE_CLICKS = 6
+SHOW_MORE_MARKER = 'data-testid="wcl-section-footer"'
+# Clics acumulados que se prueban (cada intento es 1 crédito de Firecrawl).
+SHOW_MORE_STEPS = (0, 3, 6, 10)
 NAME_STOPWORDS = {
     "fc", "sc", "cf", "club", "ac", "afc", "sv", "bv", "de", "the", "cd", "ec", "se",
     "fk", "sk", "cr", "ca", "esporte", "clube", "futebol", "saudi", "kv", "vv",
@@ -365,24 +367,38 @@ class FlashscoreXG:
         if key in self._listings:
             return self._listings[key]
         rows: list[FlashscoreRow] = []
-        actions = [{"type": "wait", "milliseconds": 3000}]
-        for _ in range(SHOW_MORE_CLICKS):
-            actions += [{"type": "click", "selector": SHOW_MORE_SELECTOR}, {"type": "wait", "milliseconds": 2000}]
         for url in self._listing_urls(league_id, season):
-            for acts in (actions, None):
-                try:
-                    data = self.fetcher.scrape(url, ["rawHtml"], actions=acts)
-                except FirecrawlError as exc:
-                    self.log(f"  Flashscore: {url} ({'con' if acts else 'sin'} 'mostrar más') -> {exc}")
-                    continue
-                rows = parse_results_html(data.get("rawHtml") or "")
-                if rows:
-                    break
+            rows = self._read_listing(url)
             if rows:
                 self.log(f"  Flashscore {league_id} {season}: {len(rows)} partidos en la lista")
                 break
         self._listings[key] = rows
         return rows
+
+    def _read_listing(self, url: str) -> list[FlashscoreRow]:
+        """Lista completa: pulsa "mostrar más" mientras exista el botón.
+
+        Firecrawl aborta toda la lectura si un clic no encuentra el botón, así que se
+        prueba sin clics y, mientras la página siga mostrando el botón, con más clics.
+        """
+        best: list[FlashscoreRow] = []
+        for clicks in SHOW_MORE_STEPS:
+            actions = [{"type": "wait", "milliseconds": 3000}]
+            for _ in range(clicks):
+                actions += [{"type": "click", "selector": SHOW_MORE_SELECTOR},
+                            {"type": "wait", "milliseconds": 2000}]
+            try:
+                data = self.fetcher.scrape(url, ["rawHtml"], actions=actions)
+            except FirecrawlError as exc:
+                self.log(f"  Flashscore: {url} ({clicks} clics en 'mostrar más') -> {exc}")
+                break  # con este número de clics el botón ya no existe: vale lo leído antes
+            raw = data.get("rawHtml") or ""
+            rows = parse_results_html(raw)
+            if len(rows) > len(best):
+                best = rows
+            if not rows or SHOW_MORE_MARKER not in raw:
+                break
+        return best
 
     # -- proceso principal ---------------------------------------------------
     def fetch(self, fixtures: Iterable[SportmonksFixture], max_new: int | None = None) -> dict[str, int]:

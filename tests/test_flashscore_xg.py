@@ -217,3 +217,30 @@ def test_xg_coverage_counts_fixtures_with_enough_xg():
     assert xg_coverage(fixtures, by_team) == (1, 0)
     by_team[2] = _history(2, xg_for=1.0, xg_against=1.0) + [target_away]
     assert xg_coverage(fixtures, by_team) == (1, 1)
+
+
+class PagedFetcher:
+    """Simula una lista con botón "mostrar más" que desaparece tras 3 clics."""
+
+    def __init__(self):
+        self.clicks_seen: list[int] = []
+
+    def scrape(self, url, formats, actions=None, wait_for=3000):
+        from deport_ai.flashscore import FirecrawlError
+
+        clicks = sum(1 for a in actions or [] if a["type"] == "click")
+        self.clicks_seen.append(clicks)
+        if clicks > 3:
+            raise FirecrawlError("HTTP 500: Element not found")
+        row = (DATA / "flashscore_results_row.html").read_text(encoding="utf-8")
+        rows = "".join(row.replace("8UYgdAyq", f"{i:08d}") for i in range(clicks + 1))
+        footer = '<div data-testid="wcl-section-footer"><button>Show more</button></div>' if clicks < 3 else ""
+        return {"rawHtml": rows + footer}
+
+
+def test_listing_keeps_clicking_while_show_more_exists(tmp_path):
+    fetcher = PagedFetcher()
+    provider = FlashscoreXG(fetcher=fetcher, cache_path=tmp_path / "xg.json", today=date(2026, 11, 20))
+    rows = provider.listing(944, "2025-2026")
+    assert len(rows) == 4  # la lectura con 3 clics, la más completa
+    assert fetcher.clicks_seen == [0, 3]  # sin botón tras 3 clics: no se gastan más créditos
