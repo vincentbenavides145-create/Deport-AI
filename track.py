@@ -141,6 +141,9 @@ def cmd_sync(args: argparse.Namespace) -> None:
     path = db.export_history()
     rel = path.relative_to(repo)
     subprocess.run(["git", "add", str(rel)], cwd=repo, check=True)
+    xg_cache = repo / "history" / "flashscore_xg.json"
+    if xg_cache.exists():  # xG de Flashscore ya leído: se conserva para no gastar créditos otra vez
+        subprocess.run(["git", "add", str(xg_cache.relative_to(repo))], cwd=repo, check=True)
     if subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=repo).returncode == 0:
         print("El histórico ya está al día en git.")
         return

@@ -1,0 +1,19 @@
+# Eredivisie (72) — temporada 2026/2027. Un id de Sportmonks por línea (evita homónimos).
+1128 # ADO Den Haag
+61 # AZ Alkmaar
+629 # Ajax
+1652 # Excelsior
+2345 # FC Groningen
+593 # FC Twente
+750 # FC Utrecht
+73 # Feyenoord
+1459 # Fortuna Sittard
+664 # Go Ahead Eagles
+494 # NEC Nijmegen
+1016 # PEC Zwolle
+682 # PSV
+1435 # SC Cambuur
+1053 # SC Heerenveen
+919 # Sparta Rotterdam
+1550 # Telstar
+669 # Willem II
