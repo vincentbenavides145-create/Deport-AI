@@ -253,14 +253,14 @@ def test_player_props_follow_confirmed_starter_status():
             "history_shots": [3, 2, 2, 3, 2, 1, 4, 2],
         }]
 
-    starter = select_statistical_markets(HOME, AWAY, _probabilities(), ExpectedMetrics(player_shots={1: shots(True)}))
+    starter = select_statistical_markets(HOME, AWAY, _probabilities(), ExpectedMetrics(player_shots={1: shots(True)}), suspended_categories=frozenset())
     prop = next(m for m in starter if m["category"] == "Jugadores")
     assert "requires_starter_confirmation" not in prop
 
-    unknown = select_statistical_markets(HOME, AWAY, _probabilities(), ExpectedMetrics(player_shots={1: shots(None)}))
+    unknown = select_statistical_markets(HOME, AWAY, _probabilities(), ExpectedMetrics(player_shots={1: shots(None)}), suspended_categories=frozenset())
     assert next(m for m in unknown if m["category"] == "Jugadores")["requires_starter_confirmation"] is True
 
-    bench = select_statistical_markets(HOME, AWAY, _probabilities(), ExpectedMetrics(player_shots={1: shots(False)}))
+    bench = select_statistical_markets(HOME, AWAY, _probabilities(), ExpectedMetrics(player_shots={1: shots(False)}), suspended_categories=frozenset())
     assert not any(m["category"] == "Jugadores" for m in bench)
 
 

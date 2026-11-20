@@ -457,7 +457,7 @@ def _build_decisive_ticket(report: AnalysisReport) -> list[str]:
     p = report.probabilities
     expected = report.expected
 
-    alt_impact = detect_altitude_impact(report.home.id, report.home.name, report.away.id, report.away.name)
+    alt_impact = detect_altitude_impact(report.home.id, report.home.name, report.away.id, report.away.name, report.home.country, report.away.country)
     disallow_away_ha = bool(alt_impact and alt_impact.get("disallow_away_handicap"))
 
     is_heavy_fav = max(p.home_win, p.away_win) >= 0.70
@@ -814,7 +814,7 @@ def _build_decisive_ticket(report: AnalysisReport) -> list[str]:
 def _build_unexploited_section(report: AnalysisReport) -> list[str]:
     p = report.probabilities
     expected = report.expected
-    alt_impact = detect_altitude_impact(report.home.id, report.home.name, report.away.id, report.away.name)
+    alt_impact = detect_altitude_impact(report.home.id, report.home.name, report.away.id, report.away.name, report.home.country, report.away.country)
     disallow_away_ha = bool(alt_impact and alt_impact.get("disallow_away_handicap"))
 
     is_heavy_fav = max(p.home_win, p.away_win) >= 0.70

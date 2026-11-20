@@ -23,6 +23,10 @@ MAXIMUM_PROBABILITY = 0.88
 # entre la probabilidad del modelo y la tasa histórica que se cita como justificación.
 MIN_EVIDENCE_SAMPLE = 6
 MAX_MODEL_GAP = 0.20
+# Categorías suspendidas tras medir resultados reales (17-19/11/2026): props de jugador
+# (50% de acierto con 70% prometido) y fueras de juego (54% con 73%). Se siguen calculando
+# para el backtest, pero no se publican hasta que el modelo demuestre acierto.
+SUSPENDED_CATEGORIES: frozenset[str] = frozenset({"Jugadores", "Fueras de juego"})
 
 
 def _safe_complement(p: float | None) -> float | None:
@@ -1007,6 +1011,7 @@ def select_statistical_markets(
     odds: dict[str, float] | None = None,
     min_edge: float = MIN_EDGE,
     exclude_categories: set[str] | frozenset[str] | None = None,
+    suspended_categories: set[str] | frozenset[str] = SUSPENDED_CATEGORIES,
 ) -> list[dict[str, Any]]:
     """Aplica la capa de presentación:
     1. Filtra candidatos estrictamente según MarketPresentationCatalog (excluye triviales y no catalogados).
@@ -1026,7 +1031,7 @@ def select_statistical_markets(
     )
 
     # 1. Filtro estricto por MarketPresentationCatalog y rango de probabilidad óptimo
-    excluded = set(exclude_categories or ())
+    excluded = set(exclude_categories or ()) | set(suspended_categories)
     eligible: list[dict[str, Any]] = []
     cat_factors = getattr(calibration, "category_factors", {}) if calibration else {}
 

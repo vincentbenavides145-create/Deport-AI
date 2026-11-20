@@ -174,7 +174,8 @@ class AnalysisService:
             away_name=away.name,
             club_tier_scale=model_params.club_tier_scale,
         )
-        altitude_impact = detect_altitude_impact(home.id, home.name, away.id, away.name)
+        referee_cards = self._referee_cards(fixture_id) if REFEREE_FACTOR_ENABLED else None
+        altitude_impact = detect_altitude_impact(home.id, home.name, away.id, away.name, home.country, away.country)
         probabilities = goal_probabilities(
             home_matches,
             away_matches,
@@ -203,6 +204,7 @@ class AnalysisService:
             league_name=target_league_name,
             starter_info=starter_info if starter_info else None,
             params=model_params,
+            referee_cards=referee_cards,
         )
 
         if lineups:
@@ -338,6 +340,16 @@ class AnalysisService:
                 pass
 
         return report
+
+    def _referee_cards(self, fixture_id: int | None) -> tuple[float, int] | None:
+        """Promedio de tarjetas del árbitro asignado, si el proveedor lo publica."""
+        if not fixture_id or not hasattr(self.api, "fixture_referee"):
+            return None
+        try:
+            referee = self.api.fixture_referee(fixture_id)
+            return self.api.referee_card_rate(referee["referee_id"]) if referee else None
+        except Exception:
+            return None
 
     @staticmethod
     def _orientation(first: Team, second: Team, fixture: MatchRef | None) -> tuple[Team, Team]:
@@ -488,6 +500,10 @@ def _sources(
         if odds_supported:
             sources.append(f"{provider} odds")
     return sources
+
+
+# Factor árbitro en tarjetas (validado con backtest walk-forward antes de activarlo).
+REFEREE_FACTOR_ENABLED = True
 
 
 def lineups_are_confirmed(lineups: list[dict[str, Any]] | None) -> bool:

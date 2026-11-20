@@ -107,7 +107,7 @@ def classify_competition(
         "trofeo joan gamper", "trofeo santiago bernabeu", "international champions cup",
         "torneo de verano", "copa de verano", "challenge cup", "exhibition"
     )
-    friendly_ids = {1101, 1102, 1103, 1104, 1105, 2451, 2452, 2453, 2454, 2455, 2456}
+    friendly_ids = {1082, 1101, 1102, 1103, 1104, 1105, 2451, 2452, 2453, 2454, 2455, 2456}
 
     # 1. Detección de Amistosos / Pretemporada / Exhibición
     if (league_id and int(league_id) in friendly_ids) or any(term in low for term in friendly_terms) or league_sub_type in ("friendly", "friendly_club"):
@@ -306,33 +306,32 @@ def extract_player_shots(details: Iterable[dict[str, Any]]) -> list[PlayerShot]:
     return shots
 
 
+# Ids de país de Sportmonks (verificados con /core/countries). Los anteriores eran de otro
+# proveedor y apuntaban a países equivocados (p. ej. "2" es Polonia, "5" es Brasil).
 COUNTRY_TIER_ELO: dict[str, float] = {
     # UEFA Top 5
-    "11": 1820.0,  # Inglaterra (Premier League)
-    "32": 1800.0,  # España (La Liga)
-    "2": 1780.0,   # Italia (Serie A)
-    "6": 1780.0,   # Alemania (Bundesliga)
-    "1": 1730.0,   # Francia (Ligue 1)
+    "462": 1820.0,  # Inglaterra (Premier League)
+    "32": 1800.0,   # España (La Liga)
+    "251": 1780.0,  # Italia (Serie A)
+    "11": 1780.0,   # Alemania (Bundesliga)
+    "17": 1730.0,   # Francia (Ligue 1)
     # Tier 2 Europa & Top América
-    "251": 1720.0, # Brasil (Brasileirão)
-    "44": 1700.0,  # Argentina (Liga Profesional)
-    "5": 1640.0,   # Portugal (Primeira Liga)
-    "4": 1620.0,   # Países Bajos (Eredivisie)
-    "34": 1580.0,  # México (Liga MX)
-    "458": 1580.0, # México (Liga MX - Sportmonks ID)
-    "38": 1550.0,  # EE. UU. (MLS)
-    "3483": 1550.0,# EE. UU. (MLS - Sportmonks ID)
-    "35": 1540.0,  # Bélgica
-    "28": 1530.0,  # Turquía
-    # Sudamérica / Resto
-    "353": 1480.0, # Colombia (Liga BetPlay)
-    "158": 1470.0, # Uruguay (Primera)
-    "62": 1460.0,  # Chile
-    "50": 1460.0,  # Ecuador
-    "53": 1460.0,  # Paraguay
-    "49": 1450.0,  # Perú (Liga 1)
-    "56": 1420.0,  # Bolivia
-    "57": 1420.0,  # Venezuela
+    "5": 1720.0,    # Brasil (Brasileirão)
+    "44": 1700.0,   # Argentina (Liga Profesional)
+    "20": 1640.0,   # Portugal (Primeira Liga)
+    "38": 1620.0,   # Países Bajos (Eredivisie)
+    "458": 1580.0,  # México (Liga MX)
+    "3483": 1550.0, # EE. UU. (MLS)
+    "556": 1540.0,  # Bélgica
+    "404": 1530.0,  # Turquía
+    "353": 1480.0,  # Colombia (Liga BetPlay)
+    "158": 1470.0,  # Uruguay (Primera)
+    "80": 1460.0,   # Chile
+    "459": 1460.0,  # Ecuador
+    "1190": 1460.0, # Paraguay
+    "338": 1450.0,  # Perú (Liga 1)
+    "7598": 1420.0, # Bolivia
+    "275": 1420.0,  # Venezuela
 }
 
 LEAGUE_BASE_ELO: dict[int, float] = {
@@ -344,12 +343,10 @@ LEAGUE_BASE_ELO: dict[int, float] = {
     # España
     564: 1820.0, # La Liga
     567: 1540.0, # La Liga 2 (Segunda División / Hypermotion)
-    570: 1380.0, # Primera RFEF
     # Italia
     384: 1790.0, # Serie A
     387: 1520.0, # Serie B
     390: 1600.0, # Coppa Italia
-    396: 1380.0, # Serie C
     # Alemania
     82: 1780.0,  # Bundesliga
     85: 1530.0,  # 2. Bundesliga
@@ -362,14 +359,11 @@ LEAGUE_BASE_ELO: dict[int, float] = {
     462: 1640.0, # Liga Portugal
     72: 1620.0,  # Eredivisie
     # Sudamérica
-    134: 1730.0, # Brasileirão Serie A
-    137: 1480.0, # Brasileirão Serie B
+    648: 1730.0, # Brasileirão Serie A (id Sportmonks)
+    651: 1480.0, # Brasileirão Serie B
     636: 1700.0, # Liga Profesional Argentina
-    648: 1440.0, # Primera Nacional Argentina
-    1116: 1480.0,# Liga BetPlay Colombia
-    1122: 1340.0,# Torneo BetPlay (B) Colombia
-    968: 1450.0, # Liga 1 Perú
-    970: 1320.0, # Liga 2 Perú
+    672: 1480.0, # Liga BetPlay Colombia
+    764: 1450.0, # Liga 1 Perú (Primera División)
     # Concacaf
     743: 1580.0, # Liga MX
     779: 1550.0, # MLS
@@ -531,9 +525,10 @@ def get_club_tier_offset(name: str | None, league_id: int | None = None) -> floa
         if re.search(pattern, low):
             return CLUB_TIER_OFFSETS[k]
 
-    if league_id in (5, 2451):  # Champions League
+    # Ids de Sportmonks: 2 Champions League, 5 Europa League (2451/2452 son amistosos).
+    if league_id == 2:  # Champions League
         return 120.0
-    if league_id in (2, 2452):  # Europa League
+    if league_id == 5:  # Europa League
         return 60.0
     return 0.0
 
@@ -597,14 +592,14 @@ COMPETITION_PROFILES: dict[int, CompetitionProfile] = {
     72: CompetitionProfile(72, "Eredivisie", 1.10, 0.90, 3.05, 310.0, 0.87, 0.14, 0.21),
     # Liga Portugal (462)
     462: CompetitionProfile(462, "Liga Portugal", 1.12, 0.88, 2.65, 310.0, 0.86, 0.14, 0.26),
-    # Brasileirão Serie A (134): Marcada ventaja local por logística y clima
-    134: CompetitionProfile(134, "Brasileirão", 1.16, 0.84, 2.45, 290.0, 0.85, 0.15, 0.26),
+    # Brasileirão Serie A (648): Marcada ventaja local por logística y clima
+    648: CompetitionProfile(648, "Brasileirão", 1.16, 0.84, 2.45, 290.0, 0.85, 0.15, 0.26),
     # Liga Profesional Argentina (636): Partidos muy cerrados, alta fricción
     636: CompetitionProfile(636, "Liga Argentina", 1.16, 0.84, 2.30, 290.0, 0.85, 0.15, 0.27),
-    # Liga BetPlay Colombia (1116)
-    1116: CompetitionProfile(1116, "Liga BetPlay", 1.18, 0.82, 2.25, 280.0, 0.85, 0.15, 0.27),
-    # Liga 1 Perú (968): Gran disparidad costa vs altura
-    968: CompetitionProfile(968, "Liga 1 Perú", 1.20, 0.80, 2.48, 280.0, 0.85, 0.16, 0.27),
+    # Liga BetPlay Colombia (672)
+    672: CompetitionProfile(672, "Liga BetPlay", 1.18, 0.82, 2.25, 280.0, 0.85, 0.15, 0.27),
+    # Liga 1 Perú (764): Gran disparidad costa vs altura
+    764: CompetitionProfile(764, "Liga 1 Perú", 1.20, 0.80, 2.48, 280.0, 0.85, 0.16, 0.27),
     # MLS (779)
     779: CompetitionProfile(779, "MLS", 1.15, 0.85, 2.95, 300.0, 0.87, 0.14, 0.22),
     # Liga MX (743)
@@ -851,38 +846,50 @@ TEAM_ALTITUDES: dict[str, int] = {
     "pachuca": 2400,
 }
 
+# Ids de equipo verificados en Sportmonks (los anteriores eran de otro proveedor y
+# apuntaban a equipos equivocados: p. ej. 3496 es São Paulo, no Bolívar).
 TEAM_ALTITUDE_IDS: dict[int, int] = {
-    13264: 3400,  # Cienciano
-    12891: 3400,  # Cusco FC
-    198904: 3400, # Deportivo Garcilaso
-    12895: 2330,  # FBC Melgar
-    12893: 3250,  # Sport Huancayo
-    297753: 3050, # ADT Tarma
-    12896: 2750,  # UTC Cajamarca
-    325852: 2900, # Los Chankas
-    10769: 4150,  # Always Ready
-    3496: 3640,   # Bolívar
-    3497: 3640,   # The Strongest
-    3498: 2850,   # LDU Quito
-    3500: 2850,   # Independiente del Valle
-    3503: 2570,   # Macará
-    10197: 2640,  # Millonarios
-    10198: 2640,  # Santa Fe
-    10199: 2640,  # La Equidad
-    10194: 2520,  # Deportivo Pasto
-    10200: 2160,  # Once Caldas
-    10203: 2810,  # Boyacá Chicó
+    13264: 3400,   # Cienciano
+    10976: 3400,   # Cusco FC
+    15743: 3400,   # Deportivo Garcilaso
+    208: 2330,     # Melgar
+    12562: 3250,   # Sport Huancayo
+    239392: 3050,  # ADT
+    3992: 2750,    # UTC Cajamarca
+    6905: 2900,    # Los Chankas
+    234259: 4150,  # Always Ready
+    6308: 3640,    # Club Bolívar
+    10024: 3640,   # The Strongest
+    10779: 2850,   # LDU Quito
+    14635: 2850,   # Independiente del Valle
+    12402: 2570,   # Macará
+    7810: 2640,    # Millonarios
+    12506: 2640,   # Santa Fe
+    9952: 2640,    # Internacional de Bogotá (ex La Equidad)
+    12832: 2520,   # Deportivo Pasto
+    3547: 2160,    # Once Caldas
+    14615: 2810,   # Boyacá Chicó
 }
 
+# Países con sedes de altura (country_id de Sportmonks): la coincidencia por nombre solo
+# se aplica a equipos de estos países, para no confundir "San Jose Earthquakes" o
+# "Unión de Santa Fe" con San José (Oruro) o Santa Fe (Bogotá).
+ALTITUDE_COUNTRY_IDS = frozenset({"338", "7598", "459", "353", "458"})  # Perú, Bolivia, Ecuador, Colombia, México
 
-def get_team_altitude(team_id: int | None = None, team_name: str | None = None) -> int:
+
+def get_team_altitude(
+    team_id: int | None = None, team_name: str | None = None, country_id: str | int | None = None
+) -> int:
     """Obtiene la altitud del estadio/sede del equipo en metros sobre el nivel del mar."""
     if team_id is not None and int(team_id) in TEAM_ALTITUDE_IDS:
         return TEAM_ALTITUDE_IDS[int(team_id)]
+    if country_id not in (None, "") and str(country_id) not in ALTITUDE_COUNTRY_IDS:
+        return 0
     if team_name:
         clean = team_name.lower().strip()
         for pattern, alt in TEAM_ALTITUDES.items():
-            if pattern in clean:
+            # Solo palabras completas: "utc" no debe coincidir dentro de otra palabra.
+            if re.search(r"(?<!\w)" + re.escape(pattern) + r"(?!\w)", clean):
                 return alt
     return 0
 
@@ -892,14 +899,16 @@ def detect_altitude_impact(
     home_name: str | None = None,
     away_id: int | None = None,
     away_name: str | None = None,
+    home_country: str | int | None = None,
+    away_country: str | int | None = None,
 ) -> dict[str, Any] | None:
     """
     Evalúa el desbalance fisiológico y balístico por altitud extrema.
     Se activa cuando el equipo local juega a >= 2,200 m.s.n.m. y el visitante
     procede de una altitud sustancialmente menor (desnivel >= 1,200 m).
     """
-    home_alt = get_team_altitude(home_id, home_name)
-    away_alt = get_team_altitude(away_id, away_name)
+    home_alt = get_team_altitude(home_id, home_name, home_country)
+    away_alt = get_team_altitude(away_id, away_name, away_country)
     delta = home_alt - away_alt
 
     if home_alt < 2200 or delta < 1200:
@@ -1288,6 +1297,7 @@ def expected_metrics(
     league_name: str | None = None,
     starter_info: dict[int, dict[str, Any]] | None = None,
     params: ModelParameters | None = None,
+    referee_cards: tuple[float, int] | None = None,
 ) -> ExpectedMetrics:
     comp_profile = get_competition_profile(league_id, league_name)
     params = params or DEFAULT_PARAMETERS
@@ -1498,6 +1508,7 @@ def expected_metrics(
 
     cards_home = _expected_count(home_matches, away_matches, True, False, CARDS_KEY)
     cards_away = _expected_count(away_matches, home_matches, False, True, CARDS_KEY)
+    cards_home, cards_away = apply_referee_factor(cards_home, cards_away, referee_cards)
     total_cards = (cards_home + cards_away) if (cards_home is not None and cards_away is not None) else None
     over_15_cards = None
     over_25_cards = None
@@ -1868,6 +1879,34 @@ def _team_baseline_stat(matches: list[TeamMatch], key: str) -> float | None:
 
 # Minutos mínimos para contar un partido como titular en el historial del jugador.
 PLAYER_START_MINUTES = 45.0
+
+
+# Peso máximo del árbitro en la proyección de tarjetas y partidos de "prior" para encogerlo.
+REFEREE_MAX_WEIGHT = 0.5
+REFEREE_PRIOR_MATCHES = 15
+REFEREE_MIN_MATCHES = 5
+
+
+def apply_referee_factor(
+    cards_home: float | None,
+    cards_away: float | None,
+    referee_cards: tuple[float, int] | None,
+) -> tuple[float | None, float | None]:
+    """Mezcla la proyección de tarjetas de los equipos con el promedio del árbitro asignado.
+
+    Las tarjetas dependen mucho del árbitro. Su promedio (amarillas + rojas por partido)
+    pesa más cuantos más partidos dirigió, hasta REFEREE_MAX_WEIGHT; el reparto entre
+    local y visitante se mantiene.
+    """
+    if cards_home is None or cards_away is None or not referee_cards:
+        return cards_home, cards_away
+    referee_avg, matches = referee_cards
+    team_total = cards_home + cards_away
+    if matches < REFEREE_MIN_MATCHES or team_total <= 0 or referee_avg <= 0:
+        return cards_home, cards_away
+    weight = REFEREE_MAX_WEIGHT * matches / (matches + REFEREE_PRIOR_MATCHES)
+    scale = ((1.0 - weight) * team_total + weight * referee_avg) / team_total
+    return round(cards_home * scale, 2), round(cards_away * scale, 2)
 
 
 def _player_probabilities(

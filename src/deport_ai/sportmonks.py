@@ -370,6 +370,7 @@ TEAM_ID_OVERRIDES: dict[str, int] = {
 
 
 TEAM_SEARCH_PAGE_SIZE = 50
+MAIN_REFEREE_TYPE = 6  # Sportmonks: 6 árbitro principal, 7-8 asistentes, 9 cuarto árbitro
 
 
 class SportmonksClient:
@@ -635,6 +636,49 @@ class SportmonksClient:
             if fixture_id in self._fixtures:
                 result[fixture_id] = self._fixtures[fixture_id]
         return result
+
+    def fixture_referee(self, fixture_id: int | None) -> dict[str, Any] | None:
+        """Árbitro principal asignado al partido (tipo 6 de Sportmonks) y la temporada."""
+        if not fixture_id:
+            return None
+        try:
+            raw = self._get(f"fixtures/{fixture_id}", include="referees")
+        except Exception:
+            return None
+        for row in (raw or {}).get("referees") or []:
+            if int(row.get("type_id") or -1) == MAIN_REFEREE_TYPE and row.get("referee_id"):
+                return {"referee_id": int(row["referee_id"]), "season_id": (raw or {}).get("season_id")}
+        return None
+
+    def referee_card_rate(self, referee_id: int, exclude_season: int | None = None) -> tuple[float, int] | None:
+        """Tarjetas a jugadores (amarillas + rojas) por partido del árbitro y partidos dirigidos.
+
+        Suma todas sus temporadas registradas; `exclude_season` permite medir sin la
+        temporada del partido evaluado (backtest sin mirar el futuro).
+        """
+        try:
+            raw = self._get(f"referees/{referee_id}", include="statistics.details.type")
+        except Exception:
+            return None
+        cards = 0.0
+        matches = 0
+        for season in (raw or {}).get("statistics") or []:
+            if exclude_season is not None and season.get("season_id") == exclude_season:
+                continue
+            details = {
+                (item.get("type") or {}).get("developer_name"): item.get("value") or {}
+                for item in season.get("details") or []
+            }
+            played = int((details.get("MATCHES") or {}).get("count") or 0)
+            if played <= 0:
+                continue
+            for key in ("YELLOWCARDS", "REDCARDS"):
+                block = (details.get(key) or {}).get("all") or {}
+                cards += float(block.get("on_pitch", block.get("count")) or 0)
+            matches += played
+        if matches <= 0:
+            return None
+        return round(cards / matches, 3), matches
 
     def first_half_corners(self, fixture_id: int) -> dict[int, int] | None:
         """Córners del primer tiempo por equipo (id -> córners), desde las estadísticas por periodo."""

@@ -34,6 +34,8 @@ Cuando el usuario pida analizar un partido, pronósticos o predicciones de fútb
 - Las props de jugador solo se publican con al menos 6 partidos como titular y citan ese historial real ("2+ remates en X de N").
 - Un once publicado solo cuenta como confirmado si ambos equipos lo publicaron y faltan 60 minutos o menos para el inicio; antes, las props siguen requiriendo confirmar titularidad.
 - Los fueras de juego no se ofrecen si la competición los publica en menos del 80% de los partidos recientes de ambos equipos.
+- Las props de jugador y los fueras de juego están suspendidos (no se publican) desde el 20/11/2026: en resultados reales acertaron 50% y 54% con 70%+ prometido.
+- La proyección de tarjetas combina a los equipos con el promedio de tarjetas del árbitro asignado (peso hasta 50%, menor si dirigió pocos partidos).
 
 ## 📒 HISTÓRICO DE PREDICCIONES (OBLIGATORIO)
 - `analyze.py` registra automáticamente cada predicción y además la escribe en `history/predictions.jsonl`, dentro del repositorio. Es el histórico permanente: las sesiones en la nube son temporales y la base SQLite local se pierde al cerrarlas (se reconstruye sola desde ese archivo).

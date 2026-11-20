@@ -641,8 +641,10 @@ def test_club_tier_offsets_and_sos():
     assert get_club_tier_offset("Equipo Desconocido FC") == 0.0
 
     # 5. Continental competition fallback
-    assert get_club_tier_offset("Club Sin Tier", league_id=5) == 120.0  # Champions League
-    assert get_club_tier_offset("Club Sin Tier", league_id=2) == 60.0   # Europa League
+    # Ids de Sportmonks: 2 Champions League, 5 Europa League; 2451 son amistosos de clubes.
+    assert get_club_tier_offset("Club Sin Tier", league_id=2) == 120.0  # Champions League
+    assert get_club_tier_offset("Club Sin Tier", league_id=5) == 60.0   # Europa League
+    assert get_club_tier_offset("Club Sin Tier", league_id=2451) == 0.0  # Club Friendlies 3
 
     # 6. SoS multipliers
     # Against elite club (Real Madrid +200):

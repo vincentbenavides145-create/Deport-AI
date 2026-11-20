@@ -62,7 +62,8 @@ def test_extended_statistical_markets_are_model_only_and_deduplicated():
         },
     )
 
-    markets = select_statistical_markets(home, away, _probabilities(), expected)
+    # Se prueba la lógica completa, sin las categorías suspendidas por resultados reales.
+    markets = select_statistical_markets(home, away, _probabilities(), expected, suspended_categories=frozenset())
 
     assert markets
     assert any(item["category"] == "Córners" for item in markets)

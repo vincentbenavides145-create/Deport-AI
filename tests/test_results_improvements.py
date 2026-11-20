@@ -77,7 +77,8 @@ def _shots(history_shots, prob=0.75, is_starter=None):
 
 def _player_markets(history_shots, **kwargs):
     expected = ExpectedMetrics(player_shots=_shots(history_shots, **kwargs))
-    return [m for m in select_statistical_markets(HOME, AWAY, _probabilities(), expected) if m["category"] == "Jugadores"]
+    markets = select_statistical_markets(HOME, AWAY, _probabilities(), expected, suspended_categories=frozenset())
+    return [m for m in markets if m["category"] == "Jugadores"]
 
 
 def test_player_prop_cites_real_history():
@@ -137,10 +138,12 @@ def test_offsides_excluded_when_competition_rarely_publishes_them():
 def test_excluded_category_is_not_published():
     rec = [_match(i, stats_for={"offsides": 1, "total_shots": 10}, stats_against={"offsides": 1}) for i in range(8)]
     expected = ExpectedMetrics(offsides_home=1.0, offsides_away=1.0, dispersion_offsides=0.1)
-    base = select_statistical_markets(HOME, AWAY, _probabilities(), expected, recent_home=rec, recent_away=rec)
+    base = select_statistical_markets(
+        HOME, AWAY, _probabilities(), expected, recent_home=rec, recent_away=rec, suspended_categories=frozenset()
+    )
     assert any(m["category"] == "Fueras de juego" for m in base)
     filtered = select_statistical_markets(
         HOME, AWAY, _probabilities(), expected, recent_home=rec, recent_away=rec,
-        exclude_categories={"Fueras de juego"},
+        exclude_categories={"Fueras de juego"}, suspended_categories=frozenset(),
     )
     assert not any(m["category"] == "Fueras de juego" for m in filtered)
