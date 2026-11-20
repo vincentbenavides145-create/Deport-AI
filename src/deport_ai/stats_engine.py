@@ -2132,7 +2132,7 @@ def _goal_signal(
     goals_attribute: str,
     stats_attribute: str,
     use_sos: bool = False,
-    xg_weight: float = 0.35,
+    xg_weight: float = 0.65,
 ) -> float:
     """Mezcla goles observados y xG cuando hay xG para una muestra suficiente (3+ partidos).
 

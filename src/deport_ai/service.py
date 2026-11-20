@@ -534,8 +534,9 @@ def _sources(
 # Factor árbitro en tarjetas (validado con backtest walk-forward antes de activarlo).
 REFEREE_FACTOR_ENABLED = True
 
-# xG de Flashscore vía Firecrawl (validado con `backtest.py --xg` antes de activarlo).
-XG_ENABLED = False
+# xG de Flashscore vía Firecrawl. Validado con `backtest.py --xg` (walk-forward, peso 0.65):
+# Arabia Saudita, Eredivisie y Brasileirão mejoran Brier y log-loss en goles y resultado.
+XG_ENABLED = True
 # Tope de partidos nuevos que se leen por análisis (1 crédito de Firecrawl cada uno).
 XG_MAX_NEW_PER_ANALYSIS = 30
 

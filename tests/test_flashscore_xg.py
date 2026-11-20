@@ -244,3 +244,21 @@ def test_listing_keeps_clicking_while_show_more_exists(tmp_path):
     rows = provider.listing(944, "2025-2026")
     assert len(rows) == 4  # la lectura con 3 clics, la más completa
     assert fetcher.clicks_seen == [0, 1, 2, 3]  # sin botón tras 3 clics: no se gastan más créditos
+
+
+def test_old_unmatched_fixture_is_not_searched_again(tmp_path):
+    cache = tmp_path / "xg.json"
+    fetcher = FakeFetcher()
+    # El partido no está en la lista (otro marcador) y ya pasó más de una semana.
+    old = SportmonksFixture(5, date(2026, 10, 29), "Al Nassr", "Al Kholood", 0, 0, 944)
+    recent = SportmonksFixture(6, date(2026, 11, 18), "Al Nassr", "Al Kholood", 0, 0, 944)
+    provider = FlashscoreXG(fetcher=fetcher, cache_path=cache, today=date(2026, 11, 20))
+    assert provider.fetch([old, recent])["unmatched"] == 2
+    again = FlashscoreXG(fetcher=fetcher, cache_path=cache, today=date(2026, 11, 20))
+    counts = again.fetch([old, recent])
+    assert counts["cached"] == 1 and counts["unmatched"] == 1  # el reciente se reintenta
+    assert again.get(5) is None
+
+
+def test_default_xg_weight_is_validated_value():
+    assert ModelParameters().xg_weight == 0.65

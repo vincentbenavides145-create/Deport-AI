@@ -65,6 +65,8 @@ STAT_LABELS: dict[str, str] = {
     "Big chances": "big_chances",
 }
 
+# Días tras el partido en los que se deja de buscarlo si no aparece en la lista.
+UNMATCHED_GIVE_UP_DAYS = 7
 SHOW_MORE_SELECTOR = "div[data-testid='wcl-section-footer'] button"
 SHOW_MORE_MARKER = 'data-testid="wcl-section-footer"'
 # Clics acumulados que se prueban (cada intento es 1 crédito de Firecrawl).
@@ -407,6 +409,7 @@ class FlashscoreXG:
         """Completa la caché para los partidos dados. Devuelve contadores."""
         counts = {"cached": 0, "unsupported": 0, "unmatched": 0, "new": 0, "no_xg": 0}
         pending: dict[str, tuple[SportmonksFixture, FlashscoreRow]] = {}
+        gave_up = False
         for fixture in fixtures:
             entry = self.cache["matches"].get(str(fixture.fixture_id))
             if entry is not None:
@@ -419,8 +422,17 @@ class FlashscoreXG:
             row = match_fixture(fixture, self.listing(fixture.league_id, season), season)
             if row is None:
                 counts["unmatched"] += 1
+                if (self.today - fixture.date).days > UNMATCHED_GIVE_UP_DAYS:
+                    # La lista ya es definitiva: no se vuelve a buscar (ahorra créditos).
+                    self.cache["matches"][str(fixture.fixture_id)] = {
+                        "mid": None, "date": fixture.date.isoformat(), "home": fixture.home,
+                        "away": fixture.away, "xg_home": None, "xg_away": None, "unmatched": True,
+                    }
+                    gave_up = True
                 continue
             pending[stats_url(row.url)] = (fixture, row)
+        if gave_up and not pending:
+            self.save()
         urls = list(pending)
         if max_new is not None:
             urls = urls[:max_new]
