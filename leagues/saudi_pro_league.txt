@@ -1,0 +1,19 @@
+# Saudi Pro League (944) — temporada 2026/2027. Un id de Sportmonks por línea (evita homónimos).
+5618 # Abha
+9908 # Al Ahli
+17733 # Al Diraiyah FC
+10010 # Al Ettifaq
+6883 # Al Faisaly
+5891 # Al Fateh
+17694 # Al Hazm
+7011 # Al Hilal
+476 # Al Ittihad
+12216 # Al Khaleej
+232744 # Al Kholood
+2506 # Al Nassr
+17705 # Al Riyadh
+16184 # Al Shabab
+2392 # Al Taawoun
+17724 # Al-Fayha
+13092 # Al-Qadsiah
+17730 # NEOM SC

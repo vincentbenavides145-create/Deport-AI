@@ -1050,6 +1050,7 @@ def goal_probabilities(
         params = DEFAULT_PARAMETERS if rho == -0.08 else ModelParameters(rho=rho)
     rho = params.rho
     use_sos = params.use_sos
+    xg_w = params.xg_weight
     if len(home_matches) < 3 or len(away_matches) < 3:
         raise InsufficientDataError(
             "Se necesitan al menos 3 partidos terminados de cada equipo para calcular goles."
@@ -1057,16 +1058,16 @@ def goal_probabilities(
 
     comp_profile = get_competition_profile(league_id, league_name)
 
-    home_venue_for = _goal_signal(home_matches, True, "goals_for", "stats_for", use_sos)
-    home_venue_against = _goal_signal(home_matches, True, "goals_against", "stats_against", use_sos)
-    away_venue_for = _goal_signal(away_matches, False, "goals_for", "stats_for", use_sos)
-    away_venue_against = _goal_signal(away_matches, False, "goals_against", "stats_against", use_sos)
+    home_venue_for = _goal_signal(home_matches, True, "goals_for", "stats_for", use_sos, xg_w)
+    home_venue_against = _goal_signal(home_matches, True, "goals_against", "stats_against", use_sos, xg_w)
+    away_venue_for = _goal_signal(away_matches, False, "goals_for", "stats_for", use_sos, xg_w)
+    away_venue_against = _goal_signal(away_matches, False, "goals_against", "stats_against", use_sos, xg_w)
 
     # Señales globales para contracción Bayesiana (Bayesian Shrinkage)
-    home_all_for = _goal_signal(home_matches, None, "goals_for", "stats_for", use_sos)
-    home_all_against = _goal_signal(home_matches, None, "goals_against", "stats_against", use_sos)
-    away_all_for = _goal_signal(away_matches, None, "goals_for", "stats_for", use_sos)
-    away_all_against = _goal_signal(away_matches, None, "goals_against", "stats_against", use_sos)
+    home_all_for = _goal_signal(home_matches, None, "goals_for", "stats_for", use_sos, xg_w)
+    home_all_against = _goal_signal(home_matches, None, "goals_against", "stats_against", use_sos, xg_w)
+    away_all_for = _goal_signal(away_matches, None, "goals_for", "stats_for", use_sos, xg_w)
+    away_all_against = _goal_signal(away_matches, None, "goals_against", "stats_against", use_sos, xg_w)
 
     season_home_for = _season_goal_average(home_season_stats, "for", "home")
     season_home_against = _season_goal_average(home_season_stats, "against", "home")
@@ -2131,11 +2132,34 @@ def _goal_signal(
     goals_attribute: str,
     stats_attribute: str,
     use_sos: bool = False,
+    xg_weight: float = 0.65,
 ) -> float:
-    """Mezcla goles observados y xG si Sportmonks los entrega para una muestra suficiente."""
+    """Mezcla goles observados y xG cuando hay xG para una muestra suficiente (3+ partidos).
+
+    El xG llega de Flashscore (``deport_ai.flashscore``); el plan de Sportmonks no lo trae.
+    ``xg_weight`` = 0 reproduce el modelo solo con goles.
+    """
     goals = _venue_or_all(matches, home, goals_attribute, use_sos)
-    xg = _venue_stat_or_none(matches, home, stats_attribute, "expected_goals") if home is not None else None
-    return goals if xg is None else goals * 0.65 + xg * 0.35
+    if xg_weight <= 0:
+        return goals
+    if home is not None:
+        xg = _venue_stat_or_none(matches, home, stats_attribute, "expected_goals")
+    else:
+        xg = _stat_or_none(matches, stats_attribute, "expected_goals")
+    return goals if xg is None else goals * (1.0 - xg_weight) + xg * xg_weight
+
+
+def _stat_or_none(matches: list[TeamMatch], attribute: str, key: str) -> float | None:
+    """Media ponderada por recencia de una estadística en todos los partidos que la tienen."""
+    pool = [match for match in matches if key in getattr(match, attribute)]
+    if len(pool) < 3:
+        return None
+    values = [getattr(match, attribute)[key] for match in pool]
+    weights = [(0.86**i) * match.competition_weight for i, match in enumerate(pool)]
+    total_w = sum(weights)
+    if total_w > 0:
+        return sum(v * w for v, w in zip(values, weights)) / total_w
+    return _weighted_mean(values)
 
 
 def _venue_stat_or_none(

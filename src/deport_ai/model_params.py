@@ -33,6 +33,10 @@ class ModelParameters:
     club_tier_scale: float = 1.0
     # Ajuste por nivel del rival en los goles. Desactivado: el Elo ya lo recoge.
     use_sos: bool = False
+    # Peso del xG (Flashscore) frente a los goles reales al estimar ataque y defensa.
+    # Solo actúa en partidos que tienen xG; 0 = modelo solo con goles. 0.65 fue el mejor
+    # (o casi) en el backtest walk-forward de Arabia Saudita, Eredivisie y Brasileirão.
+    xg_weight: float = 0.65
     # Proporción de goles esperada en el primer tiempo.
     first_half_share: float = 0.45
     # Dispersión binomial negativa estimada desde datos (None = perfil de liga).

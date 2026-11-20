@@ -174,6 +174,45 @@ def save_calibration_from_backtest(result: BacktestResult) -> int:
     return saved
 
 
+def run_xg_comparison(args: argparse.Namespace, matches_by_team, team_names) -> None:
+    """Backtest de los mismos partidos con peso de xG 0 (modelo actual) y con xG de Flashscore."""
+    from deport_ai.backtesting import format_xg_comparison, goal_market_summary, xg_coverage
+    from deport_ai.flashscore import FlashscoreXG, attach_xg, fixtures_from_matches
+
+    provider = FlashscoreXG(log=print)
+    all_matches = [m for ms in matches_by_team.values() for m in ms]
+    sm_fixtures = fixtures_from_matches(all_matches, team_names)
+    print(f"Buscando xG en Flashscore para {len(sm_fixtures)} partidos (se guardan en {provider.cache_path})...")
+    counts = provider.fetch(sm_fixtures, max_new=args.xg_max_new)
+    print("Flashscore:", ", ".join(f"{k}={v}" for k, v in counts.items()))
+    with_xg = {team_id: attach_xg(ms, provider) for team_id, ms in matches_by_team.items()}
+
+    fixtures = build_fixtures(with_xg, team_names)
+    leagues = [f.league_id for f in fixtures if f.league_id is not None]
+    league_id = args.league_id if args.league_id is not None else (max(set(leagues), key=leagues.count) if leagues else None)
+    params = load_parameters(league_id)
+    coverage = xg_coverage(fixtures, with_xg, args.min_history, args.window)
+    weights = [float(w) for w in args.xg_weights.split(",") if w.strip()]
+    summaries = {}
+    for weight in [0.0] + weights:
+        label = "Base: sin xG (modelo actual)" if weight == 0 else f"Con xG, peso {weight:.2f}"
+        print(f"Backtest — {label}...")
+        result = run_walk_forward(
+            fixtures, with_xg, params=replace(params, xg_weight=weight),
+            min_history=args.min_history, window=args.window,
+        )
+        summaries[label] = goal_market_summary(result)
+    report = format_xg_comparison(summaries, coverage, f"Backtest xG (Flashscore) — liga {league_id}")
+    print("\n" + report + "\n")
+    if args.output:
+        Path(args.output).write_text(report, encoding="utf-8")
+        print(f"Informe guardado en {args.output}")
+    if args.json:
+        Path(args.json).write_text(json.dumps({"coverage": coverage, "runs": summaries}, ensure_ascii=False, indent=2),
+                                   encoding="utf-8")
+        print(f"Resumen JSON guardado en {args.json}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Backtest walk-forward y ajuste de parámetros de DEPORT AI")
     source = parser.add_mutually_exclusive_group()
@@ -191,6 +230,12 @@ def main() -> None:
     parser.add_argument("--save-calibration", action="store_true", help="Registra los resultados en la BD de calibración")
     parser.add_argument("--output", type=str, default="", help="Guarda el informe en Markdown")
     parser.add_argument("--json", type=str, default="", help="Guarda el resumen en JSON")
+    parser.add_argument("--xg", action="store_true",
+                        help="Añade el xG de Flashscore y compara el modelo con y sin xG")
+    parser.add_argument("--xg-weights", type=str, default="0.35,0.5",
+                        help="Pesos del xG a comparar contra 0 (separados por coma)")
+    parser.add_argument("--xg-max-new", type=int, default=None,
+                        help="Máximo de partidos nuevos a leer de Flashscore (créditos de Firecrawl)")
     args = parser.parse_args()
 
     client = None
@@ -211,12 +256,22 @@ def main() -> None:
             base_url=settings.sportmonks_base_url,
         )
         if args.teams_file:
-            queries = [line.strip() for line in Path(args.teams_file).read_text(encoding="utf-8").splitlines() if line.strip()]
+            queries = [
+                line.strip() for line in Path(args.teams_file).read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.strip().startswith("#")
+            ]
         else:
             queries = [part.strip() for part in args.teams.split(",") if part.strip()]
         print(f"Descargando historial de {len(queries)} equipos desde Sportmonks...")
         matches_by_team, team_names = load_from_sportmonks(client, queries, args.count, log=print)
         title = "Backtest walk-forward — datos reales Sportmonks"
+
+    if args.xg:
+        if client is None:
+            print("--xg necesita datos reales (--teams o --teams-file).")
+            sys.exit(1)
+        run_xg_comparison(args, matches_by_team, team_names)
+        return
 
     fixtures = build_fixtures(matches_by_team, team_names)
     if not fixtures:

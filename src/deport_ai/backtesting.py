@@ -363,7 +363,7 @@ def load_from_sportmonks(
     matches_by_team: dict[int, list[TeamMatch]] = {}
     team_names: dict[int, str] = {}
     for query in team_queries:
-        team = client.resolve_team(query)
+        team = _team_from_query(client, query)
         team_names[team.id] = team.name
         rows = client.recent_fixtures(team.id, count)
         ids = [int(row["fixture"]["id"]) for row in rows]
@@ -371,6 +371,15 @@ def load_from_sportmonks(
         matches_by_team[team.id] = extract_team_matches(rows, team.id, details)
         log(f"  {team.name}: {len(matches_by_team[team.id])} partidos")
     return matches_by_team, team_names
+
+
+def _team_from_query(client: Any, query: str) -> Team:
+    """Nombre del equipo o su id de Sportmonks ("9908 # Al Ahli" evita homónimos)."""
+    cleaned = query.split("#", 1)[0].strip()
+    if cleaned.isdigit():
+        data = client._get(f"teams/{cleaned}") or {}
+        return Team(int(cleaned), data.get("name") or cleaned, str(data.get("country_id") or ""))
+    return client.resolve_team(cleaned)
 
 
 def load_odds_from_sportmonks(client: Any, fixtures: list[FixtureSample]) -> dict[int, dict[str, float]]:
@@ -489,3 +498,98 @@ def synthetic_league(
     for team in teams:
         matches[team].sort(key=lambda m: m.date, reverse=True)
     return matches, names
+
+
+# ---------------------------------------------------------------------------
+# Comparación con / sin xG (Flashscore)
+# ---------------------------------------------------------------------------
+
+GOAL_CATEGORIES = ("Goles", "Resultado", "Mitades")
+
+
+def goal_market_summary(result: BacktestResult) -> dict[str, Any]:
+    """Métricas de los mercados que dependen de los goles (los únicos que cambia el xG)."""
+    out: dict[str, Any] = {
+        "evaluated_fixtures": result.evaluated_fixtures,
+        "scoreline_log_loss": result.scoreline_log_loss,
+    }
+    for category in GOAL_CATEGORIES + ("Total goles",):
+        if category == "Total goles":
+            items = [r for r in result.records if r["category"] in GOAL_CATEGORIES]
+        else:
+            items = [r for r in result.records if r["category"] == category]
+        if not items:
+            continue
+        probs = [r["probability"] for r in items]
+        outcomes = [1 if r["won"] else 0 for r in items]
+        shown = [r for r in items if r["shown"]]
+        out[category] = {
+            "count": len(items),
+            "brier": round(brier_score(probs, outcomes), 5),
+            "log_loss": round(log_loss(probs, outcomes), 5),
+            "shown": len(shown),
+            "shown_hit_rate": round(sum(r["won"] for r in shown) / len(shown), 4) if shown else None,
+            "shown_mean_predicted": round(sum(r["probability"] for r in shown) / len(shown), 4) if shown else None,
+        }
+    return out
+
+
+def xg_coverage(
+    fixtures: list[FixtureSample],
+    matches_by_team: dict[int, list[TeamMatch]],
+    min_history: int = 6,
+    window: int = 12,
+    key: str = "expected_goals",
+) -> tuple[int, int]:
+    """(partidos evaluables, partidos donde ambos equipos tienen 3+ partidos previos con xG)."""
+    evaluable = covered = 0
+    for sample in fixtures:
+        hist_home = history_before(matches_by_team, sample.home.team_id, sample.date, window)
+        hist_away = history_before(matches_by_team, sample.away.team_id, sample.date, window)
+        if len(hist_home) < min_history or len(hist_away) < min_history:
+            continue
+        evaluable += 1
+        if sum(key in m.stats_for for m in hist_home) >= 3 and sum(key in m.stats_for for m in hist_away) >= 3:
+            covered += 1
+    return evaluable, covered
+
+
+def format_xg_comparison(summaries: dict[str, dict[str, Any]], coverage: tuple[int, int], title: str) -> str:
+    """Informe Markdown: cada variante frente a la base (peso xG 0 = modelo actual)."""
+    labels = list(summaries)
+    base = summaries[labels[0]]
+    lines = [f"# {title}", ""]
+    evaluable, covered = coverage
+    pct = covered / evaluable * 100 if evaluable else 0.0
+    lines.append(f"Partidos evaluados: {base['evaluated_fixtures']} · con xG suficiente en ambos equipos: "
+                 f"{covered}/{evaluable} ({pct:.0f}%)")
+    lines.append("Métricas de error: más bajo es mejor. Diferencias frente a la base entre paréntesis.")
+    lines.append("")
+
+    def delta(value: float | None, ref: float | None, digits: int = 4) -> str:
+        if value is None:
+            return "—"
+        if ref is None or value == ref:
+            return f"{value:.{digits}f}"
+        return f"{value:.{digits}f} ({value - ref:+.{digits}f})"
+
+    for label in labels:
+        s = summaries[label]
+        lines.append(f"## {label}")
+        lines.append(f"- Log-loss del marcador exacto: {delta(s['scoreline_log_loss'], base['scoreline_log_loss'])}")
+        for category in GOAL_CATEGORIES + ("Total goles",):
+            block, ref = s.get(category), base.get(category) or {}
+            if not block:
+                continue
+            hit = block["shown_hit_rate"]
+            ref_hit = ref.get("shown_hit_rate")
+            hit_txt = "—" if hit is None else f"{hit * 100:.1f}%"
+            if hit is not None and ref_hit is not None and hit != ref_hit:
+                hit_txt += f" ({(hit - ref_hit) * 100:+.1f} pts)"
+            lines.append(
+                f"- {category}: Brier {delta(block['brier'], ref.get('brier'), 5)} · "
+                f"log-loss {delta(block['log_loss'], ref.get('log_loss'), 5)} · "
+                f"mostradas {block['shown']} con acierto {hit_txt}"
+            )
+        lines.append("")
+    return "\n".join(lines)

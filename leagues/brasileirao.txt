@@ -1,0 +1,21 @@
+# Brasileirão Serie A (648) — temporada 2026. Un id de Sportmonks por línea (evita homónimos).
+3432 # Athletico PR
+3427 # Atlético Mineiro
+692 # Bahia
+2864 # Botafogo
+7808 # Bragantino
+710 # Chapecoense
+303 # Corinthians
+6285 # Coritiba
+3371 # Cruzeiro
+1024 # Flamengo
+1095 # Fluminense
+2925 # Grêmio
+2696 # Internacional
+11126 # Mirassol
+3422 # Palmeiras
+11550 # Remo
+3684 # Santos
+3496 # São Paulo
+696 # Vasco da Gama
+3440 # Vitória
