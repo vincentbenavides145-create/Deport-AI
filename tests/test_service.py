@@ -122,3 +122,45 @@ def test_live_match_handled_gracefully():
     assert any("en vivo" in risk.lower() for risk in report.risks)
     assert report.probabilities.home_win > 0
 
+
+
+class StubXG:
+    """Proveedor de xG sin red: el local genera 3.0 xG por partido y el visitante 0.3."""
+
+    def __init__(self):
+        self.fetched: list[int] = []
+
+    def fetch(self, fixtures, max_new=None):
+        self.fetched = [f.fixture_id for f in fixtures]
+        return {}
+
+    def get(self, fixture_id):
+        return {"xg_home": 3.0, "xg_away": 0.3} if fixture_id <= 6 else {"xg_home": 0.3, "xg_away": 0.3}
+
+
+def test_service_uses_flashscore_xg_when_enabled(monkeypatch):
+    import deport_ai.service as service_module
+
+    base = AnalysisService(FakeAPI(), FakeExplainer(), recent_count=6, h2h_count=5, auto_track=False).analyze(
+        "Analiza Local vs Visitante", track=False
+    )
+    monkeypatch.setattr(service_module, "XG_ENABLED", True)
+    svc = AnalysisService(FakeAPI(), FakeExplainer(), recent_count=6, h2h_count=5, auto_track=False)
+    svc.xg_provider = StubXG()
+    with_xg = svc.analyze("Analiza Local vs Visitante", track=False)
+    assert sorted(svc.xg_provider.fetched) == list(range(1, 13))
+    assert with_xg.probabilities.expected_home_goals != base.probabilities.expected_home_goals
+
+
+def test_service_keeps_working_if_xg_fails(monkeypatch):
+    import deport_ai.service as service_module
+
+    class Broken:
+        def fetch(self, fixtures, max_new=None):
+            raise RuntimeError("sin red")
+
+    monkeypatch.setattr(service_module, "XG_ENABLED", True)
+    svc = AnalysisService(FakeAPI(), FakeExplainer(), recent_count=6, h2h_count=5, auto_track=False)
+    svc.xg_provider = Broken()
+    report = svc.analyze("Analiza Local vs Visitante", track=False)
+    assert report.statistical_markets

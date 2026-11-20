@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
@@ -33,6 +34,8 @@ from .stats_engine import (
 )
 
 
+logger = logging.getLogger(__name__)
+
 class AnalysisService:
     def __init__(
         self,
@@ -52,6 +55,22 @@ class AnalysisService:
         self.db = db if db is not None else DatabaseManager()
         self.calibrator = DynamicCalibrator(self.db)
         self.auto_track = auto_track
+        self.xg_provider: Any = None  # FlashscoreXG; se crea al primer uso
+
+    def _attach_xg(self, home: Any, away: Any, home_matches: list[Any], away_matches: list[Any]):
+        """Añade el xG de Flashscore a los partidos recientes. Si falla, sigue sin xG."""
+        try:
+            from .flashscore import FlashscoreXG, attach_xg, fixtures_from_matches
+
+            if self.xg_provider is None:
+                self.xg_provider = FlashscoreXG()
+            names = {home.id: home.name, away.id: away.name}
+            fixtures = fixtures_from_matches(home_matches + away_matches, names)
+            self.xg_provider.fetch(fixtures, max_new=XG_MAX_NEW_PER_ANALYSIS)
+            return attach_xg(home_matches, self.xg_provider), attach_xg(away_matches, self.xg_provider)
+        except Exception as exc:  # sin Firecrawl o sin red: el análisis sigue con goles
+            logger.warning("xG de Flashscore no disponible: %s", exc)
+            return home_matches, away_matches
 
     def analyze(self, question: str, track: bool | None = None) -> AnalysisReport:
         first_name, second_name = parse_match_query(question)
@@ -90,6 +109,8 @@ class AnalysisService:
         details = self.api.fixture_details(detail_ids)
         home_matches = extract_team_matches(home_rows, home.id, details)
         away_matches = extract_team_matches(away_rows, away.id, details)
+        if XG_ENABLED:
+            home_matches, away_matches = self._attach_xg(home, away, home_matches, away_matches)
 
         h2h_rows = self.api.h2h(home.id, away.id, self.h2h_count)
         h2h = [to_match_ref(row) for row in h2h_rows if _finished(row)]
@@ -512,6 +533,11 @@ def _sources(
 
 # Factor árbitro en tarjetas (validado con backtest walk-forward antes de activarlo).
 REFEREE_FACTOR_ENABLED = True
+
+# xG de Flashscore vía Firecrawl (validado con `backtest.py --xg` antes de activarlo).
+XG_ENABLED = False
+# Tope de partidos nuevos que se leen por análisis (1 crédito de Firecrawl cada uno).
+XG_MAX_NEW_PER_ANALYSIS = 30
 
 
 def lineups_are_confirmed(lineups: list[dict[str, Any]] | None) -> bool:
