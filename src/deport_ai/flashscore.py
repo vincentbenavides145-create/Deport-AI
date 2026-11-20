@@ -66,7 +66,7 @@ STAT_LABELS: dict[str, str] = {
 SHOW_MORE_SELECTOR = "div[data-testid='wcl-section-footer'] button"
 SHOW_MORE_MARKER = 'data-testid="wcl-section-footer"'
 # Clics acumulados que se prueban (cada intento es 1 crédito de Firecrawl).
-SHOW_MORE_STEPS = (0, 3, 6, 10)
+SHOW_MORE_STEPS = (0, 1, 2, 3, 5, 7, 10)
 NAME_STOPWORDS = {
     "fc", "sc", "cf", "club", "ac", "afc", "sv", "bv", "de", "the", "cd", "ec", "se",
     "fk", "sk", "cr", "ca", "esporte", "clube", "futebol", "saudi", "kv", "vv",

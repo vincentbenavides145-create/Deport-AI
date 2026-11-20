@@ -243,4 +243,4 @@ def test_listing_keeps_clicking_while_show_more_exists(tmp_path):
     provider = FlashscoreXG(fetcher=fetcher, cache_path=tmp_path / "xg.json", today=date(2026, 11, 20))
     rows = provider.listing(944, "2025-2026")
     assert len(rows) == 4  # la lectura con 3 clics, la más completa
-    assert fetcher.clicks_seen == [0, 3]  # sin botón tras 3 clics: no se gastan más créditos
+    assert fetcher.clicks_seen == [0, 1, 2, 3]  # sin botón tras 3 clics: no se gastan más créditos
