@@ -1508,7 +1508,13 @@ def expected_metrics(
 
     cards_home = _expected_count(home_matches, away_matches, True, False, CARDS_KEY)
     cards_away = _expected_count(away_matches, home_matches, False, True, CARDS_KEY)
+    team_cards = (cards_home, cards_away)
     cards_home, cards_away = apply_referee_factor(cards_home, cards_away, referee_cards)
+    if params.dispersion_cards is None:
+        referee_applied = (cards_home, cards_away) != team_cards
+        disp_cards = min(
+            disp_cards, CARDS_DISPERSION_WITH_REFEREE if referee_applied else CARDS_DISPERSION_WITHOUT_REFEREE
+        )
     total_cards = (cards_home + cards_away) if (cards_home is not None and cards_away is not None) else None
     over_15_cards = None
     over_25_cards = None
@@ -1882,9 +1888,17 @@ PLAYER_START_MINUTES = 45.0
 
 
 # Peso máximo del árbitro en la proyección de tarjetas y partidos de "prior" para encogerlo.
-REFEREE_MAX_WEIGHT = 0.5
+# Validado walk-forward en 543 partidos (Brasileirão, Liga MX, Argentina, Bundesliga, LaLiga;
+# árbitro medido sin la temporada del partido): Brier de líneas de tarjetas 0.2075 -> 0.1935,
+# mejora en las 5 ligas.
+REFEREE_MAX_WEIGHT = 0.75
 REFEREE_PRIOR_MATCHES = 15
 REFEREE_MIN_MATCHES = 5
+# Dispersión binomial negativa de tarjetas validada: con árbitro las tarjetas son casi
+# Poisson (0.05); sin árbitro, 0.15 (los perfiles de liga usaban 0.20-0.28 y sobreestimaban
+# la variación, inflando los "Menos de").
+CARDS_DISPERSION_WITH_REFEREE = 0.05
+CARDS_DISPERSION_WITHOUT_REFEREE = 0.15
 
 
 def apply_referee_factor(

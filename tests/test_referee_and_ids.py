@@ -20,8 +20,8 @@ AWAY = Team(2, "Visitante")
 
 def test_referee_factor_blends_with_shrinkage():
     home, away = apply_referee_factor(2.0, 2.0, (6.0, 45))
-    # peso = 0.5 * 45 / (45 + 15) = 0.375 -> total = 0.625 * 4 + 0.375 * 6 = 4.75
-    assert abs((home + away) - 4.75) < 0.02
+    # peso = 0.75 * 45 / (45 + 15) = 0.5625 -> total = 0.4375 * 4 + 0.5625 * 6 = 5.125
+    assert abs((home + away) - 5.125) < 0.02
     assert home == away  # mantiene el reparto local/visitante
 
 
@@ -131,3 +131,21 @@ def test_country_tiers_and_continental_bonus_use_sportmonks_ids():
     assert COUNTRY_TIER_ELO["462"] == 1820.0  # Inglaterra
     assert "2" not in COUNTRY_TIER_ELO  # el 2 es Polonia, no Italia
     assert get_club_tier_offset("Club Sin Tier", league_id=2451) == 0.0  # Club Friendlies 3
+
+
+def test_cards_dispersion_follows_validated_values():
+    from deport_ai.stats_engine import expected_metrics
+
+    def m(i):
+        return TeamMatch(
+            fixture_id=i, date=f"2026-10-{20 - i:02d}", team_id=1, opponent_id=50 + i, is_home=i % 2 == 0,
+            goals_for=1, goals_against=1, result="D",
+            stats_for={"yellow_cards": 2, "total_shots": 10}, stats_against={"yellow_cards": 2, "total_shots": 9},
+        )
+
+    rec = [m(i) for i in range(8)]
+    without = expected_metrics(rec, rec, [], 1, 2, league_id=648)
+    with_ref = expected_metrics(rec, rec, [], 1, 2, league_id=648, referee_cards=(6.0, 60))
+    assert without.dispersion_cards == 0.15
+    assert with_ref.dispersion_cards == 0.05
+    assert with_ref.cards_home + with_ref.cards_away > without.cards_home + without.cards_away
