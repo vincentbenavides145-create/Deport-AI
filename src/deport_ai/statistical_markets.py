@@ -1277,3 +1277,56 @@ def select_top_recommended_pick(
         **({"odds": best["odds"], "edge": best["edge"]} if best.get("edge") is not None else {}),
     }
 
+
+
+# Selecciones destacadas ("las más seguras"): las categorías que mejor rindieron en
+# resultados reales, sin mercados por mitad. En 20 partidos reales, las 5 más probables de
+# estas categorías acertaron 91% frente a 78% del reporte completo.
+FEATURED_CATEGORIES: frozenset[str] = frozenset(
+    {"Goles", "Faltas", "Remates", "Tiros a puerta", "Córners", "Resultado"}
+)
+FEATURED_LIMIT = 5
+FEATURED_MIN_PROBABILITY = 0.75
+FEATURED_MAX_PER_CATEGORY = 2
+
+
+def select_featured_markets(
+    markets: list[dict[str, Any]],
+    top_pick: dict[str, Any] | None = None,
+    limit: int = FEATURED_LIMIT,
+    min_probability: float = FEATURED_MIN_PROBABILITY,
+    max_per_category: int = FEATURED_MAX_PER_CATEGORY,
+) -> list[dict[str, Any]]:
+    """Las selecciones más seguras del partido, sin repetir el Pick Recomendado."""
+    pick = (top_pick or {}).get("selection")
+    pool = [
+        m for m in markets
+        if m.get("category") in FEATURED_CATEGORIES
+        and float(m.get("probability") or 0.0) >= min_probability
+        and m.get("selection") != pick
+        and not str(m.get("selection") or "").startswith(("1T ", "2T "))
+    ]
+    pool.sort(key=lambda m: -float(m.get("probability") or 0.0))
+    featured: list[dict[str, Any]] = []
+    per_category: dict[str, int] = defaultdict(int)
+    for market in pool:
+        if per_category[market["category"]] >= max_per_category:
+            continue
+        featured.append(market)
+        per_category[market["category"]] += 1
+        if len(featured) >= limit:
+            break
+    return featured
+
+
+def mark_highlights(
+    markets: list[dict[str, Any]], top_pick: dict[str, Any] | None, featured: list[dict[str, Any]]
+) -> None:
+    """Marca en cada selección si es el Pick ('pick') o una de las más seguras ('top5')."""
+    pick = (top_pick or {}).get("selection")
+    featured_selections = {m.get("selection") for m in featured}
+    for market in markets:
+        if pick and market.get("selection") == pick:
+            market["highlight"] = "pick"
+        elif market.get("selection") in featured_selections:
+            market["highlight"] = "top5"

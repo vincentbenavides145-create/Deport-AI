@@ -483,7 +483,7 @@ def test_format_adaptive_report_renders_clean_structure_and_omits_empty_categori
         confidence=conf,
     )
 
-    formatted = format_adaptive_report(report)
+    formatted = format_adaptive_report(report, full=True)
 
     # Verifica encabezado y confianza
     assert "# ⚽ Real Madrid vs Atlético Madrid" in formatted

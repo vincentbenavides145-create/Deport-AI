@@ -1107,8 +1107,12 @@ def _pct_or_na(value: float | None) -> str:
     return "No disponible" if value is None else f"{value * 100:.1f}%"
 
 
-def format_adaptive_report(report: AnalysisReport) -> str:
-    """Genera el reporte oficial de pronósticos deportivos (DEPORT AI) con estructura adaptativa estilo Betano."""
+def format_adaptive_report(report: AnalysisReport, full: bool = False) -> str:
+    """Genera el reporte oficial de pronósticos deportivos (DEPORT AI).
+
+    Por defecto es el formato corto: Pick Recomendado + las selecciones más seguras +
+    proyecciones. Con `full=True` muestra todas las categorías (estructura adaptativa).
+    """
     lines: list[str] = []
 
     # 1. Título
@@ -1170,6 +1174,21 @@ def format_adaptive_report(report: AnalysisReport) -> str:
 
     # El Pick Recomendado ya se muestra arriba: no se repite dentro de su categoría.
     top_selection = top_pick.get("selection") if top_pick and top_pick.get("probability", 0.0) >= 0.60 else None
+
+    if not full:
+        featured = list(getattr(report, "featured_markets", None) or [])
+        if featured:
+            lines.append("#### 🔒 Las más seguras")
+            for item in featured:
+                expl = item.get("explanation", "").strip()
+                if not expl.startswith("*"):
+                    if not expl.lower().startswith("porque"):
+                        expl = f"Porque {expl}"
+                    expl = f"*{expl}*"
+                lines.append(f"• **{item.get('selection', '')} — {item.get('probability', 0.0) * 100:.1f}%**{_value_suffix(item)}  ")
+                lines.append(f"  {expl}  ")
+            lines.append("")
+        categories_spec = []
 
     for cat_name, header in categories_spec:
         items = [m for m in markets_by_cat.get(cat_name, []) if m.get("selection") != top_selection]

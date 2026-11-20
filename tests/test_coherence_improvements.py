@@ -229,7 +229,7 @@ def test_top_pick_is_not_repeated_in_its_category():
         probabilities=_probabilities(),
         expected=ExpectedMetrics(),
     )
-    text = format_adaptive_report(report)
+    text = format_adaptive_report(report, full=True)
     assert text.count("Más de 1.5 goles — 85.0%") == 1
     assert "Local Más de 1.5 goles — 70.0%" in text
     assert "Experimental" not in text

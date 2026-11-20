@@ -175,6 +175,10 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_fixtures_league ON tracked_fixtures (league_id);
                 """
             )
+            # Migración: marca de selección destacada ('pick' o 'top5') para medir su acierto.
+            pred_cols = {row[1] for row in conn.execute("PRAGMA table_info(tracked_predictions)")}
+            if "highlight" not in pred_cols:
+                conn.execute("ALTER TABLE tracked_predictions ADD COLUMN highlight TEXT")
 
     def save_fixture_and_predictions(
         self,
@@ -236,8 +240,8 @@ class DatabaseManager:
                         INSERT INTO tracked_predictions (
                             fixture_id, category, market, selection,
                             line, side, predicted_prob, odds,
-                            projection, basis, explanation, status, created_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)
+                            projection, basis, explanation, status, created_at, highlight
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
                         """,
                         (
                             fixture_id,
@@ -252,6 +256,7 @@ class DatabaseManager:
                             p.get("basis"),
                             p.get("explanation"),
                             now_iso,
+                            p.get("highlight"),
                         ),
                     )
 
@@ -551,7 +556,32 @@ class DatabaseManager:
                     }
                 )
 
+            highlight_rows = conn.execute(
+                """
+                SELECT
+                    highlight,
+                    SUM(CASE WHEN status = 'WON' THEN 1 ELSE 0 END) as won,
+                    SUM(CASE WHEN status = 'LOST' THEN 1 ELSE 0 END) as lost,
+                    SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END) as pending,
+                    AVG(predicted_prob) as avg_prob
+                FROM tracked_predictions
+                WHERE highlight IS NOT NULL
+                GROUP BY highlight
+                """
+            ).fetchall()
+            highlights = {}
+            for r in highlight_rows:
+                h_resolved = (r["won"] or 0) + (r["lost"] or 0)
+                highlights[r["highlight"]] = {
+                    "won": r["won"] or 0,
+                    "lost": r["lost"] or 0,
+                    "pending": r["pending"] or 0,
+                    "hit_rate": round((r["won"] or 0) / h_resolved, 4) if h_resolved else None,
+                    "avg_predicted_prob": round(r["avg_prob"] or 0.0, 4),
+                }
+
             return {
+                "highlights": highlights,
                 "total_predictions": total_pred,
                 "resolved": resolved,
                 "won": won,

@@ -252,6 +252,7 @@ class AnalysisReport:
     narrative: str | None = None
     dynamic_calibration_info: Any = None
     top_pick: dict[str, Any] | None = None
+    featured_markets: list[dict[str, Any]] = field(default_factory=list)
 
     def llm_payload(self) -> dict[str, Any]:
         """Datos cerrados: el LLM puede explicarlos, no recalcularlos."""

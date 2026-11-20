@@ -12,7 +12,12 @@ from .llm import LLMExplainer
 from .model_params import load_parameters
 from .odds import normalize_odds, select_opportunities
 from .parser import parse_match_query
-from .statistical_markets import select_statistical_markets, select_top_recommended_pick
+from .statistical_markets import (
+    mark_highlights,
+    select_featured_markets,
+    select_statistical_markets,
+    select_top_recommended_pick,
+)
 from .storage import DatabaseManager
 from .stats_engine import (
     calculate_confidence_score,
@@ -265,6 +270,8 @@ class AnalysisService:
             probabilities=probabilities,
             expected=expected,
         )
+        featured = select_featured_markets(statistical_markets, top_pick)
+        mark_highlights(statistical_markets, top_pick, featured)
         risks = sample_risks(home_matches, away_matches, expected)
         if altitude_impact:
             risks.insert(0, f"🏔️ FACTOR ALTITUD ({altitude_impact['home_altitude']} m.s.n.m.): {altitude_impact['description']}")
@@ -318,6 +325,7 @@ class AnalysisService:
             attribution_away=probabilities.attribution_away,
             dynamic_calibration_info=calibration,
             top_pick=top_pick,
+            featured_markets=featured,
         )
         report.narrative = self.explainer.explain(report)
 

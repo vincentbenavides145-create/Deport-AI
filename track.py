@@ -89,6 +89,17 @@ def cmd_report(args: argparse.Namespace) -> None:
     print(f"• **Pendientes:** {summary['pending']}")
     print(f"• **Hit Rate Global:** `{summary['overall_hit_rate'] * 100:.1f}%`\n")
 
+    highlights = summary.get("highlights") or {}
+    if highlights:
+        print("### ⭐ Lo que se recomienda (formato corto):\n")
+        for key, label in (("pick", "Pick Recomendado"), ("top5", "Las más seguras")):
+            h = highlights.get(key)
+            if not h:
+                continue
+            rate = f"{h['hit_rate'] * 100:.1f}%" if h["hit_rate"] is not None else "sin liquidar"
+            print(f"• **{label}:** {h['won']} ✅ | {h['lost']} ❌ | {h['pending']} pendientes · acierto `{rate}` · prob. media {h['avg_predicted_prob'] * 100:.1f}%")
+        print("")
+
     if summary["by_category"]:
         print("### Rendimiento por Categoría:\n")
         print("| Categoría | Total | Won | Lost | Void | Hit Rate | Prob. Media |")

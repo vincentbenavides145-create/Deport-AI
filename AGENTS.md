@@ -61,13 +61,15 @@ Si un equipo está jugando un partido en directo en este momento, el motor calcu
    ```
 2. El script ejecuta el motor de cálculo, aplica estrictamente el `MarketPresentationCatalog` (descartando líneas triviales o > 88% y eligiendo la selección con mayor probabilidad dentro del rango 60.0% - 88.0%) y genera DIRECTAMENTE el reporte oficial adaptativo en formato Markdown.
 3. **MUESTRA DIRECTAMENTE AL USUARIO EL REPORTE ADAPTATIVO OBTENIDO DEL COMANDO.**
+   - Por defecto el comando imprime el **formato corto**: Pick Recomendado + "🔒 Las más seguras" (hasta 5 selecciones de 75% o más de Goles, Faltas, Remates, Tiros a puerta, Córners o Resultado, sin mercados por mitad y como máximo 2 por categoría) + Proyecciones numéricas.
+   - El reporte con todas las categorías (estructura de abajo) se pide con `--completo`. Todas las selecciones se registran igual en el histórico, marcadas como `pick` o `top5` cuando corresponde; `python track.py report` muestra su acierto por separado.
    ⛔ **ESTÁ ESTRICTAMENTE PROHIBIDO:**
    - No intentes deducir, inventar ni recalcular líneas a mano a partir de estadísticas crudas (NUNCA inventar Más de 0.5 goles, Más de 3.5 córners, Más de 1.5 córners ni Más de 0.5 tarjetas).
    - No muestres selecciones que no hayan sido validadas y devueltas por el comando oficial.
 
 ---
 
-### Estructura Dinámica Generada por el Comando:
+### Estructura del Reporte Completo (`--completo`):
 
 # ⚽ <Equipo 1> vs <Equipo 2>
 **Confianza:** <🟢 Alta / 🟡 Media / 🔴 Baja> (<Detalle breve: muestra de partidos, confirmación de alineación>)

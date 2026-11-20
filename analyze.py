@@ -32,11 +32,12 @@ def main() -> None:
     parser.add_argument("--json", action="store_true", help="Devuelve la salida en formato JSON estructurado")
     parser.add_argument("--legacy", action="store_true", help="Devuelve el reporte técnico de auditoría heredado")
     parser.add_argument("--no-track", action="store_true", help="No registra el pronóstico en la base de datos de seguimiento")
+    parser.add_argument("--completo", action="store_true", help="Muestra todas las categorías en vez del formato corto (Pick + las más seguras)")
     args = parser.parse_args()
 
     query_str = " ".join(args.query).strip() if args.query else ""
     if not query_str:
-        print("Uso: python analyze.py \"Equipo 1 vs Equipo 2\" [--report] [--json] [--legacy] [--no-track]", file=sys.stderr)
+        print("Uso: python analyze.py \"Equipo 1 vs Equipo 2\" [--report] [--completo] [--json] [--legacy] [--no-track]", file=sys.stderr)
         sys.exit(1)
 
     try:
@@ -66,7 +67,7 @@ def main() -> None:
         elif args.legacy:
             print(format_report(report))
         else:
-            print(format_adaptive_report(report))
+            print(format_adaptive_report(report, full=args.completo))
     except DeportAIError as exc:
         print(f"Error en el análisis: {exc}", file=sys.stderr)
         sys.exit(3)
