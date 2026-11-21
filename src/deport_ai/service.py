@@ -584,8 +584,8 @@ XG_MAX_NEW_PER_ANALYSIS = 30
 
 
 def lineups_are_confirmed(lineups: list[dict[str, Any]] | None) -> bool:
-    """Solo hay alineación confirmada cuando ambos equipos publicaron su once titular."""
-    return sum(1 for team_info in lineups or [] if team_info.get("startXI")) >= 2
+    """Solo hay alineación confirmada cuando ambos equipos publicaron su once titular completo."""
+    return sum(1 for team_info in lineups or [] if len(team_info.get("startXI") or []) >= 11) >= 2
 
 
 # Ventana antes del inicio en la que un once publicado se considera oficial.

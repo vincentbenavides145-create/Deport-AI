@@ -83,9 +83,14 @@ def extract_match_actual_stats(fixture_detail: dict[str, Any]) -> dict[str, Any]
     offsides_home = _get_stat(home_stats, ("Offsides", "OFFSIDES"))
     offsides_away = _get_stat(away_stats, ("Offsides", "OFFSIDES"))
 
-    woodwork_h = _get_stat(home_stats, ("Hit Woodwork", "HIT_WOODWORK", "WOODWORK")) or 0
-    woodwork_a = _get_stat(away_stats, ("Hit Woodwork", "HIT_WOODWORK", "WOODWORK")) or 0
-    total_woodwork = woodwork_h + woodwork_a
+    # Sportmonks omite los tiros al palo cuando no hubo: en un partido con estadísticas
+    # completas su ausencia es 0; sin estadísticas no se sabe y queda sin resolver.
+    woodwork_h = _get_stat(home_stats, ("Hit Woodwork", "HIT_WOODWORK", "WOODWORK"))
+    woodwork_a = _get_stat(away_stats, ("Hit Woodwork", "HIT_WOODWORK", "WOODWORK"))
+    if woodwork_h is None and woodwork_a is None and not (_is_detailed(home_stats) and _is_detailed(away_stats)):
+        total_woodwork = None
+    else:
+        total_woodwork = (woodwork_h or 0) + (woodwork_a or 0)
 
     # Goles por mitad. El cliente entrega "halftime" (1T) y "second_half" (solo 2T);
     # un payload crudo trae "scores", donde "2ND_HALF" es acumulado y "2ND_HALF_ONLY" es el 2T.
@@ -236,6 +241,25 @@ def evaluate_prediction(
         if selection == "Empate":
             return "WON" if hg == ag else "LOST"
 
+        # Combinadas (doble oportunidad + goles / ambos marcan): se revisan ANTES que la
+        # doble oportunidad sola, que también contiene "(1X)" o "(X2)" en el texto.
+        combo = re.search(r"\((1X|X2|12)\) y (Más|Menos) de (\d+(?:\.\d+)?)", selection)
+        if combo:
+            outcome_ok = {"1X": hg >= ag, "X2": ag >= hg, "12": hg != ag}[combo.group(1)]
+            line_value = float(combo.group(3))
+            goals_ok = (hg + ag) > line_value if combo.group(2) == "Más" else (hg + ag) < line_value
+            return "WON" if outcome_ok and goals_ok else "LOST"
+        if selection.endswith("y Ambos Marcan"):
+            both = hg > 0 and ag > 0
+            if "(1X)" in selection:
+                return "WON" if both and hg >= ag else "LOST"
+            if "(X2)" in selection:
+                return "WON" if both and ag >= hg else "LOST"
+            if selection == f"{home_name} gana y Ambos Marcan":
+                return "WON" if both and hg > ag else "LOST"
+            if selection == f"{away_name} gana y Ambos Marcan":
+                return "WON" if both and ag > hg else "LOST"
+
         # Doble oportunidad
         if "(1X)" in selection:
             return "WON" if hg >= ag else "LOST"
@@ -265,25 +289,7 @@ def evaluate_prediction(
             if away_name in selection:
                 return "WON" if ag > hg and hg == 0 else "LOST"
 
-        # Combos Resultado + Goles
-        if "(1X) y Más de 1.5" in selection:
-            return "WON" if hg >= ag and (hg + ag) > 1.5 else "LOST"
-        if "(X2) y Más de 1.5" in selection:
-            return "WON" if ag >= hg and (hg + ag) > 1.5 else "LOST"
-        if "(1X) y Menos de 3.5" in selection:
-            return "WON" if hg >= ag and (hg + ag) < 3.5 else "LOST"
-        if "(X2) y Menos de 3.5" in selection:
-            return "WON" if ag >= hg and (hg + ag) < 3.5 else "LOST"
-        if selection.endswith("y Ambos Marcan"):
-            both = hg > 0 and ag > 0
-            if "(1X)" in selection:
-                return "WON" if both and hg >= ag else "LOST"
-            if "(X2)" in selection:
-                return "WON" if both and ag >= hg else "LOST"
-            if selection == f"{home_name} gana y Ambos Marcan":
-                return "WON" if both and hg > ag else "LOST"
-            if selection == f"{away_name} gana y Ambos Marcan":
-                return "WON" if both and ag > hg else "LOST"
+        # Victoria + goles
         if "gana y Más de 1.5" in selection:
             if home_name in selection:
                 return "WON" if hg > ag and (hg + ag) > 1.5 else "LOST"

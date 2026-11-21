@@ -238,8 +238,10 @@ def test_top_pick_is_not_repeated_in_its_category():
 # ---------------------------------------------------------------- 4. titularidad y muestra
 
 def test_lineups_need_both_teams():
-    assert not lineups_are_confirmed([{"startXI": [{"player": {"id": 1}}]}, {"startXI": []}])
-    assert lineups_are_confirmed([{"startXI": [{"player": {"id": 1}}]}, {"startXI": [{"player": {"id": 2}}]}])
+    xi = [{"player": {"id": n}} for n in range(11)]
+    assert not lineups_are_confirmed([{"startXI": xi}, {"startXI": []}])
+    assert lineups_are_confirmed([{"startXI": xi}, {"startXI": xi}])
+    assert not lineups_are_confirmed([{"startXI": xi}, {"startXI": xi[:7]}])  # once incompleto
     assert not lineups_are_confirmed(None)
 
 

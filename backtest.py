@@ -285,8 +285,12 @@ def main() -> None:
     args = parser.parse_args()
 
     client = None
-    if args.synthetic or not (args.teams or args.teams_file):
-        print("Liga simulada (sin token). Sirve para verificar el pipeline, no para medir el modelo real.")
+    if not args.synthetic and not (args.teams or args.teams_file):
+        print("Indica los equipos con --teams-file leagues/<liga>.txt (o --teams). "
+              "Para probar el pipeline con una liga simulada usa --synthetic.")
+        sys.exit(2)
+    if args.synthetic:
+        print("Liga simulada: sirve para verificar el pipeline, no para medir el modelo real.")
         matches_by_team, team_names = synthetic_league()
         title = "Backtest walk-forward — liga simulada"
     else:

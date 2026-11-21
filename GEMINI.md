@@ -46,6 +46,8 @@ Cuando el usuario pida analizar un partido, pronósticos o predicciones de fútb
 
 ## 🧪 CALIBRACIÓN Y PARÁMETROS
 - La calibración dinámica solo se activa con **30 o más predicciones reales liquidadas** por categoría. Nunca se inventan datos para calibrar.
+- La corrección de sesgo de córners y tarjetas solo usa la proyección del **total del partido** (una vez por partido, 30+ partidos). Los goles esperados no se corrigen después de calcular la matriz de marcadores.
+- Las combinadas (doble oportunidad + goles o ambos marcan) se liquidan exigiendo las dos condiciones. Un tiro al palo sin estadísticas del partido queda sin resolver.
 - Los parámetros del modelo por liga se ajustan con `python backtest.py --teams-file <liga.txt> --fit --save-params` y se guardan en `model_params.json`.
 - **xG de Flashscore:** el modelo de goles mezcla los goles reales con el xG que Flashscore publica por partido (lo lee Firecrawl con la clave `FIRECRAWL_API_KEY`, inyectada por el proxy en la nube). Cada partido se lee una sola vez y se guarda en `history/flashscore_xg.json`, que `python track.py sync` sube junto al histórico. Si Firecrawl falla, el análisis sigue solo con goles.
 - Para medir el xG: `python backtest.py --teams-file leagues/<liga>.txt --xg` (compara los mismos partidos con y sin xG). Las listas de equipos por liga están en `leagues/`.

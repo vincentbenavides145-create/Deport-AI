@@ -8,59 +8,59 @@ from deport_ai.storage import DatabaseManager
 
 
 def test_dynamic_calibrator_recompute():
+    """El sesgo se mide solo con mercados de total del partido, una vez por partido."""
     db = DatabaseManager(":memory:")
-    # Simular 10 predicciones resueltas de Córners en liga 564
-    # donde el modelo proyectó 11.0 córners pero el promedio real fue 8.0 (sesgo -3.0)
-    # y el hit rate fue de 60%
+    # 30 partidos: el modelo proyectó 11.0 córners totales y hubo 8 (sesgo -3.0). Cada uno
+    # trae también un mercado de equipo (proyección 6.0) que NO debe entrar en el sesgo.
+    for fid in range(1, 31):
+        db.save_fixture_and_predictions(
+            fixture_id=fid, home_team_id=1, home_team_name="Local", away_team_id=2,
+            away_team_name="Rival", league_id=564, league_name="La Liga",
+            match_date=f"2026-09-{fid:02d}T20:00:00Z",
+            predictions=[
+                {"category": "Córners", "market": "Córners totales", "selection": "Más de 8.5 córners",
+                 "line": 8.5, "side": "over", "probability": 0.75, "projection": 11.0},
+                {"category": "Córners", "market": "Córners de Local", "selection": "Local Más de 3.5 córners",
+                 "line": 3.5, "side": "over", "probability": 0.75, "projection": 6.0},
+            ],
+        )
+        db.update_fixture_result(
+            fixture_id=fid,
+            actual_stats={"home_goals": 1, "away_goals": 1, "corners_home": 4, "corners_away": 4},
+            status="FINISHED",
+        )
+        for idx, p in enumerate(db.get_predictions_for_fixture(fid)):
+            db.update_prediction_status(p["id"], "WON" if (fid <= 18) else "LOST")
+
+    calibrator = DynamicCalibrator(db)
+    assert calibrator.recompute_calibrations() >= 1
+    summary = calibrator.get_calibration_summary(league_id=564, league_name="La Liga")
+    assert summary.active is True
+    assert summary.sample_size == 60
+    assert summary.overall_hit_rate == 0.60
+    assert "Córners" in summary.category_factors
+    assert summary.bias_offsets.get("Córners") == -3.0  # (8 - 11), sin mezclar la proyección de equipo
+
+
+def test_bias_needs_thirty_matches_with_total_projection():
+    db = DatabaseManager(":memory:")
     db.save_fixture_and_predictions(
-        fixture_id=1,
-        home_team_id=1,
-        home_team_name="Local",
-        away_team_id=2,
-        away_team_name="Visitante",
-        league_id=564,
-        league_name="La Liga",
-        match_date="2026-09-01T20:00:00Z",
+        fixture_id=1, home_team_id=1, home_team_name="Local", away_team_id=2, away_team_name="Rival",
+        league_id=564, league_name="La Liga", match_date="2026-09-01T20:00:00Z",
         predictions=[
-            {
-                "category": "Córners",
-                "market": "Córners Totales",
-                "selection": f"Más de 8.5 córners #{i}",
-                "line": 8.5,
-                "side": "over",
-                "probability": 0.75,
-                "projection": 11.0,
-            }
+            {"category": "Córners", "market": "Córners totales", "selection": f"Más de 8.5 córners #{i}",
+             "line": 8.5, "side": "over", "probability": 0.75, "projection": 11.0}
             for i in range(40)
         ],
     )
-
-    db.update_fixture_result(
-        fixture_id=1,
-        actual_stats={
-            "home_goals": 1,
-            "away_goals": 1,
-            "corners_home": 4,
-            "corners_away": 4,  # Total 8 córners
-        },
-        status="FINISHED",
-    )
-
-    preds = db.get_predictions_for_fixture(1)
-    for idx, p in enumerate(preds):
-        status = "WON" if idx < 24 else "LOST"
-        db.update_prediction_status(p["id"], status)
-
+    db.update_fixture_result(fixture_id=1, actual_stats={"home_goals": 1, "away_goals": 1,
+                                                         "corners_home": 4, "corners_away": 4}, status="FINISHED")
+    for p in db.get_predictions_for_fixture(1):
+        db.update_prediction_status(p["id"], "WON")
     calibrator = DynamicCalibrator(db)
-    updated = calibrator.recompute_calibrations()
-    assert updated >= 1
-
+    calibrator.recompute_calibrations()
     summary = calibrator.get_calibration_summary(league_id=564, league_name="La Liga")
-    assert summary.active is True
-    assert summary.sample_size == 40
-    assert summary.overall_hit_rate == 0.60
-    assert "Córners" in summary.category_factors
-    assert summary.bias_offsets.get("Córners") == -3.0  # (8 - 11)
+    assert "Córners" not in summary.bias_offsets  # un solo partido: no hay sesgo fiable
 
 
 def test_dynamic_calibration_applied_to_projections():

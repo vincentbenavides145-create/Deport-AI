@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 import time
 from datetime import date, datetime, timedelta
 from difflib import SequenceMatcher, get_close_matches
@@ -57,8 +58,9 @@ TEAM_ALIASES: dict[str, str] = {
     "suiza": "Switzerland",
     "suecia": "Sweden",
     "polonia": "Poland",
-    "turquia": "Turkey",
-    "turquía": "Turkey",
+    "turquia": "Türkiye",
+    "turquía": "Türkiye",
+    "turkey": "Türkiye",
     "austria": "Austria",
     "escocia": "Scotland",
     "irlanda": "Republic of Ireland",
@@ -1078,9 +1080,19 @@ def _sportmonks_status(raw: dict[str, Any]) -> str:
     value = str((raw.get("state") or {}).get("developer_name") or "").upper()
     if value in {"FT", "AET", "PEN"}:
         return value
-    if "PEN" in value:
+    # Prórroga y penales EN JUEGO (INPLAY_EXTRA_TIME, INPLAY_PENALTIES, EXTRA_TIME_BREAK,
+    # PEN_BREAK...) no son partidos terminados.
+    if value.startswith("INPLAY") or value.endswith("_BREAK") or value in {"BREAK", "HT"}:
+        if "PEN" in value:
+            return "PEN_LIVE"
+        if "EXTRA" in value or value == "ET":
+            return "ET"
+        if value in {"HT", "BREAK"}:
+            return "HT"
+        return "1H" if "1ST" in value else "2H"
+    if value in {"FT_PEN", "AFTER_PENALTIES", "PENALTIES"} or value.endswith("_PEN"):
         return "PEN"
-    if "EXTRA" in value or value == "AET":
+    if value in {"AET", "AFTER_EXTRA_TIME"}:
         return "AET"
     if "FINISH" in value or value in {"ENDED", "AFTER_FULL_TIME"}:
         return "FT"
@@ -1113,7 +1125,16 @@ def _iso_date(value: str, timezone_name: str) -> str:
 
 
 def _normalize(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+    """Minúsculas, sin tildes ni signos: "España" -> "espana", "São Paulo" -> "sao paulo"."""
+    text = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
+
+
+def _normalized_keys(mapping: dict[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key, value in mapping.items():
+        out.setdefault(_normalize(key), value)
+    return out
 
 
 def _name_score(query: str, candidate: str) -> float:
@@ -1175,3 +1196,9 @@ def _rank_team_rows(cleaned: str, effective_query: str, rows: list[dict[str, Any
             others = [(score - 0.05, nat, team) for score, nat, team in ranked if team.id != nationals[0][2].id]
             return [(nationals[0][0], nationals[0][2])] + [(score, team) for score, _, team in others]
     return [(score, team) for score, _, team in ranked]
+
+
+# Las claves de alias se comparan ya normalizadas (sin tildes), igual que la consulta.
+TEAM_ALIASES = _normalized_keys(TEAM_ALIASES)
+TEAM_ID_OVERRIDES = _normalized_keys(TEAM_ID_OVERRIDES)
+

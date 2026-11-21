@@ -12,6 +12,10 @@ from .storage import DatabaseManager
 MIN_CALIBRATION_SAMPLE = 30
 # Peso de credibilidad: con n predicciones, la corrección aplicada es n / (n + CREDIBILITY_K).
 CREDIBILITY_K = 50.0
+# Mercado de total del partido cuya proyección sirve para medir el sesgo de cada categoría.
+# Goles no se corrige aquí: sus probabilidades salen de la matriz de marcadores, que ya
+# está calculada, y mover solo los goles esperados dejaría cifras que no corresponden.
+TOTAL_MARKETS = {"Córners": "Córners totales", "Tarjetas": "Tarjetas totales"}
 
 
 @dataclass
@@ -136,30 +140,29 @@ class DynamicCalibrator:
         else:
             shrinkage = 1.0
 
-        # Bias offset en proyecciones (Córners, Tarjetas, Goles)
-        bias_diffs: list[float] = []
+        # Sesgo de la proyección: total real del partido menos el total proyectado. Solo
+        # vale para los mercados de TOTAL del partido: la proyección de un mercado de
+        # equipo o del 1T no es comparable con el total del partido (eso inflaba el sesgo).
+        # Una proyección se cuenta una vez por partido y hacen falta 30+ partidos.
+        bias_by_fixture: dict[Any, float] = {}
         for i in items:
             proj = i.get("projection")
-            if proj is None:
-                continue
             cat = i.get("category", "")
+            if proj is None or i.get("market") != TOTAL_MARKETS.get(cat):
+                continue
             if cat == "Córners":
-                ch = i.get("actual_corners_home")
-                ca = i.get("actual_corners_away")
-                if ch is not None and ca is not None:
-                    bias_diffs.append((ch + ca) - float(proj))
+                home, away = i.get("actual_corners_home"), i.get("actual_corners_away")
             elif cat == "Tarjetas":
-                cards_h = i.get("actual_cards_home")
-                cards_a = i.get("actual_cards_away")
-                if cards_h is not None and cards_a is not None:
-                    bias_diffs.append((cards_h + cards_a) - float(proj))
-            elif cat in ("Goles", "Goles y Anotaciones"):
-                gh = i.get("actual_home_goals")
-                ga = i.get("actual_away_goals")
-                if gh is not None and ga is not None:
-                    bias_diffs.append((gh + ga) - float(proj))
+                home, away = i.get("actual_cards_home"), i.get("actual_cards_away")
+            else:
+                continue
+            if home is not None and away is not None:
+                bias_by_fixture.setdefault(i.get("fixture_id"), (home + away) - float(proj))
 
-        bias_offset = fmean(bias_diffs) if bias_diffs else 0.0
+        if len(bias_by_fixture) >= MIN_CALIBRATION_SAMPLE:
+            bias_offset = fmean(bias_by_fixture.values())
+        else:
+            bias_offset = 0.0
 
         return {
             "sample_size": n,
@@ -265,18 +268,3 @@ class DynamicCalibrator:
                     expected.cards_home = max(0.5, round(expected.cards_home + t_adj * h_prop, 2))
                 if expected.cards_away is not None:
                     expected.cards_away = max(0.5, round(expected.cards_away + t_adj * a_prop, 2))
-
-        # 3. Corrección dinámica de sesgo en Goles
-        if "Goles" in calibration.bias_offsets:
-            g_bias = calibration.bias_offsets["Goles"]
-            g_adj = g_bias * 0.50
-            tot_goals = (
-                (probabilities.expected_home_goals or 0.0) + (probabilities.expected_away_goals or 0.0)
-            )
-            if tot_goals > 0:
-                h_prop = (probabilities.expected_home_goals or 0.0) / tot_goals
-                a_prop = (probabilities.expected_away_goals or 0.0) / tot_goals
-                if probabilities.expected_home_goals is not None:
-                    probabilities.expected_home_goals = max(0.2, round(probabilities.expected_home_goals + g_adj * h_prop, 2))
-                if probabilities.expected_away_goals is not None:
-                    probabilities.expected_away_goals = max(0.2, round(probabilities.expected_away_goals + g_adj * a_prop, 2))

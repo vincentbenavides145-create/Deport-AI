@@ -110,7 +110,8 @@ def test_player_history_only_counts_starts_with_known_shot_totals():
 # ---------------------------------------------------------------- 3. once oficial solo cerca del inicio
 
 def test_lineups_are_official_only_close_to_kickoff():
-    both = [{"startXI": [{"player": {"id": 1}}]}, {"startXI": [{"player": {"id": 2}}]}]
+    xi = [{"player": {"id": n}} for n in range(11)]
+    both = [{"startXI": xi}, {"startXI": xi}]
     now = datetime(2026, 11, 18, 20, 0, tzinfo=timezone.utc)
     kickoff = "2026-11-18T17:30:00-05:00"  # 22:30 UTC: faltan 150 minutos
     assert not lineups_are_official(both, kickoff, now=now)
