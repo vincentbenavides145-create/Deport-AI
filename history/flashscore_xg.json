@@ -10273,6 +10273,22 @@
    "xa_home": 0.73,
    "xa_away": 1.76
   },
+  "19722104": {
+   "mid": "2ZAFSppS",
+   "date": "2026-11-08",
+   "home": "Sunderland",
+   "away": "Chelsea",
+   "xg_home": 2.38,
+   "xg_away": 0.66,
+   "big_chances_home": 4.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 14.0,
+   "box_touches_away": 22.0,
+   "xgot_home": 1.22,
+   "xgot_away": 0.24,
+   "xa_home": 0.52,
+   "xa_away": 0.8
+  },
   "19722105": {
    "mid": "f977U6FF",
    "date": "2026-11-07",
@@ -10449,6 +10465,22 @@
    "xa_home": 0.31,
    "xa_away": 0.62
   },
+  "19722120": {
+   "mid": "OWc65atm",
+   "date": "2026-10-31",
+   "home": "Chelsea",
+   "away": "Manchester United",
+   "xg_home": 3.0,
+   "xg_away": 1.24,
+   "big_chances_home": 4.0,
+   "big_chances_away": 4.0,
+   "box_touches_home": 39.0,
+   "box_touches_away": 21.0,
+   "xgot_home": 2.53,
+   "xgot_away": 0.3,
+   "xa_home": 0.92,
+   "xa_away": 0.7
+  },
   "19722122": {
    "mid": "bRXj39aJ",
    "date": "2026-10-31",
@@ -10464,6 +10496,38 @@
    "xgot_away": 1.87,
    "xa_home": 0.51,
    "xa_away": 1.29
+  },
+  "19722123": {
+   "mid": "j1Ur5VU6",
+   "date": "2026-10-31",
+   "home": "AFC Bournemouth",
+   "away": "Leeds United",
+   "xg_home": 1.29,
+   "xg_away": 0.71,
+   "big_chances_home": 2.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 13.0,
+   "box_touches_away": 18.0,
+   "xgot_home": 2.99,
+   "xgot_away": 0.45,
+   "xa_home": 0.45,
+   "xa_away": 0.85
+  },
+  "19722124": {
+   "mid": "ImWz7i0f",
+   "date": "2026-10-25",
+   "home": "Sunderland",
+   "away": "Leeds United",
+   "xg_home": 0.83,
+   "xg_away": 0.76,
+   "big_chances_home": 1.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 18.0,
+   "box_touches_away": 23.0,
+   "xgot_home": 0.85,
+   "xgot_away": 0.84,
+   "xa_home": 0.45,
+   "xa_away": 0.58
   },
   "19722127": {
    "mid": "lEkBjWFD",
@@ -10593,6 +10657,22 @@
    "xa_home": 2.08,
    "xa_away": 0.28
   },
+  "19722138": {
+   "mid": "rHnJqO2T",
+   "date": "2026-10-18",
+   "home": "Leeds United",
+   "away": "Manchester United",
+   "xg_home": 1.41,
+   "xg_away": 0.92,
+   "big_chances_home": 2.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 21.0,
+   "box_touches_away": 14.0,
+   "xgot_home": 0.99,
+   "xgot_away": 1.05,
+   "xa_home": 0.88,
+   "xa_away": 0.57
+  },
   "19722139": {
    "mid": "A3lBopYG",
    "date": "2026-10-17",
@@ -10608,6 +10688,22 @@
    "xgot_away": 0.0,
    "xa_home": 2.08,
    "xa_away": 0.17
+  },
+  "19722140": {
+   "mid": "2wo3m634",
+   "date": "2026-10-17",
+   "home": "Everton",
+   "away": "Chelsea",
+   "xg_home": 0.43,
+   "xg_away": 1.47,
+   "big_chances_home": 2.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 17.0,
+   "box_touches_away": 21.0,
+   "xgot_home": 0.7,
+   "xgot_away": 2.13,
+   "xa_home": 0.57,
+   "xa_away": 0.76
   },
   "19722141": {
    "mid": "fDsekSYi",
@@ -10721,6 +10817,38 @@
    "xa_home": 0.24,
    "xa_away": 1.2
   },
+  "19722151": {
+   "mid": "8I6zQB5t",
+   "date": "2026-10-10",
+   "home": "Chelsea",
+   "away": "AFC Bournemouth",
+   "xg_home": 1.1,
+   "xg_away": 1.38,
+   "big_chances_home": 2.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 17.0,
+   "box_touches_away": 21.0,
+   "xgot_home": 2.3,
+   "xgot_away": 1.43,
+   "xa_home": 0.64,
+   "xa_away": 1.08
+  },
+  "19722153": {
+   "mid": "xtmHKGT0",
+   "date": "2026-10-10",
+   "home": "Arsenal",
+   "away": "Leeds United",
+   "xg_home": 2.33,
+   "xg_away": 0.62,
+   "big_chances_home": 4.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 37.0,
+   "box_touches_away": 17.0,
+   "xgot_home": 2.11,
+   "xgot_away": 1.83,
+   "xa_home": 1.61,
+   "xa_away": 0.2
+  },
   "19722154": {
    "mid": "4Sl9Mxal",
    "date": "2026-09-19",
@@ -10833,6 +10961,22 @@
    "xa_home": 1.38,
    "xa_away": 1.0
   },
+  "19722162": {
+   "mid": "ObA4gvV1",
+   "date": "2026-09-18",
+   "home": "Brentford",
+   "away": "Chelsea",
+   "xg_home": 2.65,
+   "xg_away": 0.83,
+   "big_chances_home": 4.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 24.0,
+   "box_touches_away": 29.0,
+   "xgot_home": 3.66,
+   "xgot_away": 0.23,
+   "xa_home": 1.11,
+   "xa_away": 0.56
+  },
   "19722164": {
    "mid": "K2LQ0MxS",
    "date": "2026-09-12",
@@ -10880,6 +11024,22 @@
    "xgot_away": 0.41,
    "xa_home": 0.6,
    "xa_away": 0.53
+  },
+  "19722168": {
+   "mid": "Q1TGrNGq",
+   "date": "2026-09-14",
+   "home": "Leeds United",
+   "away": "Newcastle United",
+   "xg_home": 1.99,
+   "xg_away": 0.88,
+   "big_chances_home": 3.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 28.0,
+   "box_touches_away": 20.0,
+   "xgot_home": 2.91,
+   "xgot_away": 1.14,
+   "xa_home": 0.79,
+   "xa_away": 0.63
   },
   "19722169": {
    "mid": "UVsolqgM",
@@ -11009,6 +11169,38 @@
    "xa_home": 2.53,
    "xa_away": 0.39
   },
+  "19722181": {
+   "mid": "UBkmalpQ",
+   "date": "2026-09-05",
+   "home": "Brighton & Hove Albion",
+   "away": "Leeds United",
+   "xg_home": 2.19,
+   "xg_away": 2.49,
+   "big_chances_home": 4.0,
+   "big_chances_away": 5.0,
+   "box_touches_home": 29.0,
+   "box_touches_away": 19.0,
+   "xgot_home": 0.68,
+   "xgot_away": 1.9,
+   "xa_home": 1.1,
+   "xa_away": 0.93
+  },
+  "19722183": {
+   "mid": "Glagw7N6",
+   "date": "2026-09-06",
+   "home": "Arsenal",
+   "away": "Chelsea",
+   "xg_home": 2.05,
+   "xg_away": 0.39,
+   "big_chances_home": 4.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 44.0,
+   "box_touches_away": 26.0,
+   "xgot_home": 2.0,
+   "xgot_away": 0.35,
+   "xa_home": 1.89,
+   "xa_away": 0.29
+  },
   "19722184": {
    "mid": "ry1ouThf",
    "date": "2026-08-29",
@@ -11057,6 +11249,22 @@
    "xa_home": 1.49,
    "xa_away": 0.74
   },
+  "19722188": {
+   "mid": "KQ1EQTw1",
+   "date": "2026-08-30",
+   "home": "Leeds United",
+   "away": "Brentford",
+   "xg_home": 1.46,
+   "xg_away": 1.67,
+   "big_chances_home": 1.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 19.0,
+   "box_touches_away": 40.0,
+   "xgot_home": 1.17,
+   "xgot_away": 0.81,
+   "xa_home": 0.24,
+   "xa_away": 0.85
+  },
   "19722189": {
    "mid": "C0b6Sk9l",
    "date": "2026-08-28",
@@ -11088,6 +11296,22 @@
    "xgot_away": 0.5,
    "xa_home": 0.8,
    "xa_away": 0.15
+  },
+  "19722191": {
+   "mid": "849SZXGE",
+   "date": "2026-08-30",
+   "home": "Chelsea",
+   "away": "Brighton & Hove Albion",
+   "xg_home": 2.93,
+   "xg_away": 1.41,
+   "big_chances_home": 6.0,
+   "big_chances_away": 5.0,
+   "box_touches_home": 29.0,
+   "box_touches_away": 27.0,
+   "xgot_home": 2.6,
+   "xgot_away": 2.61,
+   "xa_home": 1.62,
+   "xa_away": 0.75
   },
   "19722194": {
    "mid": "C2Nfvg77",
@@ -11136,6 +11360,22 @@
    "xgot_away": 0.61,
    "xa_home": 1.9,
    "xa_away": 0.45
+  },
+  "19722199": {
+   "mid": "pjhHs7d2",
+   "date": "2026-08-22",
+   "home": "Nottingham Forest",
+   "away": "Leeds United",
+   "xg_home": 0.66,
+   "xg_away": 0.47,
+   "big_chances_home": 0.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 22.0,
+   "box_touches_away": 15.0,
+   "xgot_home": 0.33,
+   "xgot_away": 0.53,
+   "xa_home": 0.76,
+   "xa_away": 0.35
   },
   "19722200": {
    "mid": "Cxf9qTRk",
