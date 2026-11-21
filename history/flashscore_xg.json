@@ -11121,6 +11121,22 @@
    "xa_home": 0.59,
    "xa_away": 0.42
   },
+  "19735119": {
+   "mid": "pMxurfFb",
+   "date": "2026-11-06",
+   "home": "Hamburger SV",
+   "away": "Borussia Mönchengladbach",
+   "xg_home": 2.27,
+   "xg_away": 2.22,
+   "big_chances_home": 5.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 36.0,
+   "box_touches_away": 28.0,
+   "xgot_home": 3.09,
+   "xgot_away": 1.36,
+   "xa_home": 1.74,
+   "xa_away": 1.37
+  },
   "19735121": {
    "mid": "nXgNPCaU",
    "date": "2026-11-08",
@@ -11169,6 +11185,22 @@
    "xa_home": 0.3,
    "xa_away": 1.5
   },
+  "19735129": {
+   "mid": "OEdKIwnm",
+   "date": "2026-10-31",
+   "home": "Borussia Mönchengladbach",
+   "away": "Paderborn",
+   "xg_home": 1.32,
+   "xg_away": 0.99,
+   "big_chances_home": 3.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 19.0,
+   "box_touches_away": 26.0,
+   "xgot_home": 1.6,
+   "xgot_away": 0.54,
+   "xa_home": 0.99,
+   "xa_away": 1.3
+  },
   "19735131": {
    "mid": "0xJ20dWI",
    "date": "2026-10-31",
@@ -11184,6 +11216,22 @@
    "xgot_away": 1.33,
    "xa_home": 1.28,
    "xa_away": 1.24
+  },
+  "19735134": {
+   "mid": "E1Ev602s",
+   "date": "2026-10-31",
+   "home": "FC Bayern München",
+   "away": "Borussia Dortmund",
+   "xg_home": 4.48,
+   "xg_away": 0.74,
+   "big_chances_home": 6.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 45.0,
+   "box_touches_away": 24.0,
+   "xgot_home": 4.12,
+   "xgot_away": 1.55,
+   "xa_home": 1.54,
+   "xa_away": 1.07
   },
   "19735139": {
    "mid": "4YizA93F",
@@ -11201,6 +11249,22 @@
    "xa_home": 1.73,
    "xa_away": 1.5
   },
+  "19735141": {
+   "mid": "4EFr4JFd",
+   "date": "2026-10-23",
+   "home": "VfB Stuttgart",
+   "away": "Borussia Mönchengladbach",
+   "xg_home": 1.53,
+   "xg_away": 3.08,
+   "big_chances_home": 2.0,
+   "big_chances_away": 4.0,
+   "box_touches_home": 26.0,
+   "box_touches_away": 21.0,
+   "xgot_home": 1.69,
+   "xgot_away": 2.76,
+   "xa_home": 2.55,
+   "xa_away": 0.76
+  },
   "19735142": {
    "mid": "dlCz6uop",
    "date": "2026-10-24",
@@ -11216,6 +11280,22 @@
    "xgot_away": 0.03,
    "xa_home": 2.47,
    "xa_away": 0.95
+  },
+  "19735143": {
+   "mid": "0IQ4B1NM",
+   "date": "2026-10-24",
+   "home": "Borussia Dortmund",
+   "away": "Eintracht Frankfurt",
+   "xg_home": 1.48,
+   "xg_away": 0.85,
+   "big_chances_home": 2.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 36.0,
+   "box_touches_away": 14.0,
+   "xgot_home": 0.79,
+   "xgot_away": 0.7,
+   "xa_home": 1.46,
+   "xa_away": 0.38
   },
   "19735144": {
    "mid": "hhNdDNhA",
@@ -11233,6 +11313,38 @@
    "xa_home": 1.16,
    "xa_away": 2.06
   },
+  "19735148": {
+   "mid": "zZsPbOwH",
+   "date": "2026-10-18",
+   "home": "Borussia Mönchengladbach",
+   "away": "TSG Hoffenheim",
+   "xg_home": 0.47,
+   "xg_away": 1.8,
+   "big_chances_home": 2.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 20.0,
+   "box_touches_away": 34.0,
+   "xgot_home": 1.2,
+   "xgot_away": 2.48,
+   "xa_home": 0.74,
+   "xa_away": 1.3
+  },
+  "19735149": {
+   "mid": "2LqH0p94",
+   "date": "2026-10-17",
+   "home": "FC Union Berlin",
+   "away": "Borussia Dortmund",
+   "xg_home": 0.8,
+   "xg_away": 1.09,
+   "big_chances_home": 1.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 12.0,
+   "box_touches_away": 30.0,
+   "xgot_home": 0.0,
+   "xgot_away": 0.08,
+   "xa_home": 0.82,
+   "xa_away": 1.69
+  },
   "19735151": {
    "mid": "r7ZNv3no",
    "date": "2026-10-18",
@@ -11248,6 +11360,22 @@
    "xgot_away": 0.58,
    "xa_home": 1.16,
    "xa_away": 1.51
+  },
+  "19735154": {
+   "mid": "hfnxl7Pb",
+   "date": "2026-10-11",
+   "home": "FC Köln",
+   "away": "Borussia Mönchengladbach",
+   "xg_home": 1.32,
+   "xg_away": 1.17,
+   "big_chances_home": 2.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 28.0,
+   "box_touches_away": 26.0,
+   "xgot_home": 1.39,
+   "xgot_away": 1.77,
+   "xa_home": 1.11,
+   "xa_away": 0.95
   },
   "19735155": {
    "mid": "KtlUkTfn",
@@ -11281,6 +11409,22 @@
    "xa_home": 1.12,
    "xa_away": 0.37
   },
+  "19735161": {
+   "mid": "plkwWY3D",
+   "date": "2026-10-09",
+   "home": "Borussia Dortmund",
+   "away": "Werder Bremen",
+   "xg_home": 2.31,
+   "xg_away": 1.31,
+   "big_chances_home": 4.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 46.0,
+   "box_touches_away": 14.0,
+   "xgot_home": 2.17,
+   "xgot_away": 1.89,
+   "xa_home": 2.43,
+   "xa_away": 0.5
+  },
   "19735163": {
    "mid": "4dYNZG4l",
    "date": "2026-09-20",
@@ -11297,6 +11441,22 @@
    "xa_home": 1.19,
    "xa_away": 0.95
   },
+  "19735166": {
+   "mid": "YgibJeK7",
+   "date": "2026-09-19",
+   "home": "Borussia Mönchengladbach",
+   "away": "FSV Mainz 05",
+   "xg_home": 3.24,
+   "xg_away": 2.82,
+   "big_chances_home": 4.0,
+   "big_chances_away": 5.0,
+   "box_touches_home": 33.0,
+   "box_touches_away": 33.0,
+   "xgot_home": 3.41,
+   "xgot_away": 3.09,
+   "xa_home": 1.8,
+   "xa_away": 2.48
+  },
   "19735167": {
    "mid": "0tgjLHke",
    "date": "2026-09-19",
@@ -11312,6 +11472,22 @@
    "xgot_away": 2.07,
    "xa_home": 1.9,
    "xa_away": 1.4
+  },
+  "19735169": {
+   "mid": "O0aCSacL",
+   "date": "2026-09-19",
+   "home": "VfB Stuttgart",
+   "away": "Borussia Dortmund",
+   "xg_home": 1.15,
+   "xg_away": 1.33,
+   "big_chances_home": 2.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 15.0,
+   "box_touches_away": 31.0,
+   "xgot_home": 0.63,
+   "xgot_away": 0.91,
+   "xa_home": 1.11,
+   "xa_away": 1.21
   },
   "19735171": {
    "mid": "Ot9I6Iz2",
@@ -11345,6 +11521,22 @@
    "xa_home": 1.26,
    "xa_away": 0.38
   },
+  "19735179": {
+   "mid": "2kmjGV7b",
+   "date": "2026-09-12",
+   "home": "Borussia Dortmund",
+   "away": "Paderborn",
+   "xg_home": 1.76,
+   "xg_away": 0.49,
+   "big_chances_home": 7.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 27.0,
+   "box_touches_away": 17.0,
+   "xgot_home": 2.94,
+   "xgot_away": 0.0,
+   "xa_home": 1.47,
+   "xa_away": 0.99
+  },
   "19735180": {
    "mid": "fPqrIiwn",
    "date": "2026-09-05",
@@ -11377,6 +11569,22 @@
    "xa_home": 1.54,
    "xa_away": 0.55
   },
+  "19735187": {
+   "mid": "8WNpmXwC",
+   "date": "2026-09-05",
+   "home": "TSG Hoffenheim",
+   "away": "Borussia Dortmund",
+   "xg_home": 1.76,
+   "xg_away": 2.04,
+   "big_chances_home": 4.0,
+   "big_chances_away": 4.0,
+   "box_touches_home": 36.0,
+   "box_touches_away": 21.0,
+   "xgot_home": 1.25,
+   "xgot_away": 2.17,
+   "xa_home": 1.44,
+   "xa_away": 1.51
+  },
   "19735189": {
    "mid": "6q9MVvD5",
    "date": "2026-08-29",
@@ -11408,6 +11616,38 @@
    "xgot_away": 0.26,
    "xa_home": 1.43,
    "xa_away": 0.39
+  },
+  "19735195": {
+   "mid": "WpiYAKo9",
+   "date": "2026-08-29",
+   "home": "RB Leipzig",
+   "away": "Borussia Mönchengladbach",
+   "xg_home": 3.96,
+   "xg_away": 1.09,
+   "big_chances_home": 6.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 38.0,
+   "box_touches_away": 27.0,
+   "xgot_home": 3.83,
+   "xgot_away": 0.66,
+   "xa_home": 2.01,
+   "xa_away": 0.97
+  },
+  "19735196": {
+   "mid": "vi4nmHg2",
+   "date": "2026-08-29",
+   "home": "Borussia Dortmund",
+   "away": "Hamburger SV",
+   "xg_home": 1.51,
+   "xg_away": 0.91,
+   "big_chances_home": 0.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 33.0,
+   "box_touches_away": 17.0,
+   "xgot_home": 2.35,
+   "xgot_away": 0.17,
+   "xa_home": 1.2,
+   "xa_away": 0.67
   },
   "19740283": {
    "mid": "bJHsMGf2",
