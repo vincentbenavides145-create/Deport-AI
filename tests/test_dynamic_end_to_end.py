@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from deport_ai.ai_critic import AICritic
 from deport_ai.domain import Team
 from deport_ai.dynamic_calibration import DynamicCalibrator
@@ -7,6 +9,10 @@ from deport_ai.formatter import format_adaptive_report
 from deport_ai.service import AnalysisService
 from deport_ai.settlement import SettlementEngine
 from deport_ai.storage import DatabaseManager
+
+
+# Partido por jugar: solo se registran pronósticos de partidos que aún no empiezan.
+KICKOFF = (datetime.now(timezone.utc) + timedelta(days=2)).strftime("%Y-%m-%dT20:00:00Z")
 
 
 class MockAPI:
@@ -23,7 +29,7 @@ class MockAPI:
         return {
             "fixture": {
                 "id": 8888,
-                "date": "2026-09-25T20:00:00Z",
+                "date": KICKOFF,
                 "timestamp": 1790366400,
                 "status": {"short": "NS"},
             },

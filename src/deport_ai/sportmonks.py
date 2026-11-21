@@ -15,7 +15,7 @@ import requests
 
 from .domain import Team
 from .errors import APIError, AmbiguousTeamError, TeamNotFoundError
-from .fixture_contract import FINISHED_STATUSES
+from .fixture_contract import FINISHED_STATUSES, VOID_FIXTURE_STATUSES
 
 
 def _number(value: Any) -> float | None:
@@ -585,7 +585,7 @@ class SportmonksClient:
             row
             for row in rows
             if second_id in {int(p.get("id", -1)) for p in row.get("participants", [])}
-            and _sportmonks_status(row) not in FINISHED_STATUSES
+            and _sportmonks_status(row) not in FINISHED_STATUSES | VOID_FIXTURE_STATUSES
         ]
         candidates.sort(key=lambda row: int(row.get("starting_at_timestamp") or 0))
         if not candidates:
@@ -1078,10 +1078,6 @@ def _sportmonks_status(raw: dict[str, Any]) -> str:
         return "AET"
     if "FINISH" in value or value in {"ENDED", "AFTER_FULL_TIME"}:
         return "FT"
-    if value in {"NS", "POSTPONED", "CANCELLED"}:
-        return value
-    if value.startswith("INPLAY"):
-        return "1H" if "1ST" in value else "2H"
     return value or "NS"
 
 

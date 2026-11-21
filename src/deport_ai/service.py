@@ -378,7 +378,9 @@ class AnalysisService:
         )
 
         should_track = self.auto_track if track is None else track
-        if should_track and fixture and fixture.fixture_id:
+        # Solo se registran partidos que aún no empiezan: una predicción hecha con el
+        # partido en juego (o terminado) no es un pronóstico y falsearía el acierto.
+        if should_track and fixture and fixture.fixture_id and not_started(fixture.date, fixture.status):
             try:
                 self.db.save_fixture_and_predictions(
                     fixture_id=fixture.fixture_id,
@@ -390,10 +392,11 @@ class AnalysisService:
                     league_name=target_league_name,
                     match_date=fixture.date,
                     predictions=statistical_markets,
+                    replace_pending=True,
                 )
                 self.db.export_history()
-            except Exception:
-                pass
+            except Exception as exc:  # el análisis sigue, pero se avisa: el partido no quedó registrado
+                logger.warning("No se pudo registrar el partido %s en el histórico: %s", fixture.fixture_id, exc)
 
         return report
 
@@ -413,6 +416,22 @@ class AnalysisService:
             by_id = {first.id: first, second.id: second}
             return by_id.get(fixture.home.id, fixture.home), by_id.get(fixture.away.id, fixture.away)
         return first, second
+
+
+def not_started(kickoff_iso: str | None, status: str | None, now: datetime | None = None) -> bool:
+    """True si el partido aún no empezó: estado sin comenzar y hora de inicio futura."""
+    if str(status or "NS").upper() not in NOT_STARTED_STATUSES or not kickoff_iso:
+        return False
+    try:
+        kickoff = datetime.fromisoformat(str(kickoff_iso).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if kickoff.tzinfo is None:
+        kickoff = kickoff.replace(tzinfo=timezone.utc)
+    return kickoff > (now or datetime.now(timezone.utc))
+
+
+NOT_STARTED_STATUSES = {"NS", "TBA", "DELAYED", ""}
 
 
 def _finished(row: dict[str, Any]) -> bool:

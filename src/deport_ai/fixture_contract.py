@@ -6,6 +6,8 @@ from .domain import MatchRef, Team
 
 
 FINISHED_STATUSES = {"FT", "AET", "PEN"}
+# Partidos que no se jugarán (o se resolvieron en mesa): sus apuestas se anulan.
+VOID_FIXTURE_STATUSES = {"CANCELLED", "ABANDONED", "DELETED", "AWARDED", "WO", "WALKOVER"}
 
 
 def to_match_ref(row: dict[str, Any]) -> MatchRef:

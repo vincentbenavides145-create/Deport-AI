@@ -10,6 +10,7 @@ from typing import Any
 DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "deport_ai.db"
 # Copia de texto del histórico dentro del repositorio: es la fuente permanente (las
 # sesiones en la nube son temporales y la base SQLite se pierde al cerrarlas).
+EXTRA_RESULT_COLUMNS = ("actual_fouls_home", "actual_fouls_away", "actual_corners_first_half")
 DEFAULT_HISTORY_PATH = Path(__file__).resolve().parent.parent.parent / "history" / "predictions.jsonl"
 
 
@@ -240,6 +241,12 @@ class DatabaseManager:
             pred_cols = {row[1] for row in conn.execute("PRAGMA table_info(tracked_predictions)")}
             if "highlight" not in pred_cols:
                 conn.execute("ALTER TABLE tracked_predictions ADD COLUMN highlight TEXT")
+            # Migración: faltas y córners del 1T también se liquidan; sin guardarlos el
+            # histórico no permitía revisar esas liquidaciones.
+            fixture_cols = {row[1] for row in conn.execute("PRAGMA table_info(tracked_fixtures)")}
+            for column in EXTRA_RESULT_COLUMNS:
+                if column not in fixture_cols:
+                    conn.execute(f"ALTER TABLE tracked_fixtures ADD COLUMN {column} INTEGER")
             _migrate_shots_on_target_labels(conn)
 
     def save_fixture_and_predictions(
@@ -253,8 +260,14 @@ class DatabaseManager:
         league_name: str | None,
         match_date: str | None,
         predictions: list[dict[str, Any]],
+        replace_pending: bool = False,
     ) -> None:
-        """Guarda o actualiza un fixture y su lista de pronósticos recomendados."""
+        """Guarda o actualiza un fixture y su lista de pronósticos recomendados.
+
+        Con ``replace_pending`` (re-análisis antes del inicio) las predicciones pendientes
+        del partido se sustituyen por las nuevas: si no, se acumulaban las de cada
+        análisis, con probabilidades viejas y varias líneas del mismo mercado.
+        """
         now_iso = datetime.now(timezone.utc).isoformat()
         with self._get_connection() as conn:
             conn.execute(
@@ -284,6 +297,10 @@ class DatabaseManager:
                 ),
             )
 
+            if replace_pending:
+                conn.execute(
+                    "DELETE FROM tracked_predictions WHERE fixture_id = ? AND status = 'PENDING'", (fixture_id,)
+                )
             # Insertar únicamente pronósticos que no estén ya registrados para este fixture
             for p in predictions:
                 sel = p.get("selection", "")
@@ -390,6 +407,9 @@ class DatabaseManager:
                     actual_second_half_home_goals = ?,
                     actual_second_half_away_goals = ?,
                     woodwork_hit = ?,
+                    actual_fouls_home = ?,
+                    actual_fouls_away = ?,
+                    actual_corners_first_half = ?,
                     player_stats_json = COALESCE(?, player_stats_json),
                     settled_at = ?
                 WHERE fixture_id = ?
@@ -413,6 +433,9 @@ class DatabaseManager:
                     actual_stats.get("second_half_home_goals"),
                     actual_stats.get("second_half_away_goals"),
                     actual_stats.get("woodwork_hit"),
+                    actual_stats.get("fouls_home"),
+                    actual_stats.get("fouls_away"),
+                    actual_stats.get("corners_first_half"),
                     player_stats_json,
                     now_iso,
                     fixture_id,
@@ -468,6 +491,9 @@ class DatabaseManager:
                 f.actual_second_half_home_goals,
                 f.actual_second_half_away_goals,
                 f.woodwork_hit,
+                f.actual_fouls_home,
+                f.actual_fouls_away,
+                f.actual_corners_first_half,
                 f.player_stats_json
             FROM tracked_predictions p
             JOIN tracked_fixtures f ON p.fixture_id = f.fixture_id

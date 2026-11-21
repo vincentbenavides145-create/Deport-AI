@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 from typing import Any
 
-from .fixture_contract import FINISHED_STATUSES
+from .fixture_contract import FINISHED_STATUSES, VOID_FIXTURE_STATUSES
 from .storage import DatabaseManager
 
 logger = logging.getLogger("deport_ai.settlement")
@@ -12,6 +13,8 @@ logger = logging.getLogger("deport_ai.settlement")
 # Resultado de `evaluate_prediction` para mercados que el liquidador no sabe evaluar.
 UNSUPPORTED = "UNSUPPORTED"
 _LINE_RE = re.compile(r"\b(Más|Menos) de (\d+(?:\.\d+)?)", re.IGNORECASE)
+# Con prórroga o penales, las apuestas se liquidan con el marcador de los 90 minutos.
+EXTRA_TIME_STATUSES = {"AET", "PEN"}
 
 
 def extract_match_actual_stats(fixture_detail: dict[str, Any]) -> dict[str, Any] | None:
@@ -27,6 +30,7 @@ def extract_match_actual_stats(fixture_detail: dict[str, Any]) -> dict[str, Any]
     goals = fixture_detail.get("goals", {})
     home_goals = goals.get("home")
     away_goals = goals.get("away")
+    went_to_extra_time = status_short in EXTRA_TIME_STATUSES
 
     # Estadísticas de equipo
     stats_by_team: dict[int, dict[str, float]] = {}
@@ -121,11 +125,18 @@ def extract_match_actual_stats(fixture_detail: dict[str, Any]) -> dict[str, Any]
             elif not is_home and second_half_away is None:
                 second_half_away = g_val
 
-    # Si hay 1T y final pero no 2T específico, 2T = final - 1T
-    if home_goals is not None and first_half_home is not None and second_half_home is None:
-        second_half_home = max(0, home_goals - first_half_home)
-    if away_goals is not None and first_half_away is not None and second_half_away is None:
-        second_half_away = max(0, away_goals - first_half_away)
+    if went_to_extra_time:
+        # El marcador final incluye la prórroga, pero las apuestas se liquidan a los 90
+        # minutos: 1T + 2T. Sin esos datos, el resultado de los 90 minutos es desconocido.
+        known = None not in (first_half_home, first_half_away, second_half_home, second_half_away)
+        home_goals = first_half_home + second_half_home if known else None
+        away_goals = first_half_away + second_half_away if known else None
+    else:
+        # Si hay 1T y final pero no 2T específico, 2T = final - 1T
+        if home_goals is not None and first_half_home is not None and second_half_home is None:
+            second_half_home = max(0, home_goals - first_half_home)
+        if away_goals is not None and first_half_away is not None and second_half_away is None:
+            second_half_away = max(0, away_goals - first_half_away)
 
     # Jugadores
     player_stats: dict[str, dict[str, Any]] = {}
@@ -238,6 +249,7 @@ def evaluate_prediction(
 
     hg = actual.get("home_goals")
     ag = actual.get("away_goals")
+    team = _team_in(selection, home_name, away_name)
 
     # 1. CATEGORÍA: RESULTADO (1X2, Doble Oportunidad, DNB, Gana a cero)
     if category == "Resultado":
@@ -281,13 +293,13 @@ def evaluate_prediction(
 
         # DNB
         if selection.startswith("DNB"):
-            if home_name in selection:
+            if team == "home":
                 if hg > ag:
                     return "WON"
                 if hg < ag:
                     return "LOST"
                 return "VOID"
-            if away_name in selection:
+            if team == "away":
                 if ag > hg:
                     return "WON"
                 if ag < hg:
@@ -295,16 +307,16 @@ def evaluate_prediction(
                 return "VOID"
 
         if "gana a cero" in selection:
-            if home_name in selection:
+            if team == "home":
                 return "WON" if hg > ag and ag == 0 else "LOST"
-            if away_name in selection:
+            if team == "away":
                 return "WON" if ag > hg and hg == 0 else "LOST"
 
         # Victoria + goles
         if "gana y Más de 1.5" in selection:
-            if home_name in selection:
+            if team == "home":
                 return "WON" if hg > ag and (hg + ag) > 1.5 else "LOST"
-            if away_name in selection:
+            if team == "away":
                 return "WON" if ag > hg and (hg + ag) > 1.5 else "LOST"
 
     # 2. CATEGORÍA: GOLES Y ANOTACIONES
@@ -331,18 +343,18 @@ def evaluate_prediction(
 
         # Clean sheet
         if "no recibe gol" in selection:
-            if home_name in selection:
+            if team == "home":
                 return "WON" if ag == 0 else "LOST"
-            if away_name in selection:
+            if team == "away":
                 return "WON" if hg == 0 else "LOST"
 
         # Goles por equipo
-        if home_name in selection and line is not None:
+        if team == "home" and line is not None:
             if side == "over":
                 return "WON" if hg > line else "LOST"
             if side == "under":
                 return "WON" if hg < line else "LOST"
-        if away_name in selection and line is not None:
+        if team == "away" and line is not None:
             if side == "over":
                 return "WON" if ag > line else "LOST"
             if side == "under":
@@ -368,11 +380,11 @@ def evaluate_prediction(
             return "WON" if ((fh_h + fh_a) >= 1 and (sh_h + sh_a) >= 1) else "LOST"
 
         if "anota en ambas mitades" in selection.lower() or "marca en ambas mitades" in selection.lower():
-            if home_name in selection:
+            if team == "home":
                 if fh_h is None or sh_h is None:
                     return "PENDING"
                 return "WON" if (fh_h >= 1 and sh_h >= 1) else "LOST"
-            if away_name in selection:
+            if team == "away":
                 if fh_a is None or sh_a is None:
                     return "PENDING"
                 return "WON" if (fh_a >= 1 and sh_a >= 1) else "LOST"
@@ -414,14 +426,14 @@ def evaluate_prediction(
             return "WON" if ch >= 4 and ca >= 4 else "LOST"
 
         if "saca más córners" in selection:
-            if home_name in selection:
+            if team == "home":
                 return "WON" if ch > ca else "LOST"
-            if away_name in selection:
+            if team == "away":
                 return "WON" if ca > ch else "LOST"
 
-        if home_name in selection and line is not None:
+        if team == "home" and line is not None:
             return "WON" if (ch > line if side == "over" else ch < line) else "LOST"
-        if away_name in selection and line is not None:
+        if team == "away" and line is not None:
             return "WON" if (ca > line if side == "over" else ca < line) else "LOST"
 
         if line is not None:
@@ -440,14 +452,14 @@ def evaluate_prediction(
         if "2+ tarjetas" in selection:
             return "WON" if cards_h >= 2 and cards_a >= 2 else "LOST"
         if "recibe más tarjetas" in selection:
-            if home_name in selection:
+            if team == "home":
                 return "WON" if cards_h > cards_a else "LOST"
-            if away_name in selection:
+            if team == "away":
                 return "WON" if cards_a > cards_h else "LOST"
 
-        if home_name in selection and line is not None:
+        if team == "home" and line is not None:
             return "WON" if (cards_h > line if side == "over" else cards_h < line) else "LOST"
-        if away_name in selection and line is not None:
+        if team == "away" and line is not None:
             return "WON" if (cards_a > line if side == "over" else cards_a < line) else "LOST"
 
         if line is not None:
@@ -469,14 +481,14 @@ def evaluate_prediction(
             if "3+ tiros al arco" in selection:
                 return "WON" if sot_h >= 3 and sot_a >= 3 else "LOST"
             if "más tiros al arco" in selection:
-                if home_name in selection:
+                if team == "home":
                     return "WON" if sot_h > sot_a else "LOST"
-                if away_name in selection:
+                if team == "away":
                     return "WON" if sot_a > sot_h else "LOST"
 
-            if home_name in selection and line is not None:
+            if team == "home" and line is not None:
                 return "WON" if (sot_h > line if side == "over" else sot_h < line) else "LOST"
-            if away_name in selection and line is not None:
+            if team == "away" and line is not None:
                 return "WON" if (sot_a > line if side == "over" else sot_a < line) else "LOST"
             if line is not None:
                 return "WON" if (tot_sot > line if side == "over" else tot_sot < line) else "LOST"
@@ -485,9 +497,9 @@ def evaluate_prediction(
         if sh_h is None or sh_a is None:
             return "PENDING"
         tot_shots = sh_h + sh_a
-        if home_name in selection and line is not None:
+        if team == "home" and line is not None:
             return "WON" if (sh_h > line if side == "over" else sh_h < line) else "LOST"
-        if away_name in selection and line is not None:
+        if team == "away" and line is not None:
             return "WON" if (sh_a > line if side == "over" else sh_a < line) else "LOST"
         if line is not None:
             return "WON" if (tot_shots > line if side == "over" else tot_shots < line) else "LOST"
@@ -501,9 +513,9 @@ def evaluate_prediction(
             # con estadísticas completas, el dato no se registró y no es liquidable.
             return "VOID" if actual.get("detailed") else "PENDING"
         tot_off = off_h + off_a
-        if home_name in selection and line is not None:
+        if team == "home" and line is not None:
             return "WON" if (off_h > line if side == "over" else off_h < line) else "LOST"
-        if away_name in selection and line is not None:
+        if team == "away" and line is not None:
             return "WON" if (off_a > line if side == "over" else off_a < line) else "LOST"
         if line is not None:
             return "WON" if (tot_off > line if side == "over" else tot_off < line) else "LOST"
@@ -523,13 +535,13 @@ def evaluate_prediction(
         if f_h is None or f_a is None:
             return "PENDING"
         if "comete más faltas" in selection:
-            if home_name in selection:
+            if team == "home":
                 return "WON" if f_h > f_a else "LOST"
-            if away_name in selection:
+            if team == "away":
                 return "WON" if f_a > f_h else "LOST"
-        if home_name in selection and line is not None:
+        if team == "home" and line is not None:
             return "WON" if (f_h > line if side == "over" else f_h < line) else "LOST"
-        if away_name in selection and line is not None:
+        if team == "away" and line is not None:
             return "WON" if (f_a > line if side == "over" else f_a < line) else "LOST"
         if line is not None:
             tot_fouls = f_h + f_a
@@ -541,14 +553,7 @@ def evaluate_prediction(
         if not player_stats or not isinstance(player_stats, dict):
             return "PENDING"
 
-        # Localizar al jugador por coincidencia de nombre
-        matched_player: dict[str, Any] | None = None
-        sel_lower = selection.lower()
-        for p_val in player_stats.values():
-            p_name = str(p_val.get("name") or "").lower()
-            if p_name and (p_name in sel_lower or any(part in sel_lower for part in p_name.split() if len(part) > 3)):
-                matched_player = p_val
-                break
+        matched_player = _find_player(selection, player_stats)
 
         if not matched_player:
             # Si el jugador no figuró en la convocatoria o no disputó minutos -> VOID
@@ -579,6 +584,39 @@ def evaluate_prediction(
     return UNSUPPORTED
 
 
+def _team_in(selection: str, home_name: str, away_name: str) -> str | None:
+    """Equipo al que se refiere la selección. Si un nombre contiene al otro ("Santos" y
+    "Santos Laguna"), manda el más largo, que es el que realmente aparece."""
+    found = [(len(name), side) for name, side in ((home_name, "home"), (away_name, "away")) if name and name in selection]
+    return max(found)[1] if found else None
+
+
+def _plain(text: str) -> str:
+    text = unicodedata.normalize("NFKD", str(text or "")).encode("ascii", "ignore").decode()
+    return " ".join(text.lower().split())
+
+
+def _find_player(selection: str, player_stats: dict[str, Any]) -> dict[str, Any] | None:
+    """Jugador de la selección ("<Nombre> 2+ remates"): por nombre completo o, si no, por
+    apellido e inicial cuando hay un único candidato. Antes bastaba cualquier parte del
+    nombre ("Luis"), y podía liquidarse con las estadísticas de otro jugador."""
+    wanted = _plain(re.split(r"\s+(?:\d+\+|anota\b)", selection, maxsplit=1, flags=re.IGNORECASE)[0])
+    if not wanted:
+        return None
+    players = list({id(entry): entry for entry in player_stats.values() if isinstance(entry, dict)}.values())
+    exact = [p for p in players if _plain(p.get("name")) == wanted]
+    if exact:
+        return exact[0]
+    parts = wanted.split()
+    candidates = [
+        p for p in players
+        if (name := _plain(p.get("name")).split())
+        and name[-1] == parts[-1]
+        and (len(parts) == 1 or name[0][:1] == parts[0][:1])
+    ]
+    return candidates[0] if len(candidates) == 1 else None
+
+
 class SettlementEngine:
     """Motor de liquidación y sincronización de resultados para pronósticos pendientes."""
 
@@ -596,6 +634,10 @@ class SettlementEngine:
         detail = details_dict.get(fixture_id)
         if not detail:
             return {"fixture_id": fixture_id, "status": "NO_API_DATA"}
+
+        state = str(detail.get("fixture", {}).get("status", {}).get("short") or "").upper()
+        if state in VOID_FIXTURE_STATUSES:
+            return self._void_fixture(fixture_id, state)
 
         actual_stats = extract_match_actual_stats(detail)
         if not actual_stats:
@@ -650,6 +692,16 @@ class SettlementEngine:
             "summary": settled_summary,
             "actual_stats": actual_stats,
         }
+
+    def _void_fixture(self, fixture_id: int, state: str) -> dict[str, Any]:
+        """Partido cancelado, abandonado o resuelto en mesa: sus apuestas se anulan."""
+        self.db.update_fixture_result(fixture_id, {}, status=state)
+        voided = 0
+        for pred in self.db.get_predictions_for_fixture(fixture_id):
+            if pred["status"] == "PENDING":
+                self.db.update_prediction_status(pred["id"], "VOID", pnl=0.0)
+                voided += 1
+        return {"fixture_id": fixture_id, "status": state, "summary": {"void": voided}}
 
     def settle_all_pending(self) -> list[dict[str, Any]]:
         """Liquida todos los fixtures pendientes en la base de datos."""
