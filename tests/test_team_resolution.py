@@ -168,3 +168,11 @@ def test_fuzzy_alias_does_not_beat_exact_search_name():
     assert (home.id, away.id) == (696, 2696)
     # Un nombre sin coincidencia exacta en la búsqueda sigue usando la lista de alias.
     assert FakeOverrideClient({}).resolve_team("Inter").id == 2930
+
+
+def test_fulham_alias_points_to_fulham_not_hull_city():
+    # 11 es Fulham y 22 es Hull City en Sportmonks (se resolvía mal Man City vs Fulham).
+    from deport_ai.sportmonks import TEAM_ID_OVERRIDES
+
+    assert TEAM_ID_OVERRIDES["fulham"] == 11
+    assert 22 not in {v for k, v in TEAM_ID_OVERRIDES.items() if "fulham" in k}

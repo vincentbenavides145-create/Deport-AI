@@ -316,7 +316,7 @@ TEAM_ID_OVERRIDES: dict[str, int] = {
     "sevilla fc": 676,
     "los sevilla": 676,
     "los sevilla fc": 676,
-    "fulham": 22,
+    "fulham": 11,
     "club america": 2687,
     "club américa": 2687,
     "america": 2687,
