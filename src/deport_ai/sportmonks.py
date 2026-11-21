@@ -33,7 +33,7 @@ DETAIL_INCLUDES = (
     "participants;scores;statistics.type;lineups.details.type;"
     "league;season;state;formations;sidelined.sideline"
 )
-FIXTURE_INCLUDES = "participants;scores;league;season;state;lineups;formations;sidelined.sideline"
+FIXTURE_INCLUDES = "participants;scores;league;season;state;lineups;formations;sidelined.sideline;sidelined.player"
 
 
 TEAM_ALIASES: dict[str, str] = {
@@ -832,7 +832,7 @@ class SportmonksClient:
         raw = self._raw_fixtures.get(fixture_id)
         if raw is None or "sidelined" not in raw:
             try:
-                raw = self._get(f"fixtures/{fixture_id}", include="participants;sidelined.sideline")
+                raw = self._get(f"fixtures/{fixture_id}", include="participants;sidelined.sideline;sidelined.player")
                 self._remember(raw)
             except Exception:
                 return []
@@ -959,7 +959,10 @@ def _convert_sidelined(rows: list[dict[str, Any]] | None) -> list[dict[str, Any]
             {
                 "player_id": int(player_id),
                 "team_id": int(team_id),
-                "name": item.get("player_name") or sideline.get("name"),
+                "name": item.get("player_name")
+                or (item.get("player") or {}).get("display_name")
+                or (item.get("player") or {}).get("name")
+                or sideline.get("name"),
                 "category": sideline.get("category"),
                 "start_date": sideline.get("start_date"),
                 "end_date": sideline.get("end_date"),

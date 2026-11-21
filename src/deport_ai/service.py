@@ -85,7 +85,7 @@ class AnalysisService:
                     if any(r["player_id"] in m.contributions for m in pool)
                 ]
                 notes.append(
-                    f"Bajas de {team.name}: {', '.join(names[:4])} sumaban el {share * 100:.0f}% "
+                    f"Bajas de {team.name}: {', '.join(names[:4])} {'sumaba' if len(names) == 1 else 'sumaban'} el {share * 100:.0f}% "
                     f"de sus goles y asistencias recientes."
                 )
         return shares[0], shares[1], notes

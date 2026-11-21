@@ -18,6 +18,9 @@ def test_convert_sidelined_reads_player_team_and_dates():
     out = _convert_sidelined(rows)
     assert [(r["player_id"], r["team_id"]) for r in out] == [(7, 503), (8, 503)]
     assert out[0]["name"] == "Luis Díaz" and out[0]["end_date"] == "2026-11-30"
+    with_player = _convert_sidelined([{"player_id": 9, "participant_id": 1, "player": {"display_name": "Neuer"},
+                                       "sideline": {}}])
+    assert with_player[0]["name"] == "Neuer"
 
 
 def test_convert_players_keeps_assists():
