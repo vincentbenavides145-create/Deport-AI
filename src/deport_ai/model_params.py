@@ -40,6 +40,8 @@ class ModelParameters:
     # Peso del descuento por bajas: 1.0 resta toda la parte del ataque reciente que
     # aportaban los ausentes; 0 = sin ajuste.
     absence_weight: float = 0.0
+    # Peso de la fuerza del once (titulares habituales); 0 hasta validarlo en backtest.
+    lineup_weight: float = 0.0
     # Proporción de goles esperada en el primer tiempo.
     first_half_share: float = 0.45
     # Dispersión binomial negativa estimada desde datos (None = perfil de liga).

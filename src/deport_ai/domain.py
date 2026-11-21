@@ -49,6 +49,9 @@ class TeamMatch:
     player_data: bool = False
     # Jugadores propios de baja (lesión o sanción) en este partido.
     sidelined: tuple[int, ...] = ()
+    # Minutos de cada jugador propio y once inicial del partido (para la fuerza del once).
+    minutes: dict[int, float] = field(default_factory=dict)
+    starters: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)

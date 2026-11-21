@@ -4,7 +4,7 @@ import math
 import re
 from collections import defaultdict
 from dataclasses import dataclass, replace
-from statistics import median
+from statistics import fmean, median
 from typing import Any, Iterable
 
 from .domain import (
@@ -183,6 +183,7 @@ def extract_team_matches(
         )
 
         contributions, player_data = _player_contributions(enriched.get("players") or [], own_id)
+        minutes, starters = _player_minutes(enriched.get("players") or [], own_id)
         match_date = enriched.get("fixture", {}).get("date", "")
         sidelined = _team_sidelined(enriched.get("sidelined") or [], own_id, match_date)
 
@@ -204,6 +205,8 @@ def extract_team_matches(
                 goals_for_1h=ht_for,
                 goals_against_1h=ht_against,
                 contributions=contributions,
+                minutes=minutes,
+                starters=starters,
                 player_data=player_data,
                 sidelined=sidelined,
             )
@@ -232,6 +235,26 @@ def _player_contributions(players: list[dict[str, Any]], team_id: int) -> tuple[
     return contributions, found
 
 
+def _player_minutes(players: list[dict[str, Any]], team_id: int) -> tuple[dict[int, float], tuple[int, ...]]:
+    """Minutos de cada jugador del equipo y su once inicial en el partido."""
+    minutes: dict[int, float] = {}
+    starters: list[int] = []
+    for block in players:
+        if int((block.get("team") or {}).get("id") or -1) != team_id:
+            continue
+        for entry in block.get("players") or []:
+            player_id = (entry.get("player") or {}).get("id")
+            if player_id is None:
+                continue
+            games = ((entry.get("statistics") or [{}])[0]).get("games") or {}
+            played = float(_number(games.get("minutes")) or 0)
+            if played > 0:
+                minutes[int(player_id)] = played
+            if games.get("starter"):
+                starters.append(int(player_id))
+    return minutes, tuple(starters)
+
+
 def _team_sidelined(rows: list[dict[str, Any]], team_id: int, match_date: str) -> tuple[int, ...]:
     """Bajas propias vigentes en la fecha del partido (según las fechas de la baja)."""
     day = (match_date or "")[:10]
@@ -252,6 +275,36 @@ def _team_sidelined(rows: list[dict[str, Any]], team_id: int, match_date: str) -
 ABSENCE_WINDOW = 8
 ABSENCE_MIN_MATCHES = 4
 ABSENCE_MAX_SHARE = 0.5
+
+
+LINEUP_WINDOW = 8
+LINEUP_MIN_MATCHES = 4
+LINEUP_MAX_DEFICIT = 0.5
+
+
+def _xi_strength(weights: dict[int, float], starters: Iterable[int]) -> float:
+    top = sum(sorted(weights.values(), reverse=True)[:11])
+    return sum(weights.get(pid, 0.0) for pid in starters) / top if top > 0 else 0.0
+
+
+def lineup_deficit(history: list[TeamMatch], starters: Iterable[int], window: int = LINEUP_WINDOW) -> float:
+    """Cuánto más débil que de costumbre es el once (0 = el habitual, hasta 0.5).
+
+    Cada jugador pesa por sus minutos en los últimos partidos; la fuerza de un once es la
+    parte de ese peso que cubren sus titulares frente a los 11 con más minutos. Se compara
+    con la fuerza media de los onces recientes del propio equipo, para no castigar a quien
+    siempre rota.
+    """
+    lineup = [int(pid) for pid in starters]
+    pool = [match for match in history if match.starters and match.minutes][:window]
+    if len(lineup) < 11 or len(pool) < LINEUP_MIN_MATCHES:
+        return 0.0
+    weights: dict[int, float] = {}
+    for match in pool:
+        for pid, played in match.minutes.items():
+            weights[pid] = weights.get(pid, 0.0) + played
+    usual = fmean(_xi_strength(weights, match.starters) for match in pool)
+    return round(max(0.0, min(LINEUP_MAX_DEFICIT, usual - _xi_strength(weights, lineup))), 4)
 
 
 def absence_share(
@@ -1040,6 +1093,8 @@ def goal_probabilities(
     params: ModelParameters | None = None,
     absence_home: float = 0.0,
     absence_away: float = 0.0,
+    lineup_deficit_home: float = 0.0,
+    lineup_deficit_away: float = 0.0,
 ) -> ProbabilityReport:
     if params is None:
         params = DEFAULT_PARAMETERS if rho == -0.08 else ModelParameters(rho=rho)
@@ -1127,6 +1182,8 @@ def goal_probabilities(
         raw_lambda_h *= h_mult
     # Bajas: se descuenta la parte del ataque que aportaban los jugadores ausentes.
     raw_lambda_h *= 1.0 - params.absence_weight * absence_home
+    # Once más débil que de costumbre: marca menos y concede más.
+    raw_lambda_h *= (1.0 - params.lineup_weight * lineup_deficit_home) * (1.0 + params.lineup_weight * lineup_deficit_away)
     lambda_home = _clamp(raw_lambda_h, 0.2, comp_profile.max_lambda_home)
 
     venue_impact_a = round(base_league_half * (comp_profile.away_advantage - 1.0), 2)
@@ -1138,6 +1195,7 @@ def goal_probabilities(
     if altitude_impact and a_mult != 1.0:
         raw_lambda_a *= a_mult
     raw_lambda_a *= 1.0 - params.absence_weight * absence_away
+    raw_lambda_a *= (1.0 - params.lineup_weight * lineup_deficit_away) * (1.0 + params.lineup_weight * lineup_deficit_home)
     lambda_away = _clamp(raw_lambda_a, 0.05, comp_profile.max_lambda_away)
 
     shared_component = _estimate_shared_goal_component(

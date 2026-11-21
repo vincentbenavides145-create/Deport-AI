@@ -213,38 +213,30 @@ def run_xg_comparison(args: argparse.Namespace, matches_by_team, team_names) -> 
         print(f"Resumen JSON guardado en {args.json}")
 
 
-def run_injury_comparison(args: argparse.Namespace, matches_by_team, team_names) -> None:
-    """Mismos partidos con y sin el descuento por bajas, sobre el modelo actual (con xG guardado)."""
-    from deport_ai.backtesting import (
-        absence_coverage,
-        fixtures_with_injury_data,
-        format_xg_comparison,
-        goal_market_summary,
-    )
+def _run_factor_comparison(args, matches_by_team, team_names, *, field: str, weights: str, select_fixtures,
+                           coverage_fn, title: str, coverage_label: str, base_label: str, label: str) -> None:
+    """Mismos partidos con el factor en 0 y con cada peso, sobre el modelo actual (con xG guardado)."""
+    from deport_ai.backtesting import format_xg_comparison, goal_market_summary
     from deport_ai.flashscore import FlashscoreXG, attach_xg
 
     # Solo el xG ya guardado: sin lecturas nuevas (no gasta créditos ni escribe la caché).
     provider = FlashscoreXG(fetcher=object())
     with_xg = {team_id: attach_xg(ms, provider) for team_id, ms in matches_by_team.items()}
-    fixtures = fixtures_with_injury_data(build_fixtures(with_xg, team_names))
+    fixtures = select_fixtures(build_fixtures(with_xg, team_names))
     leagues = [f.league_id for f in fixtures if f.league_id is not None]
     league_id = args.league_id if args.league_id is not None else (max(set(leagues), key=leagues.count) if leagues else None)
     params = load_parameters(league_id)
-    coverage = absence_coverage(fixtures, with_xg, args.min_history, args.window)
-    weights = [float(w) for w in args.injury_weights.split(",") if w.strip()]
+    coverage = coverage_fn(fixtures, with_xg, args.min_history, args.window)
     summaries = {}
-    for weight in [0.0] + weights:
-        label = "Base: sin ajuste por bajas (modelo actual)" if weight == 0 else f"Con bajas, peso {weight:.2f}"
-        print(f"Backtest — {label}...")
+    for weight in [0.0] + [float(w) for w in weights.split(",") if w.strip()]:
+        run_label = base_label if weight == 0 else label.format(weight)
+        print(f"Backtest — {run_label}...")
         result = run_walk_forward(
-            fixtures, with_xg, params=replace(params, absence_weight=weight),
+            fixtures, with_xg, params=replace(params, **{field: weight}),
             min_history=args.min_history, window=args.window,
         )
-        summaries[label] = goal_market_summary(result)
-    report = format_xg_comparison(
-        summaries, coverage, f"Backtest bajas — liga {league_id} (partidos con lista de bajas)",
-        coverage_label="con alguna baja que pesaba en el ataque",
-    )
+        summaries[run_label] = goal_market_summary(result)
+    report = format_xg_comparison(summaries, coverage, title.format(league_id), coverage_label=coverage_label)
     print("\n" + report + "\n")
     if args.output:
         Path(args.output).write_text(report, encoding="utf-8")
@@ -253,6 +245,32 @@ def run_injury_comparison(args: argparse.Namespace, matches_by_team, team_names)
         Path(args.json).write_text(json.dumps({"coverage": coverage, "runs": summaries}, ensure_ascii=False, indent=2),
                                    encoding="utf-8")
         print(f"Resumen JSON guardado en {args.json}")
+
+
+def run_injury_comparison(args: argparse.Namespace, matches_by_team, team_names) -> None:
+    """Con y sin el descuento por bajas, en los partidos con lista de bajas."""
+    from deport_ai.backtesting import absence_coverage, fixtures_with_injury_data
+
+    _run_factor_comparison(
+        args, matches_by_team, team_names, field="absence_weight", weights=args.injury_weights,
+        select_fixtures=fixtures_with_injury_data, coverage_fn=absence_coverage,
+        title="Backtest bajas — liga {} (partidos con lista de bajas)",
+        coverage_label="con alguna baja que pesaba en el ataque",
+        base_label="Base: sin ajuste por bajas (modelo actual)", label="Con bajas, peso {:.2f}",
+    )
+
+
+def run_lineup_comparison(args: argparse.Namespace, matches_by_team, team_names) -> None:
+    """Con y sin el ajuste por fuerza del once, en los partidos con once publicado."""
+    from deport_ai.backtesting import fixtures_with_lineups, lineup_coverage
+
+    _run_factor_comparison(
+        args, matches_by_team, team_names, field="lineup_weight", weights=args.lineup_weights,
+        select_fixtures=fixtures_with_lineups, coverage_fn=lineup_coverage,
+        title="Backtest fuerza del once — liga {} (partidos con once publicado)",
+        coverage_label="con un once más débil que de costumbre (déficit ≥ 0.05)",
+        base_label="Base: sin ajuste por el once (modelo actual)", label="Con fuerza del once, peso {:.2f}",
+    )
 
 
 def main() -> None:
@@ -280,6 +298,10 @@ def main() -> None:
                         help="Compara el modelo con y sin el descuento por bajas (usa el xG ya guardado)")
     parser.add_argument("--injury-weights", type=str, default="0.5,1.0",
                         help="Pesos del descuento por bajas a comparar contra 0 (separados por coma)")
+    parser.add_argument("--lineups", action="store_true",
+                        help="Compara el modelo con y sin el ajuste por fuerza del once (titulares habituales)")
+    parser.add_argument("--lineup-weights", type=str, default="0.5,1.0,1.5",
+                        help="Pesos del ajuste por el once a comparar contra 0 (separados por coma)")
     parser.add_argument("--xg-max-new", type=int, default=None,
                         help="Máximo de partidos nuevos a leer de Flashscore (créditos de Firecrawl)")
     args = parser.parse_args()
@@ -315,6 +337,13 @@ def main() -> None:
         print(f"Descargando historial de {len(queries)} equipos desde Sportmonks...")
         matches_by_team, team_names = load_from_sportmonks(client, queries, args.count, log=print)
         title = "Backtest walk-forward — datos reales Sportmonks"
+
+    if args.lineups:
+        if client is None:
+            print("--lineups necesita datos reales (--teams o --teams-file).")
+            sys.exit(1)
+        run_lineup_comparison(args, matches_by_team, team_names)
+        return
 
     if args.injuries:
         if client is None:

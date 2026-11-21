@@ -17,6 +17,7 @@ import copy
 import math
 from collections import defaultdict
 from dataclasses import dataclass, field
+from statistics import fmean
 from typing import Any, Callable, Iterable
 
 from .domain import Team, TeamMatch
@@ -27,6 +28,7 @@ from .settlement import evaluate_prediction
 from .stats_engine import (
     CARDS_KEY,
     absence_share,
+    lineup_deficit,
     calculate_elo,
     expected_metrics,
     goal_probabilities,
@@ -59,6 +61,8 @@ class BacktestResult:
     scoreline_log_loss: float | None = None
     samples: dict[int, FixtureSample] = field(default_factory=dict)
     actuals: dict[int, dict[str, Any]] = field(default_factory=dict)
+    # Goles esperados (local + visitante) de cada partido evaluado, para medir el sesgo.
+    expected_goals: dict[int, float] = field(default_factory=dict)
 
     def summary(self) -> dict[str, Any]:
         return {
@@ -175,6 +179,8 @@ def _predict(
         params=params,
         absence_home=absence_share(hist_home, sample.home.sidelined),
         absence_away=absence_share(hist_away, sample.away.sidelined),
+        lineup_deficit_home=lineup_deficit(hist_home, sample.home.starters),
+        lineup_deficit_away=lineup_deficit(hist_away, sample.away.starters),
     )
     if not with_counts:
         return probs, None
@@ -232,6 +238,7 @@ def run_walk_forward(
         actual = actual_from_fixture(sample)
         result.samples[sample.fixture_id] = sample
         result.actuals[sample.fixture_id] = actual
+        result.expected_goals[sample.fixture_id] = probs.expected_home_goals + probs.expected_away_goals
 
         for cand in originals:
             prob = cand.get("probability")
@@ -527,6 +534,13 @@ def goal_market_summary(result: BacktestResult) -> dict[str, Any]:
         "evaluated_fixtures": result.evaluated_fixtures,
         "scoreline_log_loss": result.scoreline_log_loss,
     }
+    errors = [
+        result.actuals[fid]["home_goals"] + result.actuals[fid]["away_goals"] - expected
+        for fid, expected in result.expected_goals.items()
+    ]
+    if errors:
+        out["goal_bias"] = round(fmean(errors), 4)
+        out["goal_mae"] = round(fmean(abs(e) for e in errors), 4)
     for category in GOAL_CATEGORIES + ("Total goles",):
         if category == "Total goles":
             items = [r for r in result.records if r["category"] in GOAL_CATEGORIES]
@@ -596,6 +610,9 @@ def format_xg_comparison(
         s = summaries[label]
         lines.append(f"## {label}")
         lines.append(f"- Log-loss del marcador exacto: {delta(s['scoreline_log_loss'], base['scoreline_log_loss'])}")
+        if s.get("goal_bias") is not None:
+            lines.append(f"- Goles esperados: sesgo real − proyectado {s['goal_bias']:+.3f} · "
+                         f"error absoluto {delta(s['goal_mae'], base.get('goal_mae'), 3)}")
         for category in GOAL_CATEGORIES + ("Total goles",):
             block, ref = s.get(category), base.get(category) or {}
             if not block:
@@ -637,3 +654,26 @@ def absence_coverage(
             affected += 1
     return evaluable, affected
 
+
+def fixtures_with_lineups(fixtures: list[FixtureSample]) -> list[FixtureSample]:
+    """Partidos con el once inicial de ambos equipos publicado."""
+    return [f for f in fixtures if len(f.home.starters) >= 11 and len(f.away.starters) >= 11]
+
+
+def lineup_coverage(
+    fixtures: list[FixtureSample],
+    matches_by_team: dict[int, list[TeamMatch]],
+    min_history: int = 6,
+    window: int = 12,
+) -> tuple[int, int]:
+    """(partidos evaluables, partidos donde algún once era más débil que de costumbre)."""
+    evaluable = affected = 0
+    for sample in fixtures:
+        hist_home = history_before(matches_by_team, sample.home.team_id, sample.date, window)
+        hist_away = history_before(matches_by_team, sample.away.team_id, sample.date, window)
+        if len(hist_home) < min_history or len(hist_away) < min_history:
+            continue
+        evaluable += 1
+        if max(lineup_deficit(hist_home, sample.home.starters), lineup_deficit(hist_away, sample.away.starters)) >= 0.05:
+            affected += 1
+    return evaluable, affected

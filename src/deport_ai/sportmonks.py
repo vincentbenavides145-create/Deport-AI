@@ -1036,7 +1036,8 @@ def _convert_players(
                 "player": {"id": row.get("player_id"), "name": row.get("player_name")},
                 "statistics": [
                     {
-                        "games": {"minutes": minutes},
+                        # type_id 11 = once inicial; 12 = suplente.
+                        "games": {"minutes": minutes, "starter": int(row.get("type_id") or 0) == 11},
                         "shots": {"on": shots_on, "total": total_shots},
                         "goals": {"total": goals_val, "assists": assists_val},
                     }
