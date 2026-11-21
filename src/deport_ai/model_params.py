@@ -37,6 +37,9 @@ class ModelParameters:
     # Solo actúa en partidos que tienen xG; 0 = modelo solo con goles. 0.65 fue el mejor
     # (o casi) en el backtest walk-forward de Arabia Saudita, Eredivisie y Brasileirão.
     xg_weight: float = 0.65
+    # Peso del descuento por bajas: 1.0 resta toda la parte del ataque reciente que
+    # aportaban los ausentes; 0 = sin ajuste.
+    absence_weight: float = 0.0
     # Proporción de goles esperada en el primer tiempo.
     first_half_share: float = 0.45
     # Dispersión binomial negativa estimada desde datos (None = perfil de liga).

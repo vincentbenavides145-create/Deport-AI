@@ -1,0 +1,21 @@
+# Premier League (8) — temporada 2026/2027. Un id de Sportmonks por línea (evita homónimos).
+52 # AFC Bournemouth
+19 # Arsenal
+15 # Aston Villa
+236 # Brentford
+78 # Brighton & Hove Albion
+18 # Chelsea
+117 # Coventry City
+51 # Crystal Palace
+13 # Everton
+11 # Fulham
+22 # Hull City
+116 # Ipswich Town
+71 # Leeds United
+8 # Liverpool
+9 # Manchester City
+14 # Manchester United
+20 # Newcastle United
+63 # Nottingham Forest
+3 # Sunderland
+6 # Tottenham Hotspur

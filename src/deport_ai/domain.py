@@ -43,6 +43,12 @@ class TeamMatch:
     # Goles al descanso (None si la API no publica el marcador del 1T)
     goals_for_1h: int | None = None
     goals_against_1h: int | None = None
+    # Goles + asistencias por jugador del propio equipo (player_id -> aportes) y si el
+    # partido trae datos de jugadores; sirve para medir el peso de las bajas.
+    contributions: dict[int, float] = field(default_factory=dict)
+    player_data: bool = False
+    # Jugadores propios de baja (lesión o sanción) en este partido.
+    sidelined: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)

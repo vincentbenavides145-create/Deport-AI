@@ -183,10 +183,14 @@ def extract_team_matches(
             league_info.get("sub_type"),
         )
 
+        contributions, player_data = _player_contributions(enriched.get("players") or [], own_id)
+        match_date = enriched.get("fixture", {}).get("date", "")
+        sidelined = _team_sidelined(enriched.get("sidelined") or [], own_id, match_date)
+
         result.append(
             TeamMatch(
                 fixture_id=fixture_id,
-                date=enriched.get("fixture", {}).get("date", ""),
+                date=match_date,
                 team_id=team_id,
                 opponent_id=opponent_id,
                 is_home=is_home,
@@ -200,10 +204,72 @@ def extract_team_matches(
                 league_id=league_id,
                 goals_for_1h=ht_for,
                 goals_against_1h=ht_against,
+                contributions=contributions,
+                player_data=player_data,
+                sidelined=sidelined,
             )
         )
     result.sort(key=lambda match: match.date, reverse=True)
     return result
+
+
+def _player_contributions(players: list[dict[str, Any]], team_id: int) -> tuple[dict[int, float], bool]:
+    """Goles + asistencias de cada jugador del equipo en el partido."""
+    contributions: dict[int, float] = {}
+    found = False
+    for block in players:
+        if int((block.get("team") or {}).get("id") or -1) != team_id:
+            continue
+        for entry in block.get("players") or []:
+            player_id = (entry.get("player") or {}).get("id")
+            if player_id is None:
+                continue
+            found = True
+            stats = (entry.get("statistics") or [{}])[0]
+            goals = stats.get("goals") or {}
+            value = float(_number(goals.get("total")) or 0) + float(_number(goals.get("assists")) or 0)
+            if value > 0:
+                contributions[int(player_id)] = value
+    return contributions, found
+
+
+def _team_sidelined(rows: list[dict[str, Any]], team_id: int, match_date: str) -> tuple[int, ...]:
+    """Bajas propias vigentes en la fecha del partido (según las fechas de la baja)."""
+    day = (match_date or "")[:10]
+    out: list[int] = []
+    for row in rows:
+        if int(row.get("team_id") or -1) != team_id:
+            continue
+        start, end = (row.get("start_date") or "")[:10], (row.get("end_date") or "")[:10]
+        if day and ((start and start > day) or (end and end < day)):
+            continue
+        out.append(int(row["player_id"]))
+    return tuple(sorted(set(out)))
+
+
+# Peso de las bajas: proporción de los goles + asistencias recientes del equipo que
+# aportaban los jugadores que no estarán. Solo cuenta lo que produjeron jugando, así
+# que una baja larga (que ya no aparece en los últimos partidos) no se descuenta dos veces.
+ABSENCE_WINDOW = 8
+ABSENCE_MIN_MATCHES = 4
+ABSENCE_MAX_SHARE = 0.5
+
+
+def absence_share(
+    history: list[TeamMatch], absent_ids: Iterable[int], window: int = ABSENCE_WINDOW
+) -> float:
+    """Parte del ataque reciente (goles + asistencias) que se pierde por las bajas (0 a 0.5)."""
+    absent = set(int(pid) for pid in absent_ids)
+    if not absent:
+        return 0.0
+    pool = [match for match in history if match.player_data][:window]
+    if len(pool) < ABSENCE_MIN_MATCHES:
+        return 0.0
+    total = sum(sum(match.contributions.values()) for match in pool)
+    if total <= 0:
+        return 0.0
+    lost = sum(value for match in pool for pid, value in match.contributions.items() if pid in absent)
+    return round(min(ABSENCE_MAX_SHARE, lost / total), 4)
 
 
 def extract_common_opponents(
@@ -1045,6 +1111,8 @@ def goal_probabilities(
     rest_days_home: float | None = None,
     rest_days_away: float | None = None,
     params: ModelParameters | None = None,
+    absence_home: float = 0.0,
+    absence_away: float = 0.0,
 ) -> ProbabilityReport:
     if params is None:
         params = DEFAULT_PARAMETERS if rho == -0.08 else ModelParameters(rho=rho)
@@ -1130,6 +1198,8 @@ def goal_probabilities(
     raw_lambda_h = base_league_half + venue_impact_h + form_impact_h + elo_impact_h + rest_impact_h
     if altitude_impact and h_mult != 1.0:
         raw_lambda_h *= h_mult
+    # Bajas: se descuenta la parte del ataque que aportaban los jugadores ausentes.
+    raw_lambda_h *= 1.0 - params.absence_weight * absence_home
     lambda_home = _clamp(raw_lambda_h, 0.2, comp_profile.max_lambda_home)
 
     venue_impact_a = round(base_league_half * (comp_profile.away_advantage - 1.0), 2)
@@ -1140,6 +1210,7 @@ def goal_probabilities(
     raw_lambda_a = base_league_half + venue_impact_a + form_impact_a + elo_impact_a + rest_impact_a
     if altitude_impact and a_mult != 1.0:
         raw_lambda_a *= a_mult
+    raw_lambda_a *= 1.0 - params.absence_weight * absence_away
     lambda_away = _clamp(raw_lambda_a, 0.05, comp_profile.max_lambda_away)
 
     attr_home = FactorAttribution(

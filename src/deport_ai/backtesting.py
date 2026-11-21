@@ -24,7 +24,14 @@ from .errors import InsufficientDataError
 from .evaluation import brier_score, calibration_bins, log_loss
 from .model_params import DEFAULT_PARAMETERS, ModelParameters, estimate_dispersion
 from .settlement import evaluate_prediction
-from .stats_engine import CARDS_KEY, calculate_elo, expected_metrics, goal_probabilities, stat_value
+from .stats_engine import (
+    CARDS_KEY,
+    absence_share,
+    calculate_elo,
+    expected_metrics,
+    goal_probabilities,
+    stat_value,
+)
 from .statistical_markets import calculate_candidate_markets, select_statistical_markets
 
 SELECTED_BINS = [0.60, 0.65, 0.70, 0.75, 0.80, 0.88]
@@ -160,7 +167,14 @@ def _predict(
         club_tier_scale=params.club_tier_scale,
     )
     probs = goal_probabilities(
-        hist_home, hist_away, elo_h, elo_a, league_id=sample.league_id, params=params
+        hist_home,
+        hist_away,
+        elo_h,
+        elo_a,
+        league_id=sample.league_id,
+        params=params,
+        absence_home=absence_share(hist_home, sample.home.sidelined),
+        absence_away=absence_share(hist_away, sample.away.sidelined),
     )
     if not with_counts:
         return probs, None
@@ -554,14 +568,19 @@ def xg_coverage(
     return evaluable, covered
 
 
-def format_xg_comparison(summaries: dict[str, dict[str, Any]], coverage: tuple[int, int], title: str) -> str:
-    """Informe Markdown: cada variante frente a la base (peso xG 0 = modelo actual)."""
+def format_xg_comparison(
+    summaries: dict[str, dict[str, Any]],
+    coverage: tuple[int, int],
+    title: str,
+    coverage_label: str = "con xG suficiente en ambos equipos",
+) -> str:
+    """Informe Markdown: cada variante frente a la primera (la base, el modelo actual)."""
     labels = list(summaries)
     base = summaries[labels[0]]
     lines = [f"# {title}", ""]
     evaluable, covered = coverage
     pct = covered / evaluable * 100 if evaluable else 0.0
-    lines.append(f"Partidos evaluados: {base['evaluated_fixtures']} · con xG suficiente en ambos equipos: "
+    lines.append(f"Partidos evaluados: {base['evaluated_fixtures']} · {coverage_label}: "
                  f"{covered}/{evaluable} ({pct:.0f}%)")
     lines.append("Métricas de error: más bajo es mejor. Diferencias frente a la base entre paréntesis.")
     lines.append("")
@@ -593,3 +612,28 @@ def format_xg_comparison(summaries: dict[str, dict[str, Any]], coverage: tuple[i
             )
         lines.append("")
     return "\n".join(lines)
+
+
+def fixtures_with_injury_data(fixtures: list[FixtureSample]) -> list[FixtureSample]:
+    """Partidos con lista de bajas publicada (Sportmonks solo la tiene completa en temporadas recientes)."""
+    return [f for f in fixtures if f.home.sidelined or f.away.sidelined]
+
+
+def absence_coverage(
+    fixtures: list[FixtureSample],
+    matches_by_team: dict[int, list[TeamMatch]],
+    min_history: int = 6,
+    window: int = 12,
+) -> tuple[int, int]:
+    """(partidos evaluables, partidos donde alguna baja pesaba en el ataque reciente)."""
+    evaluable = affected = 0
+    for sample in fixtures:
+        hist_home = history_before(matches_by_team, sample.home.team_id, sample.date, window)
+        hist_away = history_before(matches_by_team, sample.away.team_id, sample.date, window)
+        if len(hist_home) < min_history or len(hist_away) < min_history:
+            continue
+        evaluable += 1
+        if absence_share(hist_home, sample.home.sidelined) > 0 or absence_share(hist_away, sample.away.sidelined) > 0:
+            affected += 1
+    return evaluable, affected
+
