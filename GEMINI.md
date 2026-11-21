@@ -45,6 +45,7 @@ Cuando el usuario pida analizar un partido, pronósticos o predicciones de fútb
 - **Después de cada análisis**, sube el histórico: `python track.py sync` (commit y push a `main`). Antes de exportar, `sync` trae `main` y fusiona su histórico y su caché de xG: una copia local vieja ya no pisa liquidaciones más recientes, y las predicciones se emparejan por mercado y selección, no por `id`.
 - Para comprobar con los resultados reales: `python track.py update` (liquida con Sportmonks), `python track.py report` y `python track.py sync`.
 - Al empezar una sesión nueva, ejecuta primero `python track.py update` y `python track.py sync` para liquidar lo pendiente.
+- Un partido registrado por error se borra con `python track.py remove <fixture_id> --reason "..."`: queda como línea de borrado en el histórico, así una copia vieja no lo vuelve a importar.
 
 ## 🧪 CALIBRACIÓN Y PARÁMETROS
 - La calibración dinámica solo se activa con **30 o más predicciones reales liquidadas** (ganadas o perdidas; las anuladas no cuentan) por categoría. Nunca se inventan datos para calibrar.

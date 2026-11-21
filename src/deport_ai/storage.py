@@ -70,16 +70,20 @@ class DatabaseManager:
         Devuelve cuántos partidos se importaron o actualizaron.
         """
         changed = 0
+        records = [json.loads(line) for line in text.splitlines() if line.strip()]
+        for record in records:
+            if record.get("removed"):
+                changed += self._record_removal(int(record["fixture_id"]), record.get("reason"), record.get("removed_at"))
         with self._get_connection() as conn:
+            removed = {row[0] for row in conn.execute("SELECT fixture_id FROM removed_fixtures")}
             local = {row["fixture_id"]: row["status"] for row in conn.execute(
                 "SELECT fixture_id, status FROM tracked_fixtures")}
             fixture_cols = {row[1] for row in conn.execute("PRAGMA table_info(tracked_fixtures)")}
             pred_cols = {row[1] for row in conn.execute("PRAGMA table_info(tracked_predictions)")} - {"id"}
-            for line in text.splitlines():
-                if not line.strip():
-                    continue
-                record = json.loads(line)
+            for record in records:
                 fid = record.get("fixture_id")
+                if record.get("removed") or fid in removed:
+                    continue
                 fixture = {k: v for k, v in record.items() if k in fixture_cols}
                 preds = [{k: v for k, v in p.items() if k in pred_cols} for p in record.get("predictions", [])]
                 if fid not in local:
@@ -105,6 +109,22 @@ class DatabaseManager:
 
             DynamicCalibrator(self).recompute_calibrations()
         return changed
+
+    def remove_fixture(self, fixture_id: int, reason: str | None = None) -> bool:
+        """Borra un partido y sus predicciones, y lo recuerda para que no vuelva por una fusión."""
+        return bool(self._record_removal(fixture_id, reason, None))
+
+    def _record_removal(self, fixture_id: int, reason: str | None, removed_at: str | None) -> int:
+        with self._get_connection() as conn:
+            had = conn.execute("SELECT 1 FROM tracked_fixtures WHERE fixture_id = ?", (fixture_id,)).fetchone()
+            known = conn.execute("SELECT 1 FROM removed_fixtures WHERE fixture_id = ?", (fixture_id,)).fetchone()
+            conn.execute("DELETE FROM tracked_predictions WHERE fixture_id = ?", (fixture_id,))
+            conn.execute("DELETE FROM tracked_fixtures WHERE fixture_id = ?", (fixture_id,))
+            conn.execute(
+                "INSERT OR IGNORE INTO removed_fixtures (fixture_id, reason, removed_at) VALUES (?, ?, ?)",
+                (fixture_id, reason, removed_at or datetime.now(timezone.utc).isoformat()),
+            )
+        return int(bool(had) or not known)
 
     @staticmethod
     def _merge_settlement(
@@ -145,11 +165,14 @@ class DatabaseManager:
             preds: dict[int, list[dict[str, Any]]] = {}
             for r in conn.execute("SELECT * FROM tracked_predictions ORDER BY fixture_id, id"):
                 preds.setdefault(r["fixture_id"], []).append(dict(r))
+            removals = [dict(r) for r in conn.execute("SELECT * FROM removed_fixtures ORDER BY fixture_id")]
         self.history_path.parent.mkdir(parents=True, exist_ok=True)
         lines = []
         for fixture in fixtures:
             fixture["predictions"] = preds.get(fixture["fixture_id"], [])
             lines.append(json.dumps(fixture, ensure_ascii=False))
+        for removal in removals:
+            lines.append(json.dumps({"removed": True, **removal}, ensure_ascii=False))
         tmp = self.history_path.with_suffix(".tmp")
         tmp.write_text("".join(line + "\n" for line in lines), encoding="utf-8")
         tmp.replace(self.history_path)
@@ -228,6 +251,14 @@ class DatabaseManager:
                     shrinkage_factor REAL NOT NULL DEFAULT 1.0,
                     last_updated TEXT NOT NULL,
                     PRIMARY KEY (league_id, category)
+                );
+
+                -- Partidos borrados a propósito (p. ej. analizados por error): el histórico los
+                -- lleva como líneas de borrado para que una fusión no los vuelva a importar.
+                CREATE TABLE IF NOT EXISTS removed_fixtures (
+                    fixture_id INTEGER PRIMARY KEY,
+                    reason TEXT,
+                    removed_at TEXT NOT NULL
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_predictions_fixture ON tracked_predictions (fixture_id);

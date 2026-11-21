@@ -152,3 +152,34 @@ def test_woodwork_settles_when_the_known_team_already_hit_it():
     actual = extract_match_actual_stats(_detail({"Hit Woodwork": 1}, {}))
     assert actual["woodwork_hit"] == 1
     assert evaluate_prediction(WOODWORK, actual, "Local", "Visitante") == "WON"
+
+
+# ---------------------------------------------------------------- borrados
+
+def test_removed_fixture_does_not_come_back_from_an_older_history(tmp_path):
+    db = DatabaseManager(tmp_path / "a.db")
+    _save(db, 10, [_pred("Más de 1.5 goles")])
+    _save(db, 11, [_pred("Más de 1.5 goles")])
+    with_both = _history_of(db, tmp_path, "old.jsonl")
+    assert db.remove_fixture(10, "analizado por error") is True
+    assert db.get_fixture(10) is None and db.get_predictions_for_fixture(10) == []
+    assert db.merge_history(with_both) == 0  # el histórico viejo todavía lo tiene
+    assert db.get_fixture(10) is None
+    assert db.remove_fixture(10, "otra vez") is False
+
+
+def test_removals_travel_in_the_history_to_other_copies(tmp_path):
+    a = DatabaseManager(tmp_path / "a.db")
+    _save(a, 10, [_pred("Más de 1.5 goles")])
+    before = _history_of(a, tmp_path, "before.jsonl")
+    b = DatabaseManager(tmp_path / "b.db")
+    b.merge_history(before)
+    assert b.get_fixture(10) is not None
+
+    a.remove_fixture(10, "analizado por error")
+    after = _history_of(a, tmp_path, "after.jsonl")
+    assert '"removed": true' in after and '"fixture_id": 10' in after
+    assert b.merge_history(after) == 1
+    assert b.get_fixture(10) is None
+    rebuilt = DatabaseManager(tmp_path / "c.db", history_path=tmp_path / "after.jsonl")
+    assert rebuilt.get_fixture(10) is None

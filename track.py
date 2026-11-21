@@ -173,6 +173,15 @@ def _merge_remote_history(repo: Path, db: DatabaseManager) -> None:
         xg_path.write_text(json.dumps(merged_xg, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
 
 
+def cmd_remove(args: argparse.Namespace) -> None:
+    db = DatabaseManager()
+    if db.remove_fixture(args.fixture_id, args.reason):
+        db.export_history()
+        print(f"🗑️ Partido {args.fixture_id} borrado del histórico ({args.reason}). Súbelo con `python track.py sync`.")
+    else:
+        print(f"El partido {args.fixture_id} ya estaba borrado.")
+
+
 def cmd_sync(args: argparse.Namespace) -> None:
     repo = Path(__file__).resolve().parent
     db = DatabaseManager()
@@ -219,6 +228,11 @@ def main() -> None:
     sub_cal.set_defaults(func=cmd_calibrate)
 
     # sync
+    sub_rm = subparsers.add_parser("remove", help="Borra un partido registrado por error (no vuelve con sync)")
+    sub_rm.add_argument("fixture_id", type=int)
+    sub_rm.add_argument("--reason", required=True, help="Motivo del borrado (queda en el histórico)")
+    sub_rm.set_defaults(func=cmd_remove)
+
     sub_sync = subparsers.add_parser("sync", help="Sube el histórico de predicciones al repositorio (main)")
     sub_sync.set_defaults(func=cmd_sync)
 
