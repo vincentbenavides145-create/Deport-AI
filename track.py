@@ -33,7 +33,6 @@ if _src not in sys.path:
 from deport_ai.ai_critic import AICritic
 from deport_ai.config import Settings
 from deport_ai.dynamic_calibration import DynamicCalibrator
-from deport_ai.llm import LLMExplainer
 from deport_ai.settlement import SettlementEngine
 from deport_ai.sportmonks import SportmonksClient
 from deport_ai.storage import DatabaseManager
@@ -120,9 +119,8 @@ def cmd_report(args: argparse.Namespace) -> None:
 
 def cmd_ai_review(args: argparse.Namespace) -> None:
     settings = Settings.from_env()
-    explainer = LLMExplainer(settings.openai_api_key, settings.openai_model) if settings.openai_api_key else None
     db = DatabaseManager()
-    critic = AICritic(db, explainer=explainer)
+    critic = AICritic(db, api_key=settings.openai_api_key, model=settings.openai_model)
 
     report_md = critic.generate_diagnostic_report(league_id=args.league, limit=args.limit)
     print("\n" + report_md + "\n")

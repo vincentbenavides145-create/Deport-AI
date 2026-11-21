@@ -5,17 +5,16 @@ from collections import defaultdict
 from statistics import fmean
 from typing import Any
 
-from .domain import AnalysisReport
-from .llm import LLMExplainer
 from .storage import DatabaseManager
 
 
 class AICritic:
     """Motor de auditoría, diagnóstico y post-mortem de pronósticos con IA."""
 
-    def __init__(self, db: DatabaseManager, explainer: LLMExplainer | None = None) -> None:
+    def __init__(self, db: DatabaseManager, api_key: str | None = None, model: str = "gpt-5.2") -> None:
         self.db = db
-        self.explainer = explainer
+        self.api_key = api_key
+        self.model = model
 
     def analyze_settled_performance(
         self,
@@ -174,14 +173,14 @@ class AICritic:
 
         # Intentar llamar al LLM para la explicación cualitativa post-mortem si está configurado
         ai_narrative = None
-        if self.explainer and self.explainer.api_key:
+        if self.api_key:
             try:
                 from openai import OpenAI
 
-                client = OpenAI(api_key=self.explainer.api_key)
+                client = OpenAI(api_key=self.api_key)
                 prompt_input = json.dumps(stats, ensure_ascii=False, indent=2)
                 response = client.responses.create(
-                    model=self.explainer.model,
+                    model=self.model,
                     store=False,
                     instructions=(
                         "Eres el Director Cuantitativo y Auditor Experto de DEPORT AI. "

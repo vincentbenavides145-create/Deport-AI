@@ -13,7 +13,6 @@ def _probabilities() -> ProbabilityReport:
         btts=0.52,
         expected_home_goals=2.1,
         expected_away_goals=0.8,
-        shared_goal_component=0.0,
         score_matrix=[[1.0]],
         over_35=0.45,
         under_35=0.55,
@@ -29,26 +28,14 @@ def test_extended_statistical_markets_are_model_only_and_deduplicated():
     expected = ExpectedMetrics(
         corners_home=6.2,
         corners_away=4.1,
-        over_75_corners=0.82,
-        over_95_corners=0.61,
-        over_55_corners_home=0.68,
-        over_45_corners_away=0.62,
         cards_home=2.2,
         cards_away=2.4,
-        over_35_cards=0.71,
-        over_15_cards_home=0.74,
-        over_15_cards_away=0.77,
         total_shots_home=15.4,
         total_shots_away=10.8,
-        over_215_total_shots=0.70,
-        over_135_shots_home=0.65,
         shots_on_home=5.4,
         shots_on_away=3.8,
-        over_75_shots_on=0.66,
-        over_45_shots_on_home=0.64,
         offsides_home=1.9,
         offsides_away=1.4,
-        over_25_offsides=0.68,
         player_shots={
             1: [{
                 "name": "Delantero Local",
@@ -131,7 +118,6 @@ def test_uncalculated_fields_do_not_produce_artificial_100_percent():
         btts=0.50,
         expected_home_goals=1.5,
         expected_away_goals=1.0,
-        shared_goal_component=0.0,
         score_matrix=[[1.0]],
         first_half_over_15=None,  # No calculado / No disponible
         clean_sheet_away=None,    # No calculado / No disponible
@@ -155,7 +141,6 @@ def test_corners_1x2_has_no_label_and_requires_valid_metrics():
         corners_home=6.5,
         corners_away=3.2,
         corners_1x2_home=0.64,
-        corners_1x2_tie=0.11,
         corners_1x2_away=0.25,
     )
     markets = select_statistical_markets(home, away, probs, expected)
@@ -475,7 +460,6 @@ def test_format_adaptive_report_renders_clean_structure_and_omits_empty_categori
         injuries=[],
         lineups=[],
         odds={},
-        opportunities=[],
         risks=["Rotaciones previstas"],
         sources=[],
         generated_at="2026-09-20",
@@ -509,8 +493,8 @@ def test_format_adaptive_report_renders_clean_structure_and_omits_empty_categori
     assert "• **Marcador más probable:**" in formatted
 
 
-def test_analysis_report_llm_payload_prioritizes_adaptive_report():
-    """Verifica que llm_payload() incluya adaptive_report y priorice statistical_markets."""
+def test_analysis_report_json_payload_prioritizes_adaptive_report():
+    """Verifica que json_payload() incluya adaptive_report y priorice statistical_markets."""
     from deport_ai.domain import AnalysisReport
     home = Team(1, "Real Madrid")
     away = Team(2, "Atlético Madrid")
@@ -530,14 +514,13 @@ def test_analysis_report_llm_payload_prioritizes_adaptive_report():
         injuries=[],
         lineups=[],
         odds={},
-        opportunities=[],
         risks=[],
         sources=[],
         generated_at="2026-09-20",
         statistical_markets=[{"category": "Goles", "market": "Goles totales", "selection": "Más de 1.5 goles", "probability": 0.86, "explanation": "test"}],
     )
 
-    payload = report.llm_payload()
+    payload = report.json_payload()
     keys = list(payload.keys())
 
     assert "adaptive_report" in payload
@@ -568,7 +551,6 @@ def test_creative_markets_generation_and_selection():
         btts=0.32,
         expected_home_goals=2.2,
         expected_away_goals=0.4,
-        shared_goal_component=0.0,
         score_matrix=matrix,
         first_half_over_05=0.80,
         second_half_over_05=0.82,

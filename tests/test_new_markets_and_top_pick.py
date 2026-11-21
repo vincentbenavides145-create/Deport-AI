@@ -1,16 +1,11 @@
-import pytest
 from deport_ai.domain import (
     AnalysisReport,
-    ExpectedMetrics,
-    ProbabilityReport,
     Team,
     TeamMatch,
 )
 from deport_ai.formatter import format_adaptive_report
-from deport_ai.markets_catalog import build_declarative_catalog
 from deport_ai.presentation_catalog import MarketPresentationCatalog
 from deport_ai.statistical_markets import (
-    calculate_candidate_markets,
     select_statistical_markets,
     select_top_recommended_pick,
 )
@@ -198,7 +193,6 @@ def test_select_top_recommended_pick_and_report_rendering():
         injuries=[],
         lineups=[],
         odds={},
-        opportunities=[],
         risks=[],
         sources=[],
         generated_at="2026-09-21T18:00:00Z",

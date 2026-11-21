@@ -116,9 +116,6 @@ TEAM_ALIASES: dict[str, str] = {
     "independiente del valle": "Independiente del Valle",
     "independinete del valle": "Independiente del Valle",
     "idv": "Independiente del Valle",
-    "inter milan": "Inter",
-    "inter de milan": "Inter",
-    "internazionale": "Inter",
     "sporting lisboa": "Sporting CP",
     "sporting de lisboa": "Sporting CP",
     "bayern munich": "Bayern München",
@@ -200,10 +197,6 @@ TEAM_ALIASES: dict[str, str] = {
     "montevideo city torque": "Montevideo City Torque",
     "city torque": "Montevideo City Torque",
     "torque": "Montevideo City Torque",
-    "arsenal": "Arsenal",
-    "arsenal fc": "Arsenal",
-    "sunderland": "Sunderland",
-    "sunderland afc": "Sunderland",
 }
 
 TEAM_ID_OVERRIDES: dict[str, int] = {
@@ -301,7 +294,6 @@ TEAM_ID_OVERRIDES: dict[str, int] = {
     "union santa fe": 7228,
     "barcelona": 83,
     "liverpool": 8,
-    "arsenal": 19,
     "chelsea": 18,
     "chelsea fc": 18,
     "brighton": 78,
@@ -337,8 +329,6 @@ TEAM_ID_OVERRIDES: dict[str, int] = {
     "estudiantes": 9335,
     "estudiantes de la plata": 9335,
     "estudiantes lp": 9335,
-    "flamengo": 1024,
-    "flamengo rj": 1024,
     "independiente del valle": 14635,
     "independinete del valle": 14635,
     "idv": 14635,
@@ -364,8 +354,6 @@ TEAM_ID_OVERRIDES: dict[str, int] = {
     "tarma": 239392,
     "adt": 239392,
     "adt tarma": 239392,
-    "cienciano": 13264,
-    "club cienciano": 13264,
     "club cienciano del cusco": 13264,
     "cienciano del cusco": 13264,
 }
@@ -392,8 +380,6 @@ class SportmonksClient:
         self.timezone = timezone
         self.base_url = base_url.rstrip("/")
         self.max_season = datetime.now().year
-        self.requests_used = 0
-        self.requests_remaining: int | None = None
         self._cache: dict[str, Any] = {}
         self._raw_fixtures: dict[int, dict[str, Any]] = {}
         self._fixtures: dict[int, dict[str, Any]] = {}
@@ -424,14 +410,10 @@ class SportmonksClient:
                 if attempt == 2:
                     raise APIError(f"No se pudo conectar con Sportmonks: {exc}") from exc
                 time.sleep(1.0 * (attempt + 1))
-        self.requests_used += 1
         try:
             payload = response.json()
         except ValueError as exc:
             raise APIError(f"Sportmonks devolvió una respuesta inválida ({response.status_code}).") from exc
-        rate = payload.get("rate_limit") or {}
-        if rate.get("remaining") is not None:
-            self.requests_remaining = int(rate["remaining"])
         if response.status_code in {401, 403}:
             message = payload.get("message") or "Token inválido o función fuera del plan."
             raise APIError(f"Sportmonks rechazó la consulta: {message}")

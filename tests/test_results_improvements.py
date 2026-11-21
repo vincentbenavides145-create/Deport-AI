@@ -30,7 +30,7 @@ def _match(i, stats_for=None, stats_against=None, league_id=648):
 def _probabilities() -> ProbabilityReport:
     return ProbabilityReport(
         home_win=0.5, draw=0.25, away_win=0.25, over_15=0.7, over_25=0.5, under_25=0.5, btts=0.5,
-        expected_home_goals=1.4, expected_away_goals=1.1, shared_goal_component=0.0, score_matrix=[[1.0]],
+        expected_home_goals=1.4, expected_away_goals=1.1, score_matrix=[[1.0]],
     )
 
 

@@ -72,7 +72,6 @@ def _probabilities(**overrides) -> ProbabilityReport:
         btts=0.52,
         expected_home_goals=2.1,
         expected_away_goals=0.8,
-        shared_goal_component=0.0,
         score_matrix=[[1.0]],
     )
     base.update(overrides)
@@ -96,7 +95,6 @@ def test_friendly_caps_elo_weight_and_expected_goals():
     strong, weak = _strong_vs_weak()
     generic = goal_probabilities(strong, weak, 1900.0, 1400.0)
     friendly = goal_probabilities(strong, weak, 1900.0, 1400.0, league_id=1082)
-    assert friendly.attribution_home.elo_impact < generic.attribution_home.elo_impact
     assert friendly.expected_home_goals <= 3.5
     assert friendly.expected_away_goals <= 3.0
     assert friendly.expected_home_goals < generic.expected_home_goals

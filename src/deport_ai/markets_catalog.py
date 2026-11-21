@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 
 @dataclass(frozen=True)
@@ -21,32 +20,6 @@ class MarketDefinition:
     minimum_probability: float = 0.60
     requires_starter_confirmation: bool = False
     is_experimental: bool = False
-
-
-MINIMUM_INFORMATIVE_LINES: dict[str, float] = {
-    "cards_total": 1.5,
-    "cards_home": 0.5,
-    "cards_away": 0.5,
-    "corners_total": 3.5,
-    "corners_home": 1.5,
-    "corners_away": 1.5,
-    "shots_total": 15.5,
-    "shots_home": 7.5,
-    "shots_away": 7.5,
-    "shots_on_total": 4.5,
-    "shots_on_home": 2.5,
-    "shots_on_away": 2.5,
-    "offsides_total": 1.5,
-    "offsides_home": 0.5,
-    "offsides_away": 0.5,
-    "goals_total": 0.5,
-    "goals_home": 0.5,
-    "goals_away": 0.5,
-    "fouls_total": 20.5,
-    "fouls_home": 9.5,
-    "fouls_away": 9.5,
-    "corners_first_half": 2.5,
-}
 
 
 def build_declarative_catalog(home_name: str, away_name: str) -> list[MarketDefinition]:

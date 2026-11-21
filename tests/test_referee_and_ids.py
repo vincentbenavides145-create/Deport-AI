@@ -84,7 +84,7 @@ def test_player_props_and_offsides_are_suspended_by_default():
     assert SUSPENDED_CATEGORIES == {"Jugadores", "Fueras de juego"}
     probs = ProbabilityReport(
         home_win=0.5, draw=0.25, away_win=0.25, over_15=0.7, over_25=0.5, under_25=0.5, btts=0.5,
-        expected_home_goals=1.4, expected_away_goals=1.1, shared_goal_component=0.0, score_matrix=[[1.0]],
+        expected_home_goals=1.4, expected_away_goals=1.1, score_matrix=[[1.0]],
     )
     expected = ExpectedMetrics(
         offsides_home=1.0, offsides_away=1.0, dispersion_offsides=0.1,

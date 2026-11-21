@@ -28,14 +28,6 @@ class DynamicCalibrationSummary:
     category_factors: dict[str, dict[str, float]]
     bias_offsets: dict[str, float]
 
-    def badge_text(self) -> str:
-        if not self.active or self.sample_size < MIN_CALIBRATION_SAMPLE:
-            return "🟡 Calibración preliminar (acumulando muestra)"
-        return (
-            f"🟢 Calibración Dinámica Activa ({self.sample_size} apuestas auditadas | "
-            f"{self.overall_hit_rate * 100:.1f}% acierto histórico)"
-        )
-
 
 class DynamicCalibrator:
     """Motor de calibración adaptativa y aprendizaje continuo para DEPORT AI."""

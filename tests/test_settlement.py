@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import pytest
-from deport_ai.settlement import evaluate_prediction, extract_match_actual_stats
+from deport_ai.settlement import evaluate_prediction
 
 
 def test_evaluate_goals_and_results():

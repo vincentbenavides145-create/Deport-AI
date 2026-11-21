@@ -51,7 +51,7 @@ def test_mark_highlights():
 def _report():
     probs = ProbabilityReport(
         home_win=0.5, draw=0.25, away_win=0.25, over_15=0.87, over_25=0.6, under_25=0.4, btts=0.5,
-        expected_home_goals=1.6, expected_away_goals=1.1, shared_goal_component=0.0, score_matrix=[[1.0]],
+        expected_home_goals=1.6, expected_away_goals=1.1, score_matrix=[[1.0]],
     )
     return SimpleNamespace(
         home=Team(1, "Local"), away=Team(2, "Visitante"), confidence=None, top_pick=PICK,

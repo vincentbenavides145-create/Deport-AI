@@ -4,13 +4,12 @@ import math
 import re
 from collections import defaultdict
 from dataclasses import dataclass, replace
-from statistics import fmean, median
+from statistics import median
 from typing import Any, Iterable
 
 from .domain import (
     ConfidenceScore,
     ExpectedMetrics,
-    FactorAttribution,
     PlayerShot,
     ProbabilityReport,
     TeamMatch,
@@ -270,72 +269,6 @@ def absence_share(
         return 0.0
     lost = sum(value for match in pool for pid, value in match.contributions.items() if pid in absent)
     return round(min(ABSENCE_MAX_SHARE, lost / total), 4)
-
-
-def extract_common_opponents(
-    home_matches: list[TeamMatch],
-    away_matches: list[TeamMatch],
-) -> list[dict[str, Any]]:
-    """
-    Encuentra y compara el desempeño de ambos equipos frente a rivales comunes.
-    Calcula la ventaja neta de goles, xG y tiros sobre el mismo baremo de dificultad.
-    """
-    home_by_opp: dict[int, TeamMatch] = {}
-    for m in home_matches:
-        if m.opponent_id not in home_by_opp:
-            home_by_opp[m.opponent_id] = m
-
-    away_by_opp: dict[int, TeamMatch] = {}
-    for m in away_matches:
-        if m.opponent_id not in away_by_opp:
-            away_by_opp[m.opponent_id] = m
-
-    common_ids = set(home_by_opp.keys()) & set(away_by_opp.keys())
-    if not common_ids:
-        return []
-
-    comparisons: list[dict[str, Any]] = []
-    for opp_id in common_ids:
-        hm = home_by_opp[opp_id]
-        am = away_by_opp[opp_id]
-        opp_name = hm.opponent_name or am.opponent_name or f"Rival #{opp_id}"
-
-        home_gd = hm.goals_for - hm.goals_against
-        away_gd = am.goals_for - am.goals_against
-        net_advantage = home_gd - away_gd
-
-        comparisons.append({
-            "opponent_id": opp_id,
-            "opponent_name": opp_name,
-            "home_match": {
-                "date": hm.date,
-                "is_home": hm.is_home,
-                "goals_for": hm.goals_for,
-                "goals_against": hm.goals_against,
-                "result": hm.result,
-                "score": f"{hm.goals_for}-{hm.goals_against}",
-                "shots_on": hm.stats_for.get("shots_on_goal"),
-                "corners": hm.stats_for.get("corner_kicks"),
-                "xg": hm.stats_for.get("expected_goals"),
-            },
-            "away_match": {
-                "date": am.date,
-                "is_home": am.is_home,
-                "goals_for": am.goals_for,
-                "goals_against": am.goals_against,
-                "result": am.result,
-                "score": f"{am.goals_for}-{am.goals_against}",
-                "shots_on": am.stats_for.get("shots_on_goal"),
-                "corners": am.stats_for.get("corner_kicks"),
-                "xg": am.stats_for.get("expected_goals"),
-            },
-            "home_gd": home_gd,
-            "away_gd": away_gd,
-            "net_advantage": net_advantage,
-        })
-
-    comparisons.sort(key=lambda x: abs(x["net_advantage"]), reverse=True)
-    return comparisons
 
 
 def extract_player_shots(details: Iterable[dict[str, Any]]) -> list[PlayerShot]:
@@ -627,7 +560,6 @@ class CompetitionProfile:
     away_advantage: float      # Multiplicador factor visitante (ej. 0.91 Premier, 0.76 Libertadores)
     base_goals: float          # Promedio goles por partido de la competición (ej. 2.85 Premier, 3.15 Bundesliga)
     elo_scale: float           # Factor escala Elo (320 normal, 280 alta varianza)
-    recency_decay: float       # Tasa decaimiento temporal (0.86 estándar)
     dispersion_corners: float  # Parámetro alpha Binomial Negativa córners
     dispersion_cards: float    # Parámetro alpha Binomial Negativa tarjetas
     max_lambda_home: float = 5.0          # Tope de goles esperados del local
@@ -637,39 +569,39 @@ class CompetitionProfile:
 
 COMPETITION_PROFILES: dict[int, CompetitionProfile] = {
     # Premier League (8): Menor ventaja local, alto volumen de goles
-    8: CompetitionProfile(8, "Premier League", 1.09, 0.91, 2.85, 320.0, 0.88, 0.13, 0.20),
+    8: CompetitionProfile(8, "Premier League", 1.09, 0.91, 2.85, 320.0, 0.13, 0.20),
     # Championship (9): Mayor fricción, alta competitividad
-    9: CompetitionProfile(9, "Championship", 1.12, 0.88, 2.65, 300.0, 0.86, 0.15, 0.24),
+    9: CompetitionProfile(9, "Championship", 1.12, 0.88, 2.65, 300.0, 0.15, 0.24),
     # La Liga (564): Control táctico, promedio moderado de goles
-    564: CompetitionProfile(564, "La Liga", 1.12, 0.88, 2.52, 310.0, 0.86, 0.14, 0.25),
+    564: CompetitionProfile(564, "La Liga", 1.12, 0.88, 2.52, 310.0, 0.14, 0.25),
     # La Liga 2 (567)
-    567: CompetitionProfile(567, "La Liga 2", 1.15, 0.85, 2.25, 290.0, 0.85, 0.15, 0.28),
+    567: CompetitionProfile(567, "La Liga 2", 1.15, 0.85, 2.25, 290.0, 0.15, 0.28),
     # Serie A (384): Disciplina defensiva
-    384: CompetitionProfile(384, "Serie A", 1.10, 0.89, 2.58, 310.0, 0.86, 0.14, 0.23),
+    384: CompetitionProfile(384, "Serie A", 1.10, 0.89, 2.58, 310.0, 0.14, 0.23),
     # Serie B (387)
-    387: CompetitionProfile(387, "Serie B", 1.14, 0.86, 2.35, 290.0, 0.85, 0.15, 0.27),
+    387: CompetitionProfile(387, "Serie B", 1.14, 0.86, 2.35, 290.0, 0.15, 0.27),
     # Bundesliga (82): Máximo volumen ofensivo y transiciones rápidas
-    82: CompetitionProfile(82, "Bundesliga", 1.10, 0.90, 3.15, 330.0, 0.88, 0.14, 0.20),
+    82: CompetitionProfile(82, "Bundesliga", 1.10, 0.90, 3.15, 330.0, 0.14, 0.20),
     # 2. Bundesliga (85)
-    85: CompetitionProfile(85, "2. Bundesliga", 1.11, 0.89, 3.00, 310.0, 0.87, 0.14, 0.22),
+    85: CompetitionProfile(85, "2. Bundesliga", 1.11, 0.89, 3.00, 310.0, 0.14, 0.22),
     # Ligue 1 (301)
-    301: CompetitionProfile(301, "Ligue 1", 1.11, 0.89, 2.70, 320.0, 0.86, 0.14, 0.22),
+    301: CompetitionProfile(301, "Ligue 1", 1.11, 0.89, 2.70, 320.0, 0.14, 0.22),
     # Eredivisie (72): Alto ritmo, abundantes goles
-    72: CompetitionProfile(72, "Eredivisie", 1.10, 0.90, 3.05, 310.0, 0.87, 0.14, 0.21),
+    72: CompetitionProfile(72, "Eredivisie", 1.10, 0.90, 3.05, 310.0, 0.14, 0.21),
     # Liga Portugal (462)
-    462: CompetitionProfile(462, "Liga Portugal", 1.12, 0.88, 2.65, 310.0, 0.86, 0.14, 0.26),
+    462: CompetitionProfile(462, "Liga Portugal", 1.12, 0.88, 2.65, 310.0, 0.14, 0.26),
     # Brasileirão Serie A (648): Marcada ventaja local por logística y clima
-    648: CompetitionProfile(648, "Brasileirão", 1.16, 0.84, 2.45, 290.0, 0.85, 0.15, 0.26),
+    648: CompetitionProfile(648, "Brasileirão", 1.16, 0.84, 2.45, 290.0, 0.15, 0.26),
     # Liga Profesional Argentina (636): Partidos muy cerrados, alta fricción
-    636: CompetitionProfile(636, "Liga Argentina", 1.16, 0.84, 2.30, 290.0, 0.85, 0.15, 0.27),
+    636: CompetitionProfile(636, "Liga Argentina", 1.16, 0.84, 2.30, 290.0, 0.15, 0.27),
     # Liga BetPlay Colombia (672)
-    672: CompetitionProfile(672, "Liga BetPlay", 1.18, 0.82, 2.25, 280.0, 0.85, 0.15, 0.27),
+    672: CompetitionProfile(672, "Liga BetPlay", 1.18, 0.82, 2.25, 280.0, 0.15, 0.27),
     # Liga 1 Perú (764): Gran disparidad costa vs altura
-    764: CompetitionProfile(764, "Liga 1 Perú", 1.20, 0.80, 2.48, 280.0, 0.85, 0.16, 0.27),
+    764: CompetitionProfile(764, "Liga 1 Perú", 1.20, 0.80, 2.48, 280.0, 0.16, 0.27),
     # MLS (779)
-    779: CompetitionProfile(779, "MLS", 1.15, 0.85, 2.95, 300.0, 0.87, 0.14, 0.22),
+    779: CompetitionProfile(779, "MLS", 1.15, 0.85, 2.95, 300.0, 0.14, 0.22),
     # Liga MX (743)
-    743: CompetitionProfile(743, "Liga MX", 1.15, 0.85, 2.70, 300.0, 0.86, 0.15, 0.24),
+    743: CompetitionProfile(743, "Liga MX", 1.15, 0.85, 2.70, 300.0, 0.15, 0.24),
 }
 
 # Amistosos internacionales (1082): rotaciones, sedes a menudo neutrales y ritmo bajo.
@@ -682,7 +614,6 @@ FRIENDLY_INTERNATIONAL_PROFILE = CompetitionProfile(
     away_advantage=0.94,
     base_goals=2.55,
     elo_scale=320.0,
-    recency_decay=0.86,
     dispersion_corners=0.15,
     dispersion_cards=0.24,
     max_lambda_home=3.5,
@@ -692,7 +623,7 @@ FRIENDLY_INTERNATIONAL_PROFILE = CompetitionProfile(
 COMPETITION_PROFILES[1082] = FRIENDLY_INTERNATIONAL_PROFILE
 
 DEFAULT_COMPETITION_PROFILE = CompetitionProfile(
-    None, "Universal / General", 1.12, 0.90, 2.60, 320.0, 0.86, 0.14, 0.22
+    None, "Universal / General", 1.12, 0.90, 2.60, 320.0, 0.14, 0.22
 )
 
 
@@ -712,7 +643,6 @@ def get_competition_profile(
             away_advantage=0.76,
             base_goals=2.45,
             elo_scale=280.0,
-            recency_decay=0.84,
             dispersion_corners=0.16,
             dispersion_cards=0.28,
         )
@@ -724,7 +654,6 @@ def get_competition_profile(
             away_advantage=0.90,
             base_goals=2.90,
             elo_scale=320.0,
-            recency_decay=0.88,
             dispersion_corners=0.13,
             dispersion_cards=0.22,
         )
@@ -739,7 +668,6 @@ def calculate_confidence_score(
     away_matches: list[TeamMatch],
     expected: ExpectedMetrics | None = None,
     lineups_confirmed: bool = False,
-    odds_available: bool = False,
 ) -> ConfidenceScore:
     """Calcula la Puntuación de Confianza Epistémica (0 a 100) separada de la probabilidad matemática.
     
@@ -1024,7 +952,6 @@ def detect_altitude_impact(
     }
 
 
-
 def calculate_elo(
     home_matches: list[TeamMatch],
     away_matches: list[TeamMatch],
@@ -1213,23 +1140,6 @@ def goal_probabilities(
     raw_lambda_a *= 1.0 - params.absence_weight * absence_away
     lambda_away = _clamp(raw_lambda_a, 0.05, comp_profile.max_lambda_away)
 
-    attr_home = FactorAttribution(
-        base_league_goals=base_league_half,
-        elo_impact=elo_impact_h,
-        venue_impact=venue_impact_h,
-        recent_form_impact=form_impact_h,
-        rest_impact=rest_impact_h,
-        final_expected_goals=round(lambda_home, 2),
-    )
-    attr_away = FactorAttribution(
-        base_league_goals=base_league_half,
-        elo_impact=elo_impact_a,
-        venue_impact=venue_impact_a,
-        recent_form_impact=form_impact_a,
-        rest_impact=rest_impact_a,
-        final_expected_goals=round(lambda_away, 2),
-    )
-
     shared_component = _estimate_shared_goal_component(
         home_matches, away_matches, lambda_home, lambda_away
     )
@@ -1248,14 +1158,6 @@ def goal_probabilities(
     btts = sum(matrix[h][a] for h in range(1, 11) for a in range(1, 11))
 
     # Hándicap Asiático y Empate Apuesta No Válida (DNB / AH 0.0)
-    ah_home_minus_15 = sum(matrix[h][a] for h in range(11) for a in range(11) if h - a >= 2)
-    ah_away_plus_15 = 1.0 - ah_home_minus_15
-    ah_away_minus_15 = sum(matrix[h][a] for h in range(11) for a in range(11) if a - h >= 2)
-    ah_home_plus_15 = 1.0 - ah_away_minus_15
-    ah_home_minus_25 = sum(matrix[h][a] for h in range(11) for a in range(11) if h - a >= 3)
-    ah_away_plus_25 = 1.0 - ah_home_minus_25
-    ah_away_minus_25 = sum(matrix[h][a] for h in range(11) for a in range(11) if a - h >= 3)
-    ah_home_plus_25 = 1.0 - ah_away_minus_25
     total_decisive = home_win + away_win
     dnb_home = (home_win / total_decisive) if total_decisive > 0 else 0.5
     dnb_away = (away_win / total_decisive) if total_decisive > 0 else 0.5
@@ -1318,16 +1220,7 @@ def goal_probabilities(
         expected_away_goals=round(lambda_away, 2),
         over_35=round(over_35, 4),
         under_35=round(under_35, 4),
-        shared_goal_component=shared_component,
         score_matrix=matrix,
-        ah_home_minus_15=ah_home_minus_15,
-        ah_away_plus_15=ah_away_plus_15,
-        ah_home_plus_15=ah_home_plus_15,
-        ah_away_minus_15=ah_away_minus_15,
-        ah_home_minus_25=ah_home_minus_25,
-        ah_away_plus_25=ah_away_plus_25,
-        ah_home_plus_25=ah_home_plus_25,
-        ah_away_minus_25=ah_away_minus_25,
         dnb_home=dnb_home,
         dnb_away=dnb_away,
         first_half_over_05=round(first_half_over_05, 4),
@@ -1351,8 +1244,6 @@ def goal_probabilities(
         dc_1x_and_btts=round(dc_1x_and_btts, 4),
         dc_x2_and_btts=round(dc_x2_and_btts, 4),
         btts_second_half=round(btts_second_half, 4),
-        attribution_home=attr_home,
-        attribution_away=attr_away,
     )
 
 
@@ -1386,60 +1277,9 @@ def expected_metrics(
         corners_home = round(corners_home * altitude_impact["corners_home_mult"], 2)
 
     total_corners = (corners_home + corners_away) if (corners_home is not None and corners_away is not None) else None
-    over_75_corners = None
-    over_85_corners = None
-    over_95_corners = None
-    over_105_corners = None
-    over_115_corners = None
-    under_105_corners = None
-    if total_corners is not None and total_corners > 0:
-        p_corn_under_8 = sum(_negative_binomial(k, total_corners, disp_corners) for k in range(8))
-        p_corn_under_9 = sum(_negative_binomial(k, total_corners, disp_corners) for k in range(9))
-        p_corn_under_10 = sum(_negative_binomial(k, total_corners, disp_corners) for k in range(10))
-        p_corn_under_11 = sum(_negative_binomial(k, total_corners, disp_corners) for k in range(11))
-        p_corn_under_12 = sum(_negative_binomial(k, total_corners, disp_corners) for k in range(12))
-        over_75_corners = round(1.0 - p_corn_under_8, 4)
-        over_85_corners = round(1.0 - p_corn_under_9, 4)
-        over_95_corners = round(1.0 - p_corn_under_10, 4)
-        over_105_corners = round(1.0 - p_corn_under_11, 4)
-        over_115_corners = round(1.0 - p_corn_under_12, 4)
-        under_105_corners = round(p_corn_under_11, 4)
-
-    over_45_corners_home = None
-    over_55_corners_home = None
-    over_65_corners_home = None
-    under_35_corners_home = None
-    under_45_corners_home = None
-    if corners_home is not None and corners_home > 0:
-        p_c_h_under_4 = sum(_negative_binomial(k, corners_home, disp_corners) for k in range(4))
-        p_c_h_under_5 = sum(_negative_binomial(k, corners_home, disp_corners) for k in range(5))
-        p_c_h_under_6 = sum(_negative_binomial(k, corners_home, disp_corners) for k in range(6))
-        p_c_h_under_7 = sum(_negative_binomial(k, corners_home, disp_corners) for k in range(7))
-        over_45_corners_home = round(1.0 - p_c_h_under_5, 4)
-        over_55_corners_home = round(1.0 - p_c_h_under_6, 4)
-        over_65_corners_home = round(1.0 - p_c_h_under_7, 4)
-        under_35_corners_home = round(p_c_h_under_4, 4)
-        under_45_corners_home = round(p_c_h_under_5, 4)
-
-    over_45_corners_away = None
-    over_55_corners_away = None
-    over_65_corners_away = None
-    under_35_corners_away = None
-    under_45_corners_away = None
-    if corners_away is not None and corners_away > 0:
-        p_c_a_under_4 = sum(_negative_binomial(k, corners_away, disp_corners) for k in range(4))
-        p_c_a_under_5 = sum(_negative_binomial(k, corners_away, disp_corners) for k in range(5))
-        p_c_a_under_6 = sum(_negative_binomial(k, corners_away, disp_corners) for k in range(6))
-        p_c_a_under_7 = sum(_negative_binomial(k, corners_away, disp_corners) for k in range(7))
-        over_45_corners_away = round(1.0 - p_c_a_under_5, 4)
-        over_55_corners_away = round(1.0 - p_c_a_under_6, 4)
-        over_65_corners_away = round(1.0 - p_c_a_under_7, 4)
-        under_35_corners_away = round(p_c_a_under_4, 4)
-        under_45_corners_away = round(p_c_a_under_5, 4)
 
     # Córners 1X2 mediante convolución discreta de la distribución binomial negativa
     corners_1x2_home = None
-    corners_1x2_tie = None
     corners_1x2_away = None
     if corners_home is not None and corners_away is not None and corners_home > 0 and corners_away > 0:
         p_c_h = sum(
@@ -1447,18 +1287,12 @@ def expected_metrics(
             sum(_negative_binomial(a, corners_away, disp_corners) for a in range(h))
             for h in range(1, 30)
         )
-        p_c_tie = sum(
-            _negative_binomial(k, corners_home, disp_corners) *
-            _negative_binomial(k, corners_away, disp_corners)
-            for k in range(30)
-        )
         p_c_a = sum(
             _negative_binomial(a, corners_away, disp_corners) *
             sum(_negative_binomial(h, corners_home, disp_corners) for h in range(a))
             for a in range(1, 30)
         )
         corners_1x2_home = round(p_c_h, 4)
-        corners_1x2_tie = round(p_c_tie, 4)
         corners_1x2_away = round(p_c_a, 4)
 
     # Remates Totales (Total Shots)
@@ -1470,51 +1304,6 @@ def expected_metrics(
         if total_shots_away is not None:
             total_shots_away = round(total_shots_away * altitude_impact["shots_away_mult"], 2)
 
-    tot_shots = (
-        round(total_shots_home + total_shots_away, 2)
-        if (total_shots_home is not None and total_shots_away is not None)
-        else None
-    )
-    over_215_total_shots = None
-    over_235_total_shots = None
-    over_255_total_shots = None
-    over_275_total_shots = None
-    over_295_total_shots = None
-    under_245_total_shots = None
-    under_265_total_shots = None
-    if tot_shots is not None and tot_shots > 0:
-        over_215_total_shots = round(1.0 - sum(_negative_binomial(k, tot_shots, disp_shots) for k in range(22)), 4)
-        over_235_total_shots = round(1.0 - sum(_negative_binomial(k, tot_shots, disp_shots) for k in range(24)), 4)
-        over_255_total_shots = round(1.0 - sum(_negative_binomial(k, tot_shots, disp_shots) for k in range(26)), 4)
-        over_275_total_shots = round(1.0 - sum(_negative_binomial(k, tot_shots, disp_shots) for k in range(28)), 4)
-        over_295_total_shots = round(1.0 - sum(_negative_binomial(k, tot_shots, disp_shots) for k in range(30)), 4)
-        under_245_total_shots = round(sum(_negative_binomial(k, tot_shots, disp_shots) for k in range(25)), 4)
-        under_265_total_shots = round(sum(_negative_binomial(k, tot_shots, disp_shots) for k in range(27)), 4)
-
-    over_115_shots_home = None
-    over_135_shots_home = None
-    over_155_shots_home = None
-    over_175_shots_home = None
-    under_85_shots_home = None
-    under_95_shots_home = None
-    if total_shots_home is not None and total_shots_home > 0:
-        over_115_shots_home = round(1.0 - sum(_negative_binomial(k, total_shots_home, disp_shots) for k in range(12)), 4)
-        over_135_shots_home = round(1.0 - sum(_negative_binomial(k, total_shots_home, disp_shots) for k in range(14)), 4)
-        over_155_shots_home = round(1.0 - sum(_negative_binomial(k, total_shots_home, disp_shots) for k in range(16)), 4)
-        over_175_shots_home = round(1.0 - sum(_negative_binomial(k, total_shots_home, disp_shots) for k in range(18)), 4)
-        under_85_shots_home = round(sum(_negative_binomial(k, total_shots_home, disp_shots) for k in range(9)), 4)
-        under_95_shots_home = round(sum(_negative_binomial(k, total_shots_home, disp_shots) for k in range(10)), 4)
-
-    over_115_shots_away = None
-    over_135_shots_away = None
-    under_85_shots_away = None
-    under_95_shots_away = None
-    if total_shots_away is not None and total_shots_away > 0:
-        over_115_shots_away = round(1.0 - sum(_negative_binomial(k, total_shots_away, disp_shots) for k in range(12)), 4)
-        over_135_shots_away = round(1.0 - sum(_negative_binomial(k, total_shots_away, disp_shots) for k in range(14)), 4)
-        under_85_shots_away = round(sum(_negative_binomial(k, total_shots_away, disp_shots) for k in range(9)), 4)
-        under_95_shots_away = round(sum(_negative_binomial(k, total_shots_away, disp_shots) for k in range(10)), 4)
-
     # Tiros al Arco (Shots on Goal)
     shots_home = _expected_count(home_matches, away_matches, True, False, "shots_on_goal")
     shots_away = _expected_count(away_matches, home_matches, False, True, "shots_on_goal")
@@ -1523,48 +1312,6 @@ def expected_metrics(
             shots_home = round(shots_home * altitude_impact["shots_home_mult"], 2)
         if shots_away is not None:
             shots_away = round(shots_away * altitude_impact["shots_away_mult"], 2)
-    tot_shots_on = (
-        round(shots_home + shots_away, 2)
-        if (shots_home is not None and shots_away is not None)
-        else None
-    )
-    over_75_shots_on = None
-    over_85_shots_on = None
-    over_95_shots_on = None
-    over_105_shots_on = None
-    under_85_shots_on = None
-    under_95_shots_on = None
-    if tot_shots_on is not None and tot_shots_on > 0:
-        over_75_shots_on = round(1.0 - sum(_negative_binomial(k, tot_shots_on, disp_shots) for k in range(8)), 4)
-        over_85_shots_on = round(1.0 - sum(_negative_binomial(k, tot_shots_on, disp_shots) for k in range(9)), 4)
-        over_95_shots_on = round(1.0 - sum(_negative_binomial(k, tot_shots_on, disp_shots) for k in range(10)), 4)
-        over_105_shots_on = round(1.0 - sum(_negative_binomial(k, tot_shots_on, disp_shots) for k in range(11)), 4)
-        under_85_shots_on = round(sum(_negative_binomial(k, tot_shots_on, disp_shots) for k in range(9)), 4)
-        under_95_shots_on = round(sum(_negative_binomial(k, tot_shots_on, disp_shots) for k in range(10)), 4)
-
-    over_45_shots_on_home = None
-    over_55_shots_on_home = None
-    over_65_shots_on_home = None
-    over_75_shots_on_home = None
-    under_25_shots_on_home = None
-    under_35_shots_on_home = None
-    if shots_home is not None and shots_home > 0:
-        over_45_shots_on_home = round(1.0 - sum(_negative_binomial(k, shots_home, disp_shots) for k in range(5)), 4)
-        over_55_shots_on_home = round(1.0 - sum(_negative_binomial(k, shots_home, disp_shots) for k in range(6)), 4)
-        over_65_shots_on_home = round(1.0 - sum(_negative_binomial(k, shots_home, disp_shots) for k in range(7)), 4)
-        over_75_shots_on_home = round(1.0 - sum(_negative_binomial(k, shots_home, disp_shots) for k in range(8)), 4)
-        under_25_shots_on_home = round(sum(_negative_binomial(k, shots_home, disp_shots) for k in range(3)), 4)
-        under_35_shots_on_home = round(sum(_negative_binomial(k, shots_home, disp_shots) for k in range(4)), 4)
-
-    over_35_shots_on_away = None
-    over_45_shots_on_away = None
-    under_25_shots_on_away = None
-    under_35_shots_on_away = None
-    if shots_away is not None and shots_away > 0:
-        over_35_shots_on_away = round(1.0 - sum(_negative_binomial(k, shots_away, disp_shots) for k in range(4)), 4)
-        over_45_shots_on_away = round(1.0 - sum(_negative_binomial(k, shots_away, disp_shots) for k in range(5)), 4)
-        under_25_shots_on_away = round(sum(_negative_binomial(k, shots_away, disp_shots) for k in range(3)), 4)
-        under_35_shots_on_away = round(sum(_negative_binomial(k, shots_away, disp_shots) for k in range(4)), 4)
 
     # Tiros al Palo (Hit Woodwork)
     woodwork_home = _expected_count(home_matches, away_matches, True, False, "hit_woodwork")
@@ -1587,73 +1334,9 @@ def expected_metrics(
         disp_cards = min(
             disp_cards, CARDS_DISPERSION_WITH_REFEREE if referee_applied else CARDS_DISPERSION_WITHOUT_REFEREE
         )
-    total_cards = (cards_home + cards_away) if (cards_home is not None and cards_away is not None) else None
-    over_15_cards = None
-    over_25_cards = None
-    over_35_cards = None
-    over_45_cards = None
-    if total_cards is not None and total_cards > 0:
-        p_under_2 = sum(_negative_binomial(k, total_cards, disp_cards) for k in range(2))
-        p_under_3 = sum(_negative_binomial(k, total_cards, disp_cards) for k in range(3))
-        p_under_4 = sum(_negative_binomial(k, total_cards, disp_cards) for k in range(4))
-        p_under_5 = sum(_negative_binomial(k, total_cards, disp_cards) for k in range(5))
-        over_15_cards = round(1.0 - p_under_2, 4)
-        over_25_cards = round(1.0 - p_under_3, 4)
-        over_35_cards = round(1.0 - p_under_4, 4)
-        over_45_cards = round(1.0 - p_under_5, 4)
-
-    over_15_cards_home = None
-    over_25_cards_home = None
-    if cards_home is not None and cards_home > 0:
-        p_card_h_under_2 = sum(_negative_binomial(k, cards_home, disp_cards) for k in range(2))
-        p_card_h_under_3 = sum(_negative_binomial(k, cards_home, disp_cards) for k in range(3))
-        over_15_cards_home = round(1.0 - p_card_h_under_2, 4)
-        over_25_cards_home = round(1.0 - p_card_h_under_3, 4)
-
-    over_15_cards_away = None
-    over_25_cards_away = None
-    if cards_away is not None and cards_away > 0:
-        p_card_a_under_2 = sum(_negative_binomial(k, cards_away, disp_cards) for k in range(2))
-        p_card_a_under_3 = sum(_negative_binomial(k, cards_away, disp_cards) for k in range(3))
-        over_15_cards_away = round(1.0 - p_card_a_under_2, 4)
-        over_25_cards_away = round(1.0 - p_card_a_under_3, 4)
 
     offsides_home = _expected_count(home_matches, away_matches, True, False, "offsides")
     offsides_away = _expected_count(away_matches, home_matches, False, True, "offsides")
-
-    total_offsides = (
-        round(offsides_home + offsides_away, 2)
-        if (offsides_home is not None and offsides_away is not None)
-        else None
-    )
-    over_25_offsides = None
-    over_35_offsides = None
-    under_25_offsides = None
-    under_35_offsides = None
-    under_45_offsides = None
-    if total_offsides is not None and total_offsides > 0:
-        p_off_under_3 = sum(_negative_binomial(k, total_offsides, disp_offsides) for k in range(3))
-        p_off_under_4 = sum(_negative_binomial(k, total_offsides, disp_offsides) for k in range(4))
-        p_off_under_5 = sum(_negative_binomial(k, total_offsides, disp_offsides) for k in range(5))
-        over_25_offsides = round(1.0 - p_off_under_3, 4)
-        over_35_offsides = round(1.0 - p_off_under_4, 4)
-        under_25_offsides = round(p_off_under_3, 4)
-        under_35_offsides = round(p_off_under_4, 4)
-        under_45_offsides = round(p_off_under_5, 4)
-
-    over_15_offsides_home = None
-    under_15_offsides_home = None
-    if offsides_home is not None and offsides_home > 0:
-        p_off_h_under_2 = sum(_negative_binomial(k, offsides_home, disp_offsides) for k in range(2))
-        over_15_offsides_home = round(1.0 - p_off_h_under_2, 4)
-        under_15_offsides_home = round(p_off_h_under_2, 4)
-
-    over_15_offsides_away = None
-    under_15_offsides_away = None
-    if offsides_away is not None and offsides_away > 0:
-        p_off_a_under_2 = sum(_negative_binomial(k, offsides_away, disp_offsides) for k in range(2))
-        over_15_offsides_away = round(1.0 - p_off_a_under_2, 4)
-        under_15_offsides_away = round(p_off_a_under_2, 4)
 
     home_baseline = _team_baseline_stat(home_matches, "shots_on_goal")
     away_baseline = _team_baseline_stat(away_matches, "shots_on_goal")
@@ -1685,89 +1368,22 @@ def expected_metrics(
         fouls_away=fouls_away,
         dispersion_fouls=0.12,
         corners_1x2_home=corners_1x2_home,
-        corners_1x2_tie=corners_1x2_tie,
         corners_1x2_away=corners_1x2_away,
-        over_75_corners=over_75_corners,
-        over_85_corners=over_85_corners,
-        over_95_corners=over_95_corners,
-        over_105_corners=over_105_corners,
-        over_115_corners=over_115_corners,
-        under_105_corners=under_105_corners,
-        over_45_corners_home=over_45_corners_home,
-        over_45_corners_away=over_45_corners_away,
-        under_35_corners_home=under_35_corners_home,
-        under_35_corners_away=under_35_corners_away,
-        under_45_corners_home=under_45_corners_home,
-        under_45_corners_away=under_45_corners_away,
-        over_55_corners_home=over_55_corners_home,
-        over_55_corners_away=over_55_corners_away,
-        over_65_corners_home=over_65_corners_home,
-        over_65_corners_away=over_65_corners_away,
         total_shots_home=total_shots_home,
         total_shots_away=total_shots_away,
-        over_215_total_shots=over_215_total_shots,
-        over_235_total_shots=over_235_total_shots,
-        over_255_total_shots=over_255_total_shots,
-        over_275_total_shots=over_275_total_shots,
-        over_295_total_shots=over_295_total_shots,
-        under_245_total_shots=under_245_total_shots,
-        under_265_total_shots=under_265_total_shots,
-        over_115_shots_home=over_115_shots_home,
-        over_135_shots_home=over_135_shots_home,
-        over_155_shots_home=over_155_shots_home,
-        over_175_shots_home=over_175_shots_home,
-        over_115_shots_away=over_115_shots_away,
-        over_135_shots_away=over_135_shots_away,
-        under_85_shots_home=under_85_shots_home,
-        under_95_shots_home=under_95_shots_home,
-        under_85_shots_away=under_85_shots_away,
-        under_95_shots_away=under_95_shots_away,
         shots_on_home=shots_home,
         shots_on_away=shots_away,
-        over_75_shots_on=over_75_shots_on,
-        over_85_shots_on=over_85_shots_on,
-        over_95_shots_on=over_95_shots_on,
-        over_105_shots_on=over_105_shots_on,
-        under_85_shots_on=under_85_shots_on,
-        under_95_shots_on=under_95_shots_on,
-        over_45_shots_on_home=over_45_shots_on_home,
-        over_55_shots_on_home=over_55_shots_on_home,
-        over_65_shots_on_home=over_65_shots_on_home,
-        over_75_shots_on_home=over_75_shots_on_home,
-        under_25_shots_on_home=under_25_shots_on_home,
-        under_35_shots_on_home=under_35_shots_on_home,
-        over_35_shots_on_away=over_35_shots_on_away,
-        over_45_shots_on_away=over_45_shots_on_away,
-        under_25_shots_on_away=under_25_shots_on_away,
-        under_35_shots_on_away=under_35_shots_on_away,
         woodwork_home=woodwork_home,
         woodwork_away=woodwork_away,
         over_05_woodwork=over_05_woodwork,
         cards_home=cards_home,
         cards_away=cards_away,
-        over_15_cards=over_15_cards,
-        over_25_cards=over_25_cards,
-        over_35_cards=over_35_cards,
-        over_45_cards=over_45_cards,
-        over_15_cards_home=over_15_cards_home,
-        over_15_cards_away=over_15_cards_away,
-        over_25_cards_home=over_25_cards_home,
-        over_25_cards_away=over_25_cards_away,
         dispersion_corners=disp_corners,
         dispersion_cards=disp_cards,
         dispersion_shots=disp_shots,
         dispersion_offsides=disp_offsides,
         offsides_home=offsides_home,
         offsides_away=offsides_away,
-        over_25_offsides=over_25_offsides,
-        over_35_offsides=over_35_offsides,
-        under_25_offsides=under_25_offsides,
-        under_35_offsides=under_35_offsides,
-        under_45_offsides=under_45_offsides,
-        over_15_offsides_home=over_15_offsides_home,
-        over_15_offsides_away=over_15_offsides_away,
-        under_15_offsides_home=under_15_offsides_home,
-        under_15_offsides_away=under_15_offsides_away,
         player_shots={
             home_id: _player_probabilities(player_rows, home_id, scale_factor=scale_home, starter_info=starter_info),
             away_id: _player_probabilities(player_rows, away_id, scale_factor=scale_away, starter_info=starter_info),
@@ -1867,11 +1483,6 @@ def _negative_binomial(k: int, rate: float, alpha: float = 0.0) -> float:
 
 
 negative_binomial_pmf = _negative_binomial
-
-
-def _poisson(k: int, rate: float) -> float:
-    """Alias retrocompatible para Poisson estándar."""
-    return _negative_binomial(k, rate, 0.0)
 
 
 # Estadísticas de evento raro que Sportmonks solo publica cuando ocurren: en un partido
@@ -2334,14 +1945,3 @@ def sample_risks(
     return risks
 
 
-def form_line(matches: list[TeamMatch], maximum: int = 5) -> str:
-    return "-".join(match.result for match in matches[:maximum]) or "Sin datos"
-
-
-def top_scores(report: ProbabilityReport, count: int = 3) -> list[tuple[str, float]]:
-    scores = [
-        (f"{home}-{away}", report.score_matrix[home][away])
-        for home in range(len(report.score_matrix))
-        for away in range(len(report.score_matrix[home]))
-    ]
-    return sorted(scores, key=lambda item: item[1], reverse=True)[:count]

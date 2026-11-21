@@ -73,14 +73,6 @@ class ConfidenceScore:
     reasons: list[str] = field(default_factory=list)
 
 
-@dataclass(frozen=True)
-class FactorAttribution:
-    base_league_goals: float
-    elo_impact: float
-    venue_impact: float
-    recent_form_impact: float
-    rest_impact: float
-    final_expected_goals: float
 
 
 @dataclass
@@ -94,16 +86,7 @@ class ProbabilityReport:
     btts: float
     expected_home_goals: float
     expected_away_goals: float
-    shared_goal_component: float
     score_matrix: list[list[float]] = field(repr=False)
-    ah_home_minus_15: float | None = None
-    ah_away_plus_15: float | None = None
-    ah_home_plus_15: float | None = None
-    ah_away_minus_15: float | None = None
-    ah_home_minus_25: float | None = None
-    ah_away_plus_25: float | None = None
-    ah_home_plus_25: float | None = None
-    ah_away_minus_25: float | None = None
     dnb_home: float | None = None
     dnb_away: float | None = None
     first_half_over_05: float | None = None
@@ -129,8 +112,6 @@ class ProbabilityReport:
     dc_1x_and_btts: float | None = None
     dc_x2_and_btts: float | None = None
     btts_second_half: float | None = None
-    attribution_home: FactorAttribution | None = None
-    attribution_away: FactorAttribution | None = None
 
 
 @dataclass
@@ -138,91 +119,22 @@ class ExpectedMetrics:
     corners_home: float | None = None
     corners_away: float | None = None
     corners_1x2_home: float | None = None
-    corners_1x2_tie: float | None = None
     corners_1x2_away: float | None = None
-    over_75_corners: float | None = None
-    over_85_corners: float | None = None
-    over_95_corners: float | None = None
-    over_105_corners: float | None = None
-    over_115_corners: float | None = None
-    under_105_corners: float | None = None
-    over_45_corners_home: float | None = None
-    over_45_corners_away: float | None = None
-    under_35_corners_home: float | None = None
-    under_35_corners_away: float | None = None
-    under_45_corners_home: float | None = None
-    under_45_corners_away: float | None = None
-    over_55_corners_home: float | None = None
-    over_55_corners_away: float | None = None
-    over_65_corners_home: float | None = None
-    over_65_corners_away: float | None = None
-    over_25_cards_home: float | None = None
-    over_25_cards_away: float | None = None
     total_shots_home: float | None = None
     total_shots_away: float | None = None
-    over_215_total_shots: float | None = None
-    over_235_total_shots: float | None = None
-    over_255_total_shots: float | None = None
-    over_275_total_shots: float | None = None
-    over_295_total_shots: float | None = None
-    under_245_total_shots: float | None = None
-    under_265_total_shots: float | None = None
-    over_115_shots_home: float | None = None
-    over_135_shots_home: float | None = None
-    over_155_shots_home: float | None = None
-    over_175_shots_home: float | None = None
-    over_115_shots_away: float | None = None
-    over_135_shots_away: float | None = None
-    under_85_shots_home: float | None = None
-    under_95_shots_home: float | None = None
-    under_85_shots_away: float | None = None
-    under_95_shots_away: float | None = None
     shots_on_home: float | None = None
     shots_on_away: float | None = None
-    over_75_shots_on: float | None = None
-    over_85_shots_on: float | None = None
-    over_95_shots_on: float | None = None
-    over_105_shots_on: float | None = None
-    under_85_shots_on: float | None = None
-    under_95_shots_on: float | None = None
-    over_45_shots_on_home: float | None = None
-    over_55_shots_on_home: float | None = None
-    over_65_shots_on_home: float | None = None
-    over_75_shots_on_home: float | None = None
-    under_25_shots_on_home: float | None = None
-    under_35_shots_on_home: float | None = None
-    over_35_shots_on_away: float | None = None
-    over_45_shots_on_away: float | None = None
-    under_25_shots_on_away: float | None = None
-    under_35_shots_on_away: float | None = None
     woodwork_home: float | None = None
     woodwork_away: float | None = None
     over_05_woodwork: float | None = None
     cards_home: float | None = None
     cards_away: float | None = None
-    over_15_cards: float | None = None
-    over_25_cards: float | None = None
-    over_35_cards: float | None = None
-    over_45_cards: float | None = None
-    over_15_cards_home: float | None = None
-    over_15_cards_away: float | None = None
-    over_25_cards_home: float | None = None
-    over_25_cards_away: float | None = None
     dispersion_corners: float = 0.18
     dispersion_cards: float = 0.27
     dispersion_shots: float = 0.10
     dispersion_offsides: float = 0.16
     offsides_home: float | None = None
     offsides_away: float | None = None
-    over_25_offsides: float | None = None
-    over_35_offsides: float | None = None
-    under_25_offsides: float | None = None
-    under_35_offsides: float | None = None
-    under_45_offsides: float | None = None
-    over_15_offsides_home: float | None = None
-    over_15_offsides_away: float | None = None
-    under_15_offsides_home: float | None = None
-    under_15_offsides_away: float | None = None
     fouls_home: float | None = None
     fouls_away: float | None = None
     dispersion_fouls: float = 0.12
@@ -246,24 +158,18 @@ class AnalysisReport:
     injuries: list[dict[str, Any]]
     lineups: list[dict[str, Any]]
     odds: dict[str, float]
-    opportunities: list[dict[str, Any]]
     risks: list[str]
     sources: list[str]
     generated_at: str
     statistical_markets: list[dict[str, Any]] = field(default_factory=list)
-    common_opponents: list[dict[str, Any]] = field(default_factory=list)
     confidence: ConfidenceScore | None = None
-    attribution_home: FactorAttribution | None = None
-    attribution_away: FactorAttribution | None = None
-    narrative: str | None = None
     dynamic_calibration_info: Any = None
     top_pick: dict[str, Any] | None = None
     featured_markets: list[dict[str, Any]] = field(default_factory=list)
 
-    def llm_payload(self) -> dict[str, Any]:
-        """Datos cerrados: el LLM puede explicarlos, no recalcularlos."""
+    def json_payload(self) -> dict[str, Any]:
+        """Datos cerrados del análisis para la salida JSON (`analyze.py --json`)."""
         payload = asdict(self)
-        payload.pop("narrative", None)
         if self.probabilities.score_matrix:
             scores = [
                 (f"{h}-{a}", self.probabilities.score_matrix[h][a])

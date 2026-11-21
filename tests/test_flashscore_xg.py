@@ -24,7 +24,6 @@ from deport_ai.flashscore import (
     parse_results_html,
     season_label,
     stats_url,
-    strip_xg,
 )
 from deport_ai.model_params import ModelParameters
 from deport_ai.stats_engine import goal_probabilities
@@ -148,7 +147,6 @@ def test_attach_xg_orients_home_and_away(tmp_path):
     assert out[0].stats_for["expected_goals"] == 2.5 and out[0].stats_against["expected_goals"] == 0.4
     assert out[1].stats_for["expected_goals"] == 0.4 and out[1].stats_against["expected_goals"] == 2.5
     assert "expected_goals" not in out[2].stats_for
-    assert "expected_goals" not in strip_xg(out)[0].stats_for
 
 
 def test_fixtures_from_matches_builds_home_view():

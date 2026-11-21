@@ -7,7 +7,6 @@ from typing import Any
 
 from .domain import ExpectedMetrics, ProbabilityReport, Team, TeamMatch
 from .markets_catalog import (
-    MINIMUM_INFORMATIVE_LINES,
     MarketDefinition,
     build_declarative_catalog,
 )
@@ -408,19 +407,6 @@ def _explain_market(
         return f"Porque el modelo proyecta {proj_val:.2f} córners en el 1T, {comp} de la línea de {_fmt_line(line)}.", None
 
     return fallback()
-
-
-def _generate_dynamic_explanation(
-    defn: MarketDefinition,
-    home: Team,
-    away: Team,
-    proj_val: float | None,
-    prob: float,
-    recent_home: list[TeamMatch] | None = None,
-    recent_away: list[TeamMatch] | None = None,
-) -> str:
-    """Compatibilidad: solo el texto de la justificación."""
-    return _explain_market(defn, home, away, proj_val, prob, recent_home, recent_away)[0]
 
 
 def evidence_contradicts(probability: float, evidence: dict[str, Any] | None, stat_market: bool) -> bool:
@@ -1276,7 +1262,6 @@ def select_top_recommended_pick(
         "requires_starter_confirmation": best.get("requires_starter_confirmation", False),
         **({"odds": best["odds"], "edge": best["edge"]} if best.get("edge") is not None else {}),
     }
-
 
 
 # Selecciones destacadas ("las más seguras"): las categorías que mejor rindieron en

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import re
 from typing import Any
@@ -533,7 +532,7 @@ def evaluate_prediction(
         # Localizar al jugador por coincidencia de nombre
         matched_player: dict[str, Any] | None = None
         sel_lower = selection.lower()
-        for p_key, p_val in player_stats.items():
+        for p_val in player_stats.values():
             p_name = str(p_val.get("name") or "").lower()
             if p_name and (p_name in sel_lower or any(part in sel_lower for part in p_name.split() if len(part) > 3)):
                 matched_player = p_val

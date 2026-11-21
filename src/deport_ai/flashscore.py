@@ -24,7 +24,7 @@ import re
 import time
 import unicodedata
 from dataclasses import dataclass, replace
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Callable, Iterable
@@ -170,10 +170,6 @@ class FlashscoreRow:
 
 
 _ROW_RE = re.compile(r'<div id="g_1_([A-Za-z0-9]{8})"[^>]*class="event__match')
-
-
-def _text(fragment: str) -> str:
-    return html_lib.unescape(re.sub(r"<[^>]+>", "", fragment)).strip()
 
 
 def parse_results_html(raw_html: str) -> list[FlashscoreRow]:
@@ -514,18 +510,3 @@ def attach_xg(matches: list[TeamMatch], provider: FlashscoreXG) -> list[TeamMatc
     return out
 
 
-def strip_xg(matches: list[TeamMatch]) -> list[TeamMatch]:
-    """Copia sin xG (para comparar contra el modelo actual)."""
-    out: list[TeamMatch] = []
-    for match in matches:
-        if XG_KEY not in match.stats_for and XG_KEY not in match.stats_against:
-            out.append(match)
-            continue
-        out.append(
-            replace(
-                match,
-                stats_for={k: v for k, v in match.stats_for.items() if k != XG_KEY},
-                stats_against={k: v for k, v in match.stats_against.items() if k != XG_KEY},
-            )
-        )
-    return out

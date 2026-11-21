@@ -1,8 +1,8 @@
 # DEPORT AI
 
-Asistente conversacional de fútbol para terminal, alimentado exclusivamente por
-Sportmonks Football API v3. No crea una página web, usuarios, autenticación propia,
-base de datos ni historial persistente.
+Motor de pronósticos de fútbol para terminal, alimentado por Sportmonks Football
+API v3 (y el xG de Flashscore). Cada predicción se guarda en
+`history/predictions.jsonl` para medir su acierto real.
 
 ```text
 Sportmonks (datos reales)
@@ -11,7 +11,7 @@ Poisson bivariado + Dixon-Coles + Elo dinámico + modelos de conteo
           ↓
 Probabilidades cerradas y trazables
           ↓
-LLM opcional: únicamente explica, no calcula ni cambia cifras
+Reporte adaptativo (analyze.py --report): solo selecciones validadas
 ```
 
 ## Datos consultados
@@ -26,7 +26,7 @@ LLM opcional: únicamente explica, no calcula ni cambia cifras
 - Cuotas únicamente si el plan contratado las incluye. El token actualmente conectado
   no tiene habilitado el módulo de odds, por lo que se muestra como no disponible.
 
-Los campos ausentes nunca se rellenan con cifras generadas por el LLM.
+Los campos ausentes nunca se rellenan con cifras inventadas.
 
 ## Instalación en Windows
 
@@ -49,29 +49,20 @@ SPORTMONKS_API_TOKEN=tu_token
 SPORTMONKS_BASE_URL=https://api.sportmonks.com/v3/football
 ```
 
-La capa LLM es opcional:
+OpenAI solo se usa en la crítica opcional del histórico (`python track.py critic`):
 
 ```dotenv
 OPENAI_API_KEY=tu_clave_openai
 OPENAI_MODEL=gpt-5.2
 ```
 
-Sin `OPENAI_API_KEY`, todos los cálculos funcionan y se utiliza una explicación
-determinista. La aplicación no escribe prompts, respuestas ni datos deportivos en
-disco. Su caché existe únicamente durante la ejecución.
+Sin `OPENAI_API_KEY`, todo el análisis funciona igual.
 
 ## Ejecutar
 
 ```powershell
-python -m deport_ai
-```
-
-Ejemplos:
-
-```text
-Tú > Analiza Real Madrid vs Barcelona
-Tú > Alianza Lima contra Sporting Cristal
-Tú > salir
+python analyze.py "Real Madrid vs Barcelona" --report             # formato corto
+python analyze.py "Real Madrid vs Barcelona" --report --completo  # todas las categorías
 ```
 
 ### Uso desde Gemini Antigravity
@@ -88,9 +79,9 @@ alterarlas ni completar campos ausentes.
 
 ## Modelos
 
-- **Goles:** medias recientes ponderadas por recencia, sede y fuerza Elo. Si el
-  proveedor publica xG con muestra suficiente, se incorpora como señal parcial,
-  sin sustituir los goles reales.
+- **Goles:** medias recientes ponderadas por recencia, sede y fuerza Elo, mezcladas
+  con el xG de Flashscore (peso 0.65) cuando hay muestra suficiente; se guarda en
+  `history/flashscore_xg.json`.
 - **Poisson bivariado:** matriz conjunta de marcadores 0–0 a 10–10. Incluye un
   componente compartido, estimado solo desde los partidos recientes, para no
   asumir que los goles de ambos equipos son independientes.
@@ -169,7 +160,7 @@ python track.py sync     # commit + push del histórico a main
 pytest -q
 ```
 
-Las pruebas automatizadas no consumen Sportmonks ni OpenAI.
+Las pruebas automatizadas no consumen Sportmonks, Flashscore ni OpenAI.
 
 ## Estructura
 
@@ -181,8 +172,11 @@ src/deport_ai/
 ├── evaluation.py       # Brier, Log Loss y calibración sin persistencia
 ├── backtesting.py      # Backtest walk-forward de todos los mercados
 ├── model_params.py     # Parámetros por liga y ajuste por máxima verosimilitud
+├── flashscore.py       # xG de Flashscore (vía Firecrawl) con caché en history/
+├── statistical_markets.py # Mercados de conteo (córners, tarjetas, remates...)
+├── dynamic_calibration.py # Calibración con predicciones reales liquidadas
+├── settlement.py       # Liquidación de predicciones con resultados reales
+├── storage.py          # SQLite local + history/predictions.jsonl
 ├── service.py          # Orquestación datos → modelos → informe
-├── llm.py              # Explicación opcional, nunca cálculo
-├── formatter.py        # Formato fijo de salida
-└── cli.py              # Chat de terminal
+└── formatter.py        # Reporte adaptativo
 ```

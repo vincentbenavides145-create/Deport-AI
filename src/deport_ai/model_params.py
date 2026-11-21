@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import math
 import os
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from statistics import fmean, pvariance
 from typing import Any, Callable, Iterable
@@ -51,7 +51,6 @@ class ModelParameters:
     log_loss: float | None = None
     baseline_log_loss: float | None = None
     fitted_at: str | None = None
-    extra: dict[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, Any]:
         return asdict(self)

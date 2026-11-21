@@ -144,7 +144,7 @@ def test_walk_forward_uses_sidelined_of_the_evaluated_match():
 def test_service_notes_absences_and_applies_weight(monkeypatch):
     import deport_ai.service as service_module
     from deport_ai.service import AnalysisService
-    from tests.test_service import FakeAPI, FakeExplainer
+    from tests.test_service import FakeAPI
 
     class InjuryAPI(FakeAPI):
         def __init__(self):
@@ -165,11 +165,11 @@ def test_service_notes_absences_and_applies_weight(monkeypatch):
             return [{"player_id": 109, "team_id": 1, "name": "Goleador", "end_date": None}]
 
     monkeypatch.setattr(service_module, "load_parameters", lambda _lid: ModelParameters(absence_weight=1.0))
-    report = AnalysisService(InjuryAPI(), FakeExplainer(), recent_count=6, h2h_count=5,
+    report = AnalysisService(InjuryAPI(), recent_count=6, h2h_count=5,
                              auto_track=False).analyze("Analiza Local vs Visitante", track=False)
     assert any("Bajas de Local: Goleador" in risk for risk in report.risks)
 
     monkeypatch.setattr(service_module, "load_parameters", lambda _lid: ModelParameters(absence_weight=0.0))
-    base = AnalysisService(InjuryAPI(), FakeExplainer(), recent_count=6, h2h_count=5,
+    base = AnalysisService(InjuryAPI(), recent_count=6, h2h_count=5,
                            auto_track=False).analyze("Analiza Local vs Visitante", track=False)
     assert report.probabilities.expected_home_goals < base.probabilities.expected_home_goals

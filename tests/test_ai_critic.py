@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import pytest
 from deport_ai.ai_critic import AICritic
 from deport_ai.storage import DatabaseManager
 

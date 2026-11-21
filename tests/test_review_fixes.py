@@ -117,7 +117,7 @@ def test_calibration_no_longer_moves_expected_goals_after_the_score_matrix():
     calibrator = DynamicCalibrator(DatabaseManager(":memory:"))
     probs = ProbabilityReport(
         home_win=0.5, draw=0.25, away_win=0.25, over_15=0.7, over_25=0.5, under_25=0.5, btts=0.5,
-        expected_home_goals=1.4, expected_away_goals=1.1, shared_goal_component=0.0, score_matrix=[[1.0]],
+        expected_home_goals=1.4, expected_away_goals=1.1, score_matrix=[[1.0]],
     )
     expected = ExpectedMetrics(corners_home=5.0, corners_away=4.0)
     summary = DynamicCalibrationSummary(

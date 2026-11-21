@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import pytest
 from deport_ai.ai_critic import AICritic
 from deport_ai.domain import Team
 from deport_ai.dynamic_calibration import DynamicCalibrator
@@ -102,22 +101,13 @@ class MockAPI:
         return {}
 
 
-class MockExplainer:
-    def __init__(self):
-        self.api_key = None
-
-    def explain(self, report):
-        return "Explicación de prueba."
-
-
 def test_full_dynamic_closed_loop():
     # 1. Base de datos aislada en memoria
     db = DatabaseManager(":memory:")
     api = MockAPI()
-    explainer = MockExplainer()
 
     # 2. Servicio con tracking activado
-    service = AnalysisService(api, explainer, recent_count=6, h2h_count=5, detail_count=6, db=db, auto_track=True)
+    service = AnalysisService(api, recent_count=6, h2h_count=5, detail_count=6, db=db, auto_track=True)
 
     # 3. Primer análisis: sin calibración previa
     report_initial = service.analyze("Real Madrid vs Barcelona")
@@ -140,7 +130,7 @@ def test_full_dynamic_closed_loop():
     assert settle_res["summary"]["won"] + settle_res["summary"]["lost"] > 0
 
     # 5. Generar informe post-mortem con AICritic
-    critic = AICritic(db, explainer=explainer)
+    critic = AICritic(db)
     diagnostic = critic.generate_diagnostic_report()
     assert "Diagnóstico y Auditoría de Pronósticos" in diagnostic
     assert "Rendimiento Empírico por Mercado" in diagnostic

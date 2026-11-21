@@ -5,13 +5,11 @@ from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
 
-from .domain import AnalysisReport, ConfidenceScore, FactorAttribution, MatchRef, Team
+from .domain import AnalysisReport, MatchRef, Team
 from .dynamic_calibration import DynamicCalibrator
-from .errors import LiveMatchError
 from .fixture_contract import FINISHED_STATUSES, to_match_ref
-from .llm import LLMExplainer
 from .model_params import load_parameters
-from .odds import normalize_odds, select_opportunities
+from .odds import normalize_odds
 from .parser import parse_match_query
 from .statistical_markets import (
     mark_highlights,
@@ -28,7 +26,6 @@ from .stats_engine import (
     classify_competition,
     detect_altitude_impact,
     expected_metrics,
-    extract_common_opponents,
     extract_player_shots,
     extract_team_matches,
     goal_probabilities,
@@ -42,7 +39,6 @@ class AnalysisService:
     def __init__(
         self,
         api: Any,
-        explainer: LLMExplainer,
         recent_count: int = 15,
         h2h_count: int = 15,
         detail_count: int = 8,
@@ -50,7 +46,6 @@ class AnalysisService:
         auto_track: bool = True,
     ):
         self.api = api
-        self.explainer = explainer
         self.recent_count = recent_count
         self.h2h_count = h2h_count
         self.detail_count = max(8, detail_count)
@@ -308,9 +303,7 @@ class AnalysisService:
             away_matches=away_matches,
             expected=expected,
             lineups_confirmed=lineups_confirmed,
-            odds_available=bool(odds),
         )
-        opportunities = select_opportunities(probabilities, odds)
         statistical_markets = select_statistical_markets(
             home,
             away,
@@ -366,7 +359,6 @@ class AnalysisService:
             injuries=_compact_injuries(injuries),
             lineups=_compact_lineups(lineups),
             odds=odds,
-            opportunities=opportunities,
             statistical_markets=statistical_markets,
             risks=list(dict.fromkeys(risks)),
             sources=_sources(
@@ -379,15 +371,11 @@ class AnalysisService:
                 coverage_checked,
             ),
             generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            common_opponents=extract_common_opponents(home_matches, away_matches),
             confidence=confidence,
-            attribution_home=probabilities.attribution_home,
-            attribution_away=probabilities.attribution_away,
             dynamic_calibration_info=calibration,
             top_pick=top_pick,
             featured_markets=featured,
         )
-        report.narrative = self.explainer.explain(report)
 
         should_track = self.auto_track if track is None else track
         if should_track and fixture and fixture.fixture_id:

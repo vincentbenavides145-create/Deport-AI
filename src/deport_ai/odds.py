@@ -5,7 +5,6 @@ from collections import defaultdict
 from statistics import median
 from typing import Any
 
-from .domain import ProbabilityReport
 
 
 def normalize_odds(rows: list[dict[str, Any]]) -> dict[str, float]:
@@ -235,103 +234,6 @@ def expected_value(probability: float, price: float) -> float:
     return probability * price - 1.0
 
 
-def select_opportunities(
-    probabilities: ProbabilityReport, odds: dict[str, float], maximum: int = 4
-) -> list[dict[str, Any]]:
-    model: dict[str, float] = {
-        "Victoria local": probabilities.home_win,
-        "Empate": probabilities.draw,
-        "Victoria visitante": probabilities.away_win,
-        "Doble oportunidad 1X": min(1.0, probabilities.home_win + probabilities.draw),
-        "Doble oportunidad X2": min(1.0, probabilities.away_win + probabilities.draw),
-        "Doble oportunidad 12": min(1.0, probabilities.home_win + probabilities.away_win),
-        "DNB Local": probabilities.dnb_home,
-        "DNB Visitante": probabilities.dnb_away,
-        "Más de 1.5 goles": probabilities.over_15,
-        "Más de 2.5 goles": probabilities.over_25,
-        "Menos de 2.5 goles": probabilities.under_25,
-        "Más de 3.5 goles": probabilities.over_35,
-        "Menos de 3.5 goles": probabilities.under_35,
-        "Ambos marcan": probabilities.btts,
-        "Más de 0.5 goles en 1T": probabilities.first_half_over_05,
-        "Más de 0.5 goles en 2T": probabilities.second_half_over_05,
-        "Local más de 1.5 goles": probabilities.home_over_15,
-        "Local menos de 1.5 goles": probabilities.home_under_15,
-        "Visitante menos de 1.5 goles": probabilities.away_under_15,
-        "Portería a cero Local": probabilities.clean_sheet_home,
-    }
-    odds_keys: dict[str, str] = {
-        "Victoria local": "home_win",
-        "Empate": "draw",
-        "Victoria visitante": "away_win",
-        "Doble oportunidad 1X": "double_chance_1x",
-        "Doble oportunidad X2": "double_chance_x2",
-        "Doble oportunidad 12": "double_chance_12",
-        "DNB Local": "dnb_home",
-        "DNB Visitante": "dnb_away",
-        "Más de 1.5 goles": "over_15",
-        "Más de 2.5 goles": "over_25",
-        "Menos de 2.5 goles": "under_25",
-        "Más de 3.5 goles": "over_35",
-        "Menos de 3.5 goles": "under_35",
-        "Ambos marcan": "btts_yes",
-        "Más de 0.5 goles en 1T": "first_half_over_05",
-        "Más de 0.5 goles en 2T": "second_half_over_05",
-        "Local más de 1.5 goles": "home_over_15",
-        "Local menos de 1.5 goles": "home_under_15",
-        "Visitante menos de 1.5 goles": "away_under_15",
-        "Portería a cero Local": "clean_sheet_home",
-    }
-    candidates: list[dict[str, Any]] = []
-    for market, probability in model.items():
-        price = odds.get(odds_keys[market])
-        edge = (probability - 1.0 / price) if (price and probability is not None) else None
-        if price and edge is not None and edge >= 0.02 and probability is not None and probability >= 0.60:
-            candidates.append(
-                {
-                    "market": market,
-                    "probability": probability,
-                    "odds": price,
-                    "edge": edge,
-                    "risk": _risk(probability),
-                    "basis": "Posible valor frente a la cuota mediana observada.",
-                }
-            )
-    candidates.sort(key=lambda item: item["edge"], reverse=True)
-    if candidates:
-        return candidates[:maximum]
-
-    # Sin cuotas comparables no afirmamos valor; solo mostramos las señales más probables (mínimo 60%).
-    fallback = [
-        (market, probability)
-        for market, probability in model.items()
-        if market not in {"Empate"} and probability is not None and probability >= 0.60
-    ]
-    # Si aparecen dos mercados de goles opuestos (ej. +1.5 y -2.5), nos quedamos con el más fuerte
-    filtered_fallback: list[tuple[str, float]] = []
-    has_goal_market = False
-    for market, probability in sorted(fallback, key=lambda item: item[1], reverse=True):
-        is_goal = "goles" in market.lower() or "marcan" in market.lower()
-        if is_goal:
-            if not has_goal_market:
-                filtered_fallback.append((market, probability))
-                has_goal_market = True
-        else:
-            filtered_fallback.append((market, probability))
-
-    return [
-        {
-            "market": market,
-            "probability": probability,
-            "odds": None,
-            "edge": None,
-            "risk": _risk(probability),
-            "basis": "Señal estadística de alta confianza (≥ 60%).",
-        }
-        for market, probability in filtered_fallback[:maximum]
-    ]
-
-
 def _selection_key(bet: str, value: str) -> str | None:
     if "match winner" in bet or "winner" == bet:
         return {"home": "home_win", "draw": "draw", "away": "away_win"}.get(value)
@@ -356,12 +258,3 @@ def _float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
-
-
-def _risk(probability: float) -> str:
-    if probability >= 0.72:
-        return "Medio-bajo"
-    if probability >= 0.60:
-        return "Medio"
-    return "Alto"
-

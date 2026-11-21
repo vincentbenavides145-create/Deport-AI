@@ -1,5 +1,5 @@
 from deport_ai.domain import Team
-from deport_ai.formatter import format_report
+from deport_ai.formatter import format_adaptive_report
 from deport_ai.service import AnalysisService
 
 
@@ -69,13 +69,8 @@ class FakeAPI:
         return {}
 
 
-class FakeExplainer:
-    def explain(self, report):
-        return "Explicación basada únicamente en el informe."
-
-
 def test_full_service_flow_without_network_or_persistence():
-    report = AnalysisService(FakeAPI(), FakeExplainer(), recent_count=6, h2h_count=5).analyze(
+    report = AnalysisService(FakeAPI(), recent_count=6, h2h_count=5).analyze(
         "Analiza Local vs Visitante"
     )
     assert report.home.name == "Local"
@@ -87,22 +82,14 @@ def test_full_service_flow_without_network_or_persistence():
         + report.probabilities.away_win
         - 1
     ) < 1e-9
-    assert report.narrative.startswith("Explicación")
     assert any("cruce hipotético" in risk for risk in report.risks)
     assert report.confidence is not None
-    assert report.attribution_home is not None
-    assert report.attribution_away is not None
     assert report.statistical_markets
-    assert report.llm_payload()["statistical_markets"] == report.statistical_markets
+    assert report.json_payload()["statistical_markets"] == report.statistical_markets
     assert all("odds" not in item and "edge" not in item for item in report.statistical_markets)
-    rendered = format_report(report)
-    assert "PARTIDO:\nLocal vs Visitante" in rendered
-    assert "CONFIANZA EPISTÉMICA" in rendered
-    assert "Auditoría de Goles Esperados (Waterfall Attribution):" in rendered
-    assert "MERCADOS ESTADÍSTICOS AMPLIADOS" in rendered
-    assert "Victoria local:" in rendered
-    assert "Córners esperados:" in rendered
-    assert "Riesgos del análisis:" in rendered
+    rendered = format_adaptive_report(report)
+    assert rendered.startswith("# ⚽ Local vs Visitante")
+    assert "#### 📊 Proyecciones numéricas" in rendered
 
 
 def test_live_match_handled_gracefully():
@@ -117,7 +104,7 @@ def test_live_match_handled_gracefully():
                 },
             }
 
-    service = AnalysisService(LiveAPI(), FakeExplainer())
+    service = AnalysisService(LiveAPI())
     report = service.analyze("Local vs Visitante")
     assert any("en vivo" in risk.lower() for risk in report.risks)
     assert report.probabilities.home_win > 0
@@ -141,11 +128,11 @@ class StubXG:
 def test_service_uses_flashscore_xg_when_enabled(monkeypatch):
     import deport_ai.service as service_module
 
-    base = AnalysisService(FakeAPI(), FakeExplainer(), recent_count=6, h2h_count=5, auto_track=False).analyze(
+    base = AnalysisService(FakeAPI(), recent_count=6, h2h_count=5, auto_track=False).analyze(
         "Analiza Local vs Visitante", track=False
     )
     monkeypatch.setattr(service_module, "XG_ENABLED", True)
-    svc = AnalysisService(FakeAPI(), FakeExplainer(), recent_count=6, h2h_count=5, auto_track=False)
+    svc = AnalysisService(FakeAPI(), recent_count=6, h2h_count=5, auto_track=False)
     svc.xg_provider = StubXG()
     with_xg = svc.analyze("Analiza Local vs Visitante", track=False)
     assert sorted(svc.xg_provider.fetched) == list(range(1, 13))
@@ -160,7 +147,7 @@ def test_service_keeps_working_if_xg_fails(monkeypatch):
             raise RuntimeError("sin red")
 
     monkeypatch.setattr(service_module, "XG_ENABLED", True)
-    svc = AnalysisService(FakeAPI(), FakeExplainer(), recent_count=6, h2h_count=5, auto_track=False)
+    svc = AnalysisService(FakeAPI(), recent_count=6, h2h_count=5, auto_track=False)
     svc.xg_provider = Broken()
     report = svc.analyze("Analiza Local vs Visitante", track=False)
     assert report.statistical_markets

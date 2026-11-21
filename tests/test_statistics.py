@@ -1,9 +1,8 @@
-from deport_ai.domain import ConfidenceScore, FactorAttribution, PlayerShot, TeamMatch
-from deport_ai.formatter import _observed_stats, _venue_form
+import math
+from deport_ai.domain import PlayerShot, TeamMatch
 from deport_ai.stats_engine import (
     _bivariate_poisson,
     _negative_binomial,
-    _poisson,
     _robust_count_mean,
     calculate_confidence_score,
     calculate_elo,
@@ -64,12 +63,12 @@ def test_probabilities_are_normalized():
     assert abs(report.over_25 + report.under_25 - 1.0) < 1e-9
     assert abs(sum(map(sum, report.score_matrix)) - 1.0) < 1e-9
     assert 0 < report.btts < 1
-    assert report.shared_goal_component > 0
 
 
 def test_bivariate_poisson_preserves_independent_case_and_adds_shared_component():
     independent = _bivariate_poisson(1, 1, 1.2, 0.9, 0.0)
-    assert abs(independent - _poisson(1, 1.2) * _poisson(1, 0.9)) < 1e-12
+    poisson = lambda k, lam: math.exp(-lam) * lam**k / math.factorial(k)
+    assert abs(independent - poisson(1, 1.2) * poisson(1, 0.9)) < 1e-12
     assert _bivariate_poisson(1, 1, 1.2, 0.9, 0.15) > independent
 
 
@@ -85,13 +84,6 @@ def test_expected_corners_shots_and_players_use_observations():
     assert expected.shots_on_home is not None
     assert expected.player_shots[10][0]["name"] == "Delantero"
     assert expected.player_shots[20] == []
-
-
-def test_visible_observed_stats_and_venue_form():
-    assert "3 partidos" in _venue_form(HOME, True)
-    rendered = _observed_stats(HOME)
-    assert "al arco" in rendered
-    assert "córners" in rendered
 
 
 def test_robust_count_mean_limits_single_extreme_match():
@@ -125,36 +117,6 @@ def test_zero_trust_classify_competition():
     assert classify_competition("Copa Regional Desconocida XYZ") == ("DOMESTIC_CUP", 0.75)
     assert classify_competition("Exhibition Invitation Unknown") == ("FRIENDLY", 0.10)
     assert classify_competition("Random Tournament 123") == ("UNKNOWN", 0.00)
-
-
-def test_extract_common_opponents():
-    from deport_ai.stats_engine import extract_common_opponents
-
-    home_m = [
-        match(1, 10, 500, True, 3, 0, 6, 2, 7, 1),   # Opponent 500: Home won 3-0 (+3)
-        match(2, 10, 600, False, 1, 1, 4, 4, 3, 3),  # Opponent 600: Home drew 1-1 (0)
-        match(3, 10, 700, True, 2, 1, 5, 3, 6, 2),   # Opponent 700
-    ]
-    away_m = [
-        match(4, 20, 500, False, 0, 2, 3, 7, 2, 6),  # Opponent 500: Away lost 0-2 (-2)
-        match(5, 20, 600, True, 2, 0, 5, 2, 5, 2),   # Opponent 600: Away won 2-0 (+2)
-        match(6, 20, 800, False, 1, 0, 4, 3, 4, 3),  # Opponent 800
-    ]
-
-    opps = extract_common_opponents(home_m, away_m)
-    assert len(opps) == 2  # Opponents 500 and 600 are shared
-
-    # Opponent 500: Home GD = +3, Away GD = -2 -> Net Advantage = +5
-    opp500 = next(item for item in opps if item["opponent_id"] == 500)
-    assert opp500["home_gd"] == 3
-    assert opp500["away_gd"] == -2
-    assert opp500["net_advantage"] == 5
-
-    # Opponent 600: Home GD = 0, Away GD = +2 -> Net Advantage = -2
-    opp600 = next(item for item in opps if item["opponent_id"] == 600)
-    assert opp600["home_gd"] == 0
-    assert opp600["away_gd"] == 2
-    assert opp600["net_advantage"] == -2
 
 
 def test_detect_altitude_impact():
@@ -243,161 +205,6 @@ def test_altitude_impact_on_probabilities_and_metrics():
     assert alt_exp.shots_on_home > base_exp.shots_on_home
 
 
-def test_altitude_veto_and_starting_xi_clause_in_formatter():
-    from deport_ai.domain import AnalysisReport, Team
-    from deport_ai.formatter import format_report
-    from deport_ai.stats_engine import detect_altitude_impact, expected_metrics, goal_probabilities
-
-    home = Team(13264, "Club Cienciano")
-    away = Team(198900, "Montevideo City Torque")
-    impact = detect_altitude_impact(home.id, home.name, away.id, away.name)
-
-    prob = goal_probabilities(HOME, AWAY, 1550.0, 1450.0, altitude_impact=impact)
-    players = [
-        PlayerShot(1, "Alejandro Hohberg", 13264, 2, 85, 5.0),
-        PlayerShot(1, "Alejandro Hohberg", 13264, 3, 90, 6.0),
-    ]
-    expected = expected_metrics(HOME, AWAY, players, home.id, away.id, altitude_impact=impact)
-
-    report = AnalysisReport(
-        home=home,
-        away=away,
-        fixture=None,
-        recent_home=HOME,
-        recent_away=AWAY,
-        h2h=[],
-        probabilities=prob,
-        expected=expected,
-        elo_home=1550.0,
-        elo_away=1450.0,
-        injuries=[],
-        lineups=[],
-        odds={},
-        opportunities=[],
-        risks=[f"🏔️ FACTOR ALTITUD (3400 m.s.n.m.): {impact['description']}"],
-        sources=["Sportmonks"],
-        generated_at="2026-03-01T00:00:00",
-    )
-
-    rendered = format_report(report)
-
-    # 1. Torque (+1.5 HA) NO debe aparecer recomendado
-    assert "Montevideo City Torque (+1.5 Hándicap Asiático)" not in rendered
-
-    # 2. Veto Estratégico explícito en la sección de Hándicap
-    assert "VETO ESTRATÉGICO" in rendered
-    assert "choque fisiológico a 3,400 m.s.n.m." in rendered
-
-    # 3. Cláusula de Titularidad Oficial presente en remates de jugador
-    assert "[⚠️ Sujeto a Titularidad Oficial]" in rendered
-    assert "Cláusula de Titularidad:" in rendered
-
-    # 4. Remates y tiros al arco de equipo destacados
-    assert "Remates de Equipo / Tiros al Arco:" in rendered
-
-
-def test_smart_player_prop_and_line_escalation_for_heavy_favorites():
-    from deport_ai.domain import AnalysisReport, Team
-    from deport_ai.formatter import _select_smart_player_prop, format_report
-    from deport_ai.stats_engine import expected_metrics, goal_probabilities
-
-    # 1. Test unitario directo de _select_smart_player_prop para superestrella (Mbappé)
-    superstar_pl = {
-        "name": "Kylian Mbappé",
-        "appearances": 14,
-        "expected_per_match": 4.8,
-        "probability_two_plus": 0.956,      # Cuota 1.04 -> BASURA INJUGABLE
-        "probability_three_plus": 0.845,
-        "probability_four_plus": 0.715,     # Cuota ~1.40 -> Escalado viable
-        "probability_five_plus": 0.520,
-        "expected_shots_on_target": 2.4,
-        "probability_sot_one_plus": 0.909,
-        "probability_sot_two_plus": 0.692,  # Cuota ~1.70 -> ORO PURO EN APUESTAS
-        "probability_sot_three_plus": 0.430,
-    }
-    smart_prop = _select_smart_player_prop(superstar_pl, "Real Madrid")
-    # Para superestrella con p2 >= 0.85, DEBE escalar a 2+ Tiros al Arco (o 4+ remates), NUNCA 2+ remates
-    assert smart_prop["is_escalated"] is True
-    assert "Tiros al Arco" in smart_prop["prop_desc"] or "4+ Remates" in smart_prop["prop_desc"]
-    assert smart_prop["probability"] < 0.85
-    assert smart_prop["probability"] >= 0.60
-
-    # 2. Test para jugador de volumen regular (p2 en sweet spot)
-    regular_pl = {
-        "name": "Federico Valverde",
-        "appearances": 15,
-        "expected_per_match": 2.1,
-        "probability_two_plus": 0.620,
-        "probability_three_plus": 0.350,
-        "probability_four_plus": 0.150,
-        "probability_five_plus": 0.050,
-        "expected_shots_on_target": 0.9,
-        "probability_sot_one_plus": 0.500,
-        "probability_sot_two_plus": 0.250,
-        "probability_sot_three_plus": 0.080,
-    }
-    reg_prop = _select_smart_player_prop(regular_pl, "Real Madrid")
-    assert reg_prop["is_escalated"] is False
-    assert "2+ Remates Totales" in reg_prop["prop_desc"]
-
-    # 3. Test de integración en ticket decisivo para partido con favorito pesado
-    home = Team(3468, "Real Madrid")
-    away = Team(3458, "Rayo Vallecano")
-    players = [
-        PlayerShot(1, "Kylian Mbappé", 3468, 5, 90, 4.8),
-        PlayerShot(1, "Kylian Mbappé", 3468, 4, 85, 4.8),
-        PlayerShot(2, "Álvaro García", 3458, 1, 70, 1.2),
-    ]
-    prob = goal_probabilities(HOME, AWAY, 1850.0, 1400.0)  # Heavy favorite home win >= 0.70
-    expected = expected_metrics(HOME, AWAY, players, home.id, away.id)
-
-    report = AnalysisReport(
-        home=home,
-        away=away,
-        fixture=None,
-        recent_home=HOME,
-        recent_away=AWAY,
-        h2h=[],
-        probabilities=prob,
-        expected=expected,
-        elo_home=1850.0,
-        elo_away=1400.0,
-        injuries=[],
-        lineups=[],
-        odds={},
-        opportunities=[],
-        risks=["Partido clave."],
-        sources=["Sportmonks"],
-        generated_at="2026-03-01T00:00:00",
-    )
-    rendered = format_report(report)
-
-    # El jugador del partido para Mbappé NO debe ser "2+ Remates Totales — 95.6%" o similar cuota basura
-    assert "Kylian Mbappé" in rendered
-    assert "2+ Tiros al Arco" in rendered or "4+ Remates" in rendered
-    assert "JUGADOR DEL PARTIDO: Kylian Mbappé" in rendered
-
-    # Ninguna recomendación de córners Over ni remates Over para el Underdog en partido con favorito pesado
-    assert "Rayo Vallecano Más de 4.5 Córners" not in rendered
-    assert "Rayo Vallecano Más de 13.5 remates" not in rendered
-
-    # Verificar que el ticket decisivo respeta el sweet spot global (60% a 80%)
-    import re
-    p1_match = re.search(r"PICK PRINCIPAL: (.*?) — (\d+\.\d+)%", rendered)
-    p2_match = re.search(r"PICK SECUNDARIO: (.*?) — (\d+\.\d+)%", rendered)
-    p_player_match = re.search(r"JUGADOR DEL PARTIDO: (.*?) — (\d+\.\d+)%", rendered)
-
-    if p1_match:
-        p1_val = float(p1_match.group(2))
-        assert 60.0 <= p1_val <= 80.0, f"Pick principal {p1_val}% fuera del sweet spot 60-80%"
-    if p2_match:
-        p2_val = float(p2_match.group(2))
-        assert 60.0 <= p2_val <= 80.0, f"Pick secundario {p2_val}% fuera del sweet spot 60-80%"
-    if p_player_match:
-        pp_val = float(p_player_match.group(2))
-        assert 60.0 <= pp_val <= 80.0, f"Jugador del partido {pp_val}% fuera del sweet spot 60-80%"
-
-
 def test_negative_binomial_vs_poisson():
     import math
     rate = 4.2
@@ -440,7 +247,7 @@ def test_competition_profiles():
 def test_calculate_confidence_score():
     # 1. Alta confianza: 20 partidos, todos con tiros/córners, alineación confirmada
     high_conf = calculate_confidence_score(
-        HOME + HOME, AWAY + AWAY, lineups_confirmed=True, odds_available=True
+        HOME + HOME, AWAY + AWAY, lineups_confirmed=True
     )
     assert high_conf.score >= 75
     assert high_conf.level == "ALTA"
@@ -448,28 +255,11 @@ def test_calculate_confidence_score():
 
     # 2. Baja/Media confianza: pocos partidos y alineación sin confirmar
     low_conf = calculate_confidence_score(
-        HOME[:3], AWAY[:3], lineups_confirmed=False, odds_available=False
+        HOME[:3], AWAY[:3], lineups_confirmed=False
     )
     assert low_conf.score < high_conf.score
     assert low_conf.level in ("MEDIA", "BAJA")
     assert low_conf.lineups_confirmed is False
-
-
-def test_factor_attribution_waterfall():
-    prob = goal_probabilities(
-        HOME, AWAY, 1750.0, 1450.0, league_id=8, rest_days_home=4.0, rest_days_away=2.0
-    )
-    ah = prob.attribution_home
-    aa = prob.attribution_away
-    assert ah is not None
-    assert aa is not None
-
-    # Verificar que los sumandos del waterfall de home reconstruyen el xG final (margen de redondeo <= 0.05)
-    sum_h = ah.base_league_goals + ah.venue_impact + ah.elo_impact + ah.recent_form_impact + ah.rest_impact
-    assert abs(sum_h - ah.final_expected_goals) <= 0.05
-
-    # Para away, rest_days < 3 debe aplicar penalización de fatiga negativa
-    assert aa.rest_impact < 0.0
 
 
 def test_starter_and_expected_minutes_scaling():
@@ -497,122 +287,6 @@ def test_starter_and_expected_minutes_scaling():
     assert pl_bench["probability_one_plus"] < pl_starter["probability_one_plus"]
     assert pl_bench["expected_minutes"] == 22.0
     assert pl_starter["expected_minutes"] == 75.0
-
-
-def test_strict_minimum_60_percent_across_all_markets():
-    from deport_ai.domain import AnalysisReport, ExpectedMetrics, ProbabilityReport, Team
-    from deport_ai.formatter import format_report
-    from deport_ai.odds import select_opportunities
-
-    home = Team(1, "Equipo Local")
-    away = Team(2, "Equipo Visitante")
-
-    # Probabilidades con valores menores a 0.60
-    prob = ProbabilityReport(
-        home_win=0.58,  # < 0.60
-        draw=0.22,
-        away_win=0.20,
-        over_15=0.75,   # >= 0.60
-        over_25=0.55,   # < 0.60
-        under_25=0.45,  # < 0.60
-        btts=0.58,      # < 0.60
-        expected_home_goals=1.6,
-        expected_away_goals=1.0,
-        shared_goal_component=0.0,
-        score_matrix=[[1.0]],
-        first_half_over_05=0.55,  # < 0.60
-        second_half_over_05=0.62, # >= 0.60
-    )
-
-    # Expected metrics con líneas alrededor del 55-59%
-    expected = ExpectedMetrics(
-        corners_home=5.1,
-        corners_away=4.2,
-        over_45_corners_home=0.58,  # < 0.60 -> debe eliminarse
-        over_55_corners_home=0.45,
-        over_45_corners_away=0.52,
-        over_75_corners=0.59,       # < 0.60 -> debe eliminarse
-        over_85_corners=0.48,
-        cards_home=2.0,
-        cards_away=2.1,
-        over_15_cards_home=0.59,    # < 0.60 -> debe eliminarse
-        over_35_cards=0.54,         # < 0.60 -> debe eliminarse
-        total_shots_home=12.0,
-        total_shots_away=10.0,
-        over_115_shots_home=0.59,   # < 0.60 -> debe eliminarse
-        over_215_total_shots=0.58,  # < 0.60 -> debe eliminarse
-        shots_on_home=4.2,
-        shots_on_away=3.5,
-        over_45_shots_on_home=0.59, # < 0.60 -> debe eliminarse
-        over_75_shots_on=0.58,      # < 0.60 -> debe eliminarse
-        over_05_woodwork=0.38,      # < 0.60 -> debe eliminarse
-        offsides_home=1.5,
-        offsides_away=1.2,
-        over_25_offsides=0.58,      # < 0.60 -> debe eliminarse
-        under_35_offsides=0.59,     # < 0.60 -> debe eliminarse
-        player_shots={
-            1: [{
-                "name": "Jugador Borde",
-                "appearances": 10,
-                "expected_per_match": 1.8,
-                "probability_two_plus": 0.58,  # < 0.60 -> debe eliminarse
-                "probability_three_plus": 0.30,
-                "probability_sot_one_plus": 0.55,
-                "probability_sot_two_plus": 0.20,
-            }]
-        },
-        anytime_goalscorers={
-            1: [{
-                "name": "Goleador Moderado",
-                "appearances": 10,
-                "probability_goal": 0.38,  # < 0.60 -> debe eliminarse
-            }]
-        },
-    )
-
-    report = AnalysisReport(
-        home=home,
-        away=away,
-        fixture=None,
-        recent_home=HOME,
-        recent_away=AWAY,
-        h2h=[],
-        probabilities=prob,
-        expected=expected,
-        elo_home=1500.0,
-        elo_away=1500.0,
-        injuries=[],
-        lineups=[],
-        odds={"home_win": 2.20},  # Implied prob 45.4%, model 58% -> edge > 0.02 pero prob < 0.60
-        opportunities=[],
-        risks=["Sin novedades."],
-        sources=["Sportmonks"],
-        generated_at="2026-03-01T00:00:00",
-    )
-
-    rendered = format_report(report)
-
-    # Verificar que NINGUNA línea destacada de apuesta tenga < 60%
-    import re
-    # Buscar cualquier porcentaje en el bloque de Líneas Destacadas
-    if "Líneas de Apuesta Destacadas (≥ 60%):" in rendered:
-        destacadas_part = rendered.split("Líneas de Apuesta Destacadas (≥ 60%):")[1].split("Jugadores con mayor probabilidad")[0]
-        percentages = [float(p) for p in re.findall(r"\((\d+\.\d+)%\)", destacadas_part)]
-        for p in percentages:
-            assert p >= 60.0, f"Encontrada probabilidad {p}% < 60.0% en líneas destacadas"
-
-    # Verificar que el prop de jugador con 58% fue descartado
-    assert "Jugador Borde: 2+ Remates" not in rendered
-    assert "No hay jugadores que superen el umbral de remates totales (≥60%)" in rendered
-
-    # Verificar que el goleador con 38% fue descartado
-    assert "Goleador Moderado" not in rendered
-
-    # Verificar select_opportunities en odds.py con edge positivo pero prob < 0.60
-    opps = select_opportunities(prob, {"home_win": 2.20})
-    # Debe ser filtrado porque prob.home_win = 0.58 < 0.60
-    assert not any(o["market"] == "Victoria local" for o in opps)
-    assert all(o["probability"] >= 0.60 for o in opps)
 
 
 def test_club_tier_offsets_and_sos():

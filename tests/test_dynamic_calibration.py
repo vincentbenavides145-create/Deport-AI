@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import pytest
 from deport_ai.domain import ExpectedMetrics, ProbabilityReport, Team
 from deport_ai.dynamic_calibration import DynamicCalibrator
 from deport_ai.statistical_markets import select_statistical_markets
@@ -95,7 +94,6 @@ def test_dynamic_calibration_applied_to_projections():
         btts=0.52,
         expected_home_goals=1.5,
         expected_away_goals=1.2,
-        shared_goal_component=0.05,
         score_matrix=[[0.1 for _ in range(5)] for _ in range(5)],
     )
 
@@ -141,7 +139,6 @@ def test_dynamic_shrinkage_prunes_low_confidence_bets():
         btts=0.48,
         expected_home_goals=1.2,
         expected_away_goals=1.0,
-        shared_goal_component=0.05,
         score_matrix=[[0.1 for _ in range(5)] for _ in range(5)],
     )
 

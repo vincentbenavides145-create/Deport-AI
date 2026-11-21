@@ -17,9 +17,6 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.3.0"]
 
-[project.scripts]
-deport-ai = "deport_ai.cli:main"
-
 [tool.setuptools]
 package-dir = {"" = "src"}
 
