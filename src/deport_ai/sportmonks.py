@@ -664,24 +664,31 @@ class SportmonksClient:
             return None
         return round(cards / matches, 3), matches
 
-    def first_half_corners(self, fixture_id: int) -> dict[int, int] | None:
-        """Córners del primer tiempo por equipo (id -> córners), desde las estadísticas por periodo."""
+    def period_statistics(self, fixture_id: int) -> dict[str, dict[int, dict[str, float]]] | None:
+        """Estadísticas por periodo: {"1st-half": {equipo: {"CORNERS": 4, ...}}, "2nd-half": ...}.
+
+        Sirven para los córners del 1T y para liquidar a los 90 minutos los partidos con
+        prórroga (1T + 2T, sin el periodo "extra-time").
+        """
         try:
             raw = self._get(f"fixtures/{fixture_id}", include="periods.statistics.type")
         except Exception:
             return None
+        periods: dict[str, dict[int, dict[str, float]]] = {}
         for period in (raw or {}).get("periods") or []:
-            if str(period.get("description") or "").lower() not in {"1st-half", "1st half", "first half"}:
-                continue
-            corners: dict[int, int] = {}
+            name = str(period.get("description") or "").lower().replace(" ", "-")
+            by_team: dict[int, dict[str, float]] = {}
             for row in period.get("statistics") or []:
-                if (row.get("type") or {}).get("developer_name") != "CORNERS":
-                    continue
+                kind = (row.get("type") or {}).get("developer_name")
                 value = (row.get("data") or {}).get("value")
-                if row.get("participant_id") is not None and value is not None:
-                    corners[int(row["participant_id"])] = int(value)
-            return corners or None
-        return None
+                if kind and value is not None and row.get("participant_id") is not None:
+                    try:
+                        by_team.setdefault(int(row["participant_id"]), {})[kind] = float(value)
+                    except (TypeError, ValueError):
+                        continue
+            if by_team:
+                periods[name] = by_team
+        return periods or None
 
     def coverage(self, league_id: int, season: int) -> dict[str, Any]:
         """Verifica dinámicamente qué características están soportadas por plan y liga."""

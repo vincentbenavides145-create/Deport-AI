@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 import unicodedata
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from .fixture_contract import FINISHED_STATUSES, VOID_FIXTURE_STATUSES
@@ -15,6 +16,8 @@ UNSUPPORTED = "UNSUPPORTED"
 _LINE_RE = re.compile(r"\b(Más|Menos) de (\d+(?:\.\d+)?)", re.IGNORECASE)
 # Con prórroga o penales, las apuestas se liquidan con el marcador de los 90 minutos.
 EXTRA_TIME_STATUSES = {"AET", "PEN"}
+# Días tras el partido en los que se deja de esperar un dato que el proveedor no publicó.
+UNRESOLVED_GIVE_UP_DAYS = 7
 
 
 def extract_match_actual_stats(fixture_detail: dict[str, Any]) -> dict[str, Any] | None:
@@ -584,6 +587,62 @@ def evaluate_prediction(
     return UNSUPPORTED
 
 
+# Estadísticas que se rehacen a 90 minutos en partidos con prórroga: clave -> tipo Sportmonks.
+REGULATION_STATS = {
+    "corners": "CORNERS",
+    "shots": "SHOTS_TOTAL",
+    "shots_on": "SHOTS_ON_TARGET",
+    "fouls": "FOULS",
+    "offsides": "OFFSIDES",
+}
+# Sportmonks omite estos tipos cuando valen 0: en un periodo con estadísticas, su ausencia es 0.
+_OMITTED_WHEN_ZERO = ("YELLOWCARDS", "REDCARDS", "HIT_WOODWORK")
+
+
+def regulation_stats(periods: dict[str, dict[int, dict[str, float]]], home_id: int, away_id: int) -> dict[str, Any]:
+    """Estadísticas a los 90 minutos (1T + 2T) de un partido con prórroga.
+
+    El total del partido incluye la prórroga, pero las apuestas se liquidan a los 90
+    minutos. Lo que el proveedor no publique por periodo queda en None (sin resolver),
+    nunca con el total que incluye la prórroga.
+    """
+    halves = [periods.get("1st-half") or {}, periods.get("2nd-half") or {}]
+
+    def value(team_id: int, kind: str) -> float | None:
+        total = 0.0
+        for half in halves:
+            stats = half.get(team_id)
+            if stats is None:
+                return None
+            if kind in stats:
+                total += stats[kind]
+            elif kind not in _OMITTED_WHEN_ZERO:
+                return None
+        return total
+
+    out: dict[str, Any] = {}
+    for key, kind in REGULATION_STATS.items():
+        for side, team_id in (("home", home_id), ("away", away_id)):
+            number = value(team_id, kind)
+            out[f"{key}_{side}"] = int(number) if number is not None else None
+    for side, team_id in (("home", home_id), ("away", away_id)):
+        yellow, red = value(team_id, "YELLOWCARDS"), value(team_id, "REDCARDS")
+        out[f"cards_{side}"] = int(yellow + red) if yellow is not None and red is not None else None
+    woodwork = [value(t, "HIT_WOODWORK") for t in (home_id, away_id)]
+    out["woodwork_hit"] = int(sum(woodwork)) if None not in woodwork else None
+    return out
+
+
+def _older_than(match_date: str | None, days: int) -> bool:
+    try:
+        kickoff = datetime.fromisoformat(str(match_date).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if kickoff.tzinfo is None:
+        kickoff = kickoff.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - kickoff > timedelta(days=days)
+
+
 def _team_in(selection: str, home_name: str, away_name: str) -> str | None:
     """Equipo al que se refiere la selección. Si un nombre contiene al otro ("Santos" y
     "Santos Laguna"), manda el más largo, que es el que realmente aparece."""
@@ -648,16 +707,25 @@ class SettlementEngine:
             p["status"] == "PENDING" and str(p.get("selection") or "").startswith("1T ") and "córner" in str(p.get("selection") or "")
             for p in predictions
         )
-        if needs_1h_corners and hasattr(self.api, "first_half_corners"):
-            by_team = self.api.first_half_corners(fixture_id) or {}
+        extra_time = state in EXTRA_TIME_STATUSES
+        if (needs_1h_corners or extra_time) and hasattr(self.api, "period_statistics"):
             home_id = int(fixture_row.get("home_team_id") or -1)
             away_id = int(fixture_row.get("away_team_id") or -1)
-            if home_id in by_team and away_id in by_team:
-                actual_stats["corners_first_half"] = by_team[home_id] + by_team[away_id]
+            periods = self.api.period_statistics(fixture_id) or {}
+            first_half = periods.get("1st-half") or {}
+            if home_id in first_half and away_id in first_half:
+                corners = [first_half[t].get("CORNERS") for t in (home_id, away_id)]
+                if None not in corners:
+                    actual_stats["corners_first_half"] = int(corners[0] + corners[1])
+            if extra_time:
+                actual_stats.update(regulation_stats(periods, home_id, away_id))
+        elif extra_time:
+            actual_stats.update(regulation_stats({}, 0, 0))
 
         self.db.update_fixture_result(fixture_id, actual_stats, status="FINISHED")
 
         settled_summary = {"won": 0, "lost": 0, "void": 0, "total": len(predictions)}
+        give_up = _older_than(fixture_row.get("match_date"), UNRESOLVED_GIVE_UP_DAYS)
 
         for pred in predictions:
             if pred["status"] != "PENDING":
@@ -669,8 +737,10 @@ class SettlementEngine:
                 home_name=fixture_row["home_team_name"],
                 away_name=fixture_row["away_team_name"],
             )
-            if outcome == UNSUPPORTED:
+            if outcome == UNSUPPORTED or (outcome == "PENDING" and give_up):
                 outcome = "VOID"
+            if outcome == "PENDING":
+                continue
 
             odds = pred.get("odds")
             pnl = 0.0

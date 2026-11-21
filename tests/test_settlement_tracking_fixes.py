@@ -180,3 +180,89 @@ def test_reanalysis_before_kickoff_replaces_pending_predictions():
     _analyze(db, future)
     second = {p["selection"] for p in db.get_predictions_for_fixture(555)}
     assert "Selección vieja" not in second and second == first
+
+
+# ---------------------------------------------------------------- estadísticas a 90 minutos
+
+VELEZ, BELGRANO = 9904, 6829
+# Vélez 2-2 Belgrano (20/11/2026): 1-1 a los 90', 2-2 tras la prórroga, datos reales de Sportmonks.
+VELEZ_PERIODS = {
+    "1st-half": {VELEZ: {"CORNERS": 3, "SHOTS_TOTAL": 12, "SHOTS_ON_TARGET": 4, "FOULS": 6, "YELLOWCARDS": 1},
+                 BELGRANO: {"CORNERS": 2, "SHOTS_TOTAL": 6, "SHOTS_ON_TARGET": 3, "FOULS": 7, "YELLOWCARDS": 2,
+                            "HIT_WOODWORK": 1}},
+    "2nd-half": {VELEZ: {"CORNERS": 3, "SHOTS_TOTAL": 11, "SHOTS_ON_TARGET": 3, "FOULS": 6, "YELLOWCARDS": 2,
+                         "HIT_WOODWORK": 1},
+                 BELGRANO: {"CORNERS": 2, "SHOTS_TOTAL": 8, "SHOTS_ON_TARGET": 3, "FOULS": 6, "YELLOWCARDS": 1}},
+    "extra-time": {VELEZ: {"CORNERS": 0, "SHOTS_TOTAL": 2, "SHOTS_ON_TARGET": 1, "FOULS": 6, "YELLOWCARDS": 1},
+                   BELGRANO: {"CORNERS": 4, "SHOTS_TOTAL": 3, "SHOTS_ON_TARGET": 1, "FOULS": 5}},
+}
+
+
+def test_regulation_stats_leave_out_extra_time():
+    from deport_ai.settlement import regulation_stats
+
+    out = regulation_stats(VELEZ_PERIODS, VELEZ, BELGRANO)
+    assert (out["corners_home"], out["corners_away"]) == (6, 4)  # total con prórroga: 6 y 8
+    assert (out["shots_home"], out["shots_away"]) == (23, 14)
+    assert (out["fouls_home"], out["fouls_away"]) == (12, 13)
+    assert (out["cards_home"], out["cards_away"]) == (3, 3)  # rojas ausentes = 0
+    assert out["woodwork_hit"] == 2
+    assert out["offsides_home"] is None  # no se publica por periodo: sin resolver, no el total
+
+
+class _ExtraTimeAPI:
+    def __init__(self, periods):
+        self.periods = periods
+
+    def fixture_details(self, ids):
+        stats = [{"type": "Corner Kicks", "value": 6}, {"type": "Total Shots", "value": 25},
+                 {"type": "Shots on Goal", "value": 8}, {"type": "Fouls", "value": 18}]
+        away = [{"type": "Corner Kicks", "value": 8}, {"type": "Total Shots", "value": 17},
+                {"type": "Shots on Goal", "value": 7}, {"type": "Fouls", "value": 18}]
+        return {ids[0]: {
+            "fixture": {"id": ids[0], "status": {"short": "PEN"}},
+            "teams": {"home": {"id": VELEZ}, "away": {"id": BELGRANO}},
+            "goals": {"home": 2, "away": 2}, "halftime": {"home": 0, "away": 1}, "second_half": {"home": 1, "away": 0},
+            "statistics": [{"team": {"id": VELEZ}, "statistics": stats}, {"team": {"id": BELGRANO}, "statistics": away}],
+        }}
+
+    def period_statistics(self, fixture_id):
+        return self.periods
+
+
+def _velez_db(match_date="2026-11-20T21:00:00-03:00"):
+    db = DatabaseManager(":memory:")
+    db.save_fixture_and_predictions(19904991, VELEZ, "Vélez Sarsfield", BELGRANO, "Belgrano", 636, "LPF", match_date, [
+        {"category": "Goles", "market": "Goles totales", "selection": "Menos de 3.5 goles", "probability": 0.7,
+         "line": 3.5, "side": "under"},
+        {"category": "Córners", "market": "Córners totales", "selection": "Menos de 10.5 córners", "probability": 0.7,
+         "line": 10.5, "side": "under"},
+        {"category": "Fueras de juego", "market": "Fueras de juego", "selection": "Más de 1.5 fueras de juego",
+         "probability": 0.7, "line": 1.5, "side": "over"},
+    ])
+    return db
+
+
+def test_extra_time_match_settles_goals_and_stats_at_90_minutes():
+    db = _velez_db()
+    SettlementEngine(db, _ExtraTimeAPI(VELEZ_PERIODS)).settle_fixture(19904991)
+    status = {p["selection"]: p["status"] for p in db.get_predictions_for_fixture(19904991)}
+    assert status["Menos de 3.5 goles"] == "WON"  # 1-1 a los 90' (antes: 2-2 -> LOST)
+    assert status["Menos de 10.5 córners"] == "WON"  # 10 a los 90' (14 con la prórroga)
+    assert status["Más de 1.5 fueras de juego"] == "VOID"  # no se publica por periodo
+    assert db.get_fixture(19904991)["actual_corners_home"] == 6
+
+
+def test_stats_without_period_data_wait_and_are_voided_after_a_week():
+    recent = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    db = _velez_db(match_date=recent)
+    SettlementEngine(db, _ExtraTimeAPI(None)).settle_fixture(19904991)
+    status = {p["selection"]: p["status"] for p in db.get_predictions_for_fixture(19904991)}
+    assert status["Menos de 3.5 goles"] == "WON"
+    assert status["Menos de 10.5 córners"] == "PENDING"  # nunca con el total que incluye la prórroga
+
+    db = _velez_db(match_date="2026-10-01T21:00:00-03:00")
+    SettlementEngine(db, _ExtraTimeAPI(None)).settle_fixture(19904991)
+    status = {p["selection"]: p["status"] for p in db.get_predictions_for_fixture(19904991)}
+    assert status["Menos de 10.5 córners"] == "VOID"
+    assert db.get_pending_fixtures() == []

@@ -104,9 +104,11 @@ class FakeAPI:
     def fixture_details(self, ids):
         return {int(i): _convert_fixture(self.raw) for i in ids}
 
-    def first_half_corners(self, fixture_id):
+    def period_statistics(self, fixture_id):
         self.corner_calls += 1
-        return self.corners
+        if self.corners is None:
+            return None
+        return {"1st-half": {team: {"CORNERS": value} for team, value in self.corners.items()}}
 
 
 def _db_with_predictions(predictions):
