@@ -1,0 +1,19 @@
+# Bundesliga (82) — temporada 2026/2027. Un id de Sportmonks por línea (evita homónimos).
+3321 # Bayer 04 Leverkusen
+68 # Borussia Dortmund
+683 # Borussia Mönchengladbach
+366 # Eintracht Frankfurt
+3588 # Elversberg
+90 # FC Augsburg
+503 # FC Bayern München
+3320 # FC Köln
+1079 # FC Union Berlin
+794 # FSV Mainz 05
+2708 # Hamburger SV
+2642 # Paderborn
+277 # RB Leipzig
+3543 # SC Freiburg
+67 # Schalke 04
+2726 # TSG Hoffenheim
+3319 # VfB Stuttgart
+82 # Werder Bremen

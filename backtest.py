@@ -213,6 +213,48 @@ def run_xg_comparison(args: argparse.Namespace, matches_by_team, team_names) -> 
         print(f"Resumen JSON guardado en {args.json}")
 
 
+def run_injury_comparison(args: argparse.Namespace, matches_by_team, team_names) -> None:
+    """Mismos partidos con y sin el descuento por bajas, sobre el modelo actual (con xG guardado)."""
+    from deport_ai.backtesting import (
+        absence_coverage,
+        fixtures_with_injury_data,
+        format_xg_comparison,
+        goal_market_summary,
+    )
+    from deport_ai.flashscore import FlashscoreXG, attach_xg
+
+    # Solo el xG ya guardado: sin lecturas nuevas (no gasta créditos ni escribe la caché).
+    provider = FlashscoreXG(fetcher=object())
+    with_xg = {team_id: attach_xg(ms, provider) for team_id, ms in matches_by_team.items()}
+    fixtures = fixtures_with_injury_data(build_fixtures(with_xg, team_names))
+    leagues = [f.league_id for f in fixtures if f.league_id is not None]
+    league_id = args.league_id if args.league_id is not None else (max(set(leagues), key=leagues.count) if leagues else None)
+    params = load_parameters(league_id)
+    coverage = absence_coverage(fixtures, with_xg, args.min_history, args.window)
+    weights = [float(w) for w in args.injury_weights.split(",") if w.strip()]
+    summaries = {}
+    for weight in [0.0] + weights:
+        label = "Base: sin ajuste por bajas (modelo actual)" if weight == 0 else f"Con bajas, peso {weight:.2f}"
+        print(f"Backtest — {label}...")
+        result = run_walk_forward(
+            fixtures, with_xg, params=replace(params, absence_weight=weight),
+            min_history=args.min_history, window=args.window,
+        )
+        summaries[label] = goal_market_summary(result)
+    report = format_xg_comparison(
+        summaries, coverage, f"Backtest bajas — liga {league_id} (partidos con lista de bajas)",
+        coverage_label="con alguna baja que pesaba en el ataque",
+    )
+    print("\n" + report + "\n")
+    if args.output:
+        Path(args.output).write_text(report, encoding="utf-8")
+        print(f"Informe guardado en {args.output}")
+    if args.json:
+        Path(args.json).write_text(json.dumps({"coverage": coverage, "runs": summaries}, ensure_ascii=False, indent=2),
+                                   encoding="utf-8")
+        print(f"Resumen JSON guardado en {args.json}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Backtest walk-forward y ajuste de parámetros de DEPORT AI")
     source = parser.add_mutually_exclusive_group()
@@ -234,6 +276,10 @@ def main() -> None:
                         help="Añade el xG de Flashscore y compara el modelo con y sin xG")
     parser.add_argument("--xg-weights", type=str, default="0.35,0.5",
                         help="Pesos del xG a comparar contra 0 (separados por coma)")
+    parser.add_argument("--injuries", action="store_true",
+                        help="Compara el modelo con y sin el descuento por bajas (usa el xG ya guardado)")
+    parser.add_argument("--injury-weights", type=str, default="0.5,1.0",
+                        help="Pesos del descuento por bajas a comparar contra 0 (separados por coma)")
     parser.add_argument("--xg-max-new", type=int, default=None,
                         help="Máximo de partidos nuevos a leer de Flashscore (créditos de Firecrawl)")
     args = parser.parse_args()
@@ -265,6 +311,13 @@ def main() -> None:
         print(f"Descargando historial de {len(queries)} equipos desde Sportmonks...")
         matches_by_team, team_names = load_from_sportmonks(client, queries, args.count, log=print)
         title = "Backtest walk-forward — datos reales Sportmonks"
+
+    if args.injuries:
+        if client is None:
+            print("--injuries necesita datos reales (--teams o --teams-file).")
+            sys.exit(1)
+        run_injury_comparison(args, matches_by_team, team_names)
+        return
 
     if args.xg:
         if client is None:

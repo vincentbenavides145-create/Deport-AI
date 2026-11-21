@@ -1,0 +1,21 @@
+# La Liga (564) — temporada 2026/2027. Un id de Sportmonks por línea (evita homónimos).
+13258 # Athletic Club
+7980 # Atlético de Madrid
+36 # Celta de Vigo
+429 # Deportivo A Coruña
+2975 # Deportivo Alavés
+1099 # Elche
+528 # Espanyol
+83 # FC Barcelona
+106 # Getafe
+3457 # Levante
+126 # Málaga
+459 # Osasuna
+9818 # Racing Santander
+377 # Rayo Vallecano
+485 # Real Betis
+3468 # Real Madrid
+594 # Real Sociedad
+676 # Sevilla
+214 # Valencia
+3477 # Villarreal

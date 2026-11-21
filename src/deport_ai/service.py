@@ -21,6 +21,8 @@ from .statistical_markets import (
 )
 from .storage import DatabaseManager
 from .stats_engine import (
+    ABSENCE_WINDOW,
+    absence_share,
     calculate_confidence_score,
     calculate_elo,
     classify_competition,
@@ -56,6 +58,37 @@ class AnalysisService:
         self.calibrator = DynamicCalibrator(self.db)
         self.auto_track = auto_track
         self.xg_provider: Any = None  # FlashscoreXG; se crea al primer uso
+
+    def _absences(self, fixture_id, kickoff, home, away, home_matches, away_matches):
+        """Peso de las bajas de cada equipo en su ataque reciente (y una nota legible)."""
+        if not fixture_id or not hasattr(self.api, "sidelined_players"):
+            return 0.0, 0.0, []
+        try:
+            rows = self.api.sidelined_players(fixture_id)
+        except Exception:
+            return 0.0, 0.0, []
+        day = (kickoff or "")[:10]
+        shares: list[float] = []
+        notes: list[str] = []
+        for team, matches in ((home, home_matches), (away, away_matches)):
+            own = [
+                r for r in rows
+                if r.get("team_id") == team.id
+                and not (day and r.get("end_date") and str(r["end_date"])[:10] < day)
+            ]
+            share = absence_share(matches, [r["player_id"] for r in own])
+            shares.append(share)
+            if share >= ABSENCE_NOTE_MIN_SHARE:
+                pool = [m for m in matches if m.player_data][:ABSENCE_WINDOW]
+                names = [
+                    r.get("name") or str(r["player_id"]) for r in own
+                    if any(r["player_id"] in m.contributions for m in pool)
+                ]
+                notes.append(
+                    f"Bajas de {team.name}: {', '.join(names[:4])} sumaban el {share * 100:.0f}% "
+                    f"de sus goles y asistencias recientes."
+                )
+        return shares[0], shares[1], notes
 
     def _attach_xg(self, home: Any, away: Any, home_matches: list[Any], away_matches: list[Any]):
         """Añade el xG de Flashscore a los partidos recientes. Si falla, sigue sin xG."""
@@ -202,6 +235,9 @@ class AnalysisService:
         )
         referee_cards = self._referee_cards(fixture_id) if REFEREE_FACTOR_ENABLED else None
         altitude_impact = detect_altitude_impact(home.id, home.name, away.id, away.name, home.country, away.country)
+        absence_home, absence_away, absence_notes = self._absences(
+            fixture_id, fixture.date if fixture else None, home, away, home_matches, away_matches
+        )
         probabilities = goal_probabilities(
             home_matches,
             away_matches,
@@ -209,6 +245,8 @@ class AnalysisService:
             elo_away,
             home_season,
             away_season,
+            absence_home=absence_home,
+            absence_away=absence_away,
             altitude_impact=altitude_impact,
             league_id=target_league_id,
             league_name=target_league_name,
@@ -294,6 +332,7 @@ class AnalysisService:
         featured = select_featured_markets(statistical_markets, top_pick)
         mark_highlights(statistical_markets, top_pick, featured)
         risks = sample_risks(home_matches, away_matches, expected)
+        risks.extend(absence_notes)
         if altitude_impact:
             risks.insert(0, f"🏔️ FACTOR ALTITUD ({altitude_impact['home_altitude']} m.s.n.m.): {altitude_impact['description']}")
         risks.extend(
@@ -533,6 +572,9 @@ def _sources(
 
 # Factor árbitro en tarjetas (validado con backtest walk-forward antes de activarlo).
 REFEREE_FACTOR_ENABLED = True
+
+# Las bajas que suman al menos esta parte del ataque reciente se anotan en los riesgos.
+ABSENCE_NOTE_MIN_SHARE = 0.10
 
 # xG de Flashscore vía Firecrawl. Validado con `backtest.py --xg` (walk-forward, peso 0.65):
 # Arabia Saudita, Eredivisie y Brasileirão mejoran Brier y log-loss en goles y resultado.

@@ -31,7 +31,7 @@ DEFAULT_BASE_URL = "https://api.sportmonks.com/v3/football"
 PROXY_INJECTED_TOKEN = "proxy-injected"
 DETAIL_INCLUDES = (
     "participants;scores;statistics.type;lineups.details.type;"
-    "league;season;state;formations"
+    "league;season;state;formations;sidelined.sideline"
 )
 FIXTURE_INCLUDES = "participants;scores;league;season;state;lineups;formations;sidelined.sideline"
 
@@ -825,6 +825,19 @@ class SportmonksClient:
             )
         return result
 
+    def sidelined_players(self, fixture_id: int | None) -> list[dict[str, Any]]:
+        """Bajas del partido con id de jugador y de equipo (para medir su peso en el ataque)."""
+        if not fixture_id:
+            return []
+        raw = self._raw_fixtures.get(fixture_id)
+        if raw is None or "sidelined" not in raw:
+            try:
+                raw = self._get(f"fixtures/{fixture_id}", include="participants;sidelined.sideline")
+                self._remember(raw)
+            except Exception:
+                return []
+        return _convert_sidelined((raw or {}).get("sidelined", []))
+
     def lineups(self, fixture_id: int | None) -> list[dict[str, Any]]:
         if not fixture_id:
             return []
@@ -929,7 +942,30 @@ def _convert_fixture(raw: dict[str, Any], timezone_name: str = "UTC") -> dict[st
         },
         "statistics": _convert_statistics(raw.get("statistics", []), participants),
         "players": _convert_players(raw.get("lineups", []), participants),
+        "sidelined": _convert_sidelined(raw.get("sidelined", [])),
     }
+
+
+def _convert_sidelined(rows: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """Bajas del partido (lesiones y sanciones) con jugador, equipo y fechas."""
+    result: list[dict[str, Any]] = []
+    for item in rows or []:
+        sideline = item.get("sideline") or {}
+        player_id = item.get("player_id") or sideline.get("player_id")
+        team_id = item.get("participant_id") or item.get("team_id") or sideline.get("team_id")
+        if not player_id or not team_id:
+            continue
+        result.append(
+            {
+                "player_id": int(player_id),
+                "team_id": int(team_id),
+                "name": item.get("player_name") or sideline.get("name"),
+                "category": sideline.get("category"),
+                "start_date": sideline.get("start_date"),
+                "end_date": sideline.get("end_date"),
+            }
+        )
+    return result
 
 
 def _convert_statistics(
@@ -995,6 +1031,7 @@ def _convert_players(
         )
         shots_on = details.get("SHOTS_ON_TARGET") or 0
         goals_val = details.get("GOALS") or details.get("GOALS_SCORED") or details.get("GOALS_TOTAL") or 0
+        assists_val = details.get("ASSISTS") or 0
         grouped.setdefault(team_id, []).append(
             {
                 "player": {"id": row.get("player_id"), "name": row.get("player_name")},
@@ -1002,7 +1039,7 @@ def _convert_players(
                     {
                         "games": {"minutes": minutes},
                         "shots": {"on": shots_on, "total": total_shots},
-                        "goals": {"total": goals_val},
+                        "goals": {"total": goals_val, "assists": assists_val},
                     }
                 ],
             }
