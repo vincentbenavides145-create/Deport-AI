@@ -157,19 +157,3 @@ def test_small_real_sample_does_not_activate_calibration():
     summary = DynamicCalibrator(db).get_calibration_summary(league_id=300)
     assert summary.active is False
     assert summary.category_factors == {}
-
-
-def test_purges_legacy_synthetic_seed():
-    db = DatabaseManager(":memory:")
-    db.save_fixture_and_predictions(
-        fixture_id=77, home_team_id=1, home_team_name="Rival", away_team_id=2,
-        away_team_name="Visitante", league_id=564, league_name="Liga",
-        match_date="2026-01-01", predictions=[{
-            "category": "Goles", "market": "Goles Totales", "selection": "Más de 1.5 goles",
-            "line": 1.5, "side": "over", "probability": 0.76,
-        }],
-    )
-    db.save_calibration(564, "Goles", 40, 0.9, 0.1, 0.0, 1.1)
-    DynamicCalibrator(db)
-    assert db.get_fixture(77) is None
-    assert db.get_calibration() == []

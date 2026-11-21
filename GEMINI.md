@@ -38,16 +38,16 @@ Cuando el usuario pida analizar un partido, pronósticos o predicciones de fútb
 - La proyección de tarjetas combina a los equipos con el promedio de tarjetas del árbitro asignado (peso hasta 50%, menor si dirigió pocos partidos).
 
 ## 📒 HISTÓRICO DE PREDICCIONES (OBLIGATORIO)
-- `analyze.py` registra automáticamente cada predicción y además la escribe en `history/predictions.jsonl`, dentro del repositorio. Es el histórico permanente: las sesiones en la nube son temporales y la base SQLite local se pierde al cerrarlas (se reconstruye sola desde ese archivo).
+- `analyze.py` registra automáticamente cada predicción y además la escribe en `history/predictions.jsonl`, dentro del repositorio. Es el histórico permanente: las sesiones en la nube son temporales y la base SQLite local se pierde al cerrarlas (se reconstruye sola desde ese archivo, y al reconstruirse recalcula la calibración).
 - No uses `--no-track` salvo para pruebas.
-- **Después de cada análisis**, sube el histórico: `python track.py sync` (commit y push a `main`).
+- **Después de cada análisis**, sube el histórico: `python track.py sync` (commit y push a `main`). Antes de exportar, `sync` trae `main` y fusiona su histórico y su caché de xG: una copia local vieja ya no pisa liquidaciones más recientes, y las predicciones se emparejan por mercado y selección, no por `id`.
 - Para comprobar con los resultados reales: `python track.py update` (liquida con Sportmonks), `python track.py report` y `python track.py sync`.
 - Al empezar una sesión nueva, ejecuta primero `python track.py update` y `python track.py sync` para liquidar lo pendiente.
 
 ## 🧪 CALIBRACIÓN Y PARÁMETROS
-- La calibración dinámica solo se activa con **30 o más predicciones reales liquidadas** por categoría. Nunca se inventan datos para calibrar.
+- La calibración dinámica solo se activa con **30 o más predicciones reales liquidadas** (ganadas o perdidas; las anuladas no cuentan) por categoría. Nunca se inventan datos para calibrar.
 - La corrección de sesgo de córners y tarjetas solo usa la proyección del **total del partido** (una vez por partido, 30+ partidos). Los goles esperados no se corrigen después de calcular la matriz de marcadores.
-- Las combinadas (doble oportunidad + goles o ambos marcan) se liquidan exigiendo las dos condiciones. Un tiro al palo sin estadísticas del partido queda sin resolver.
+- Las combinadas (doble oportunidad + goles o ambos marcan) se liquidan exigiendo las dos condiciones. Un tiro al palo queda sin resolver si falta el dato de algún equipo, salvo que el otro ya registre uno.
 - Los parámetros del modelo por liga se ajustan con `python backtest.py --teams-file <liga.txt> --fit --save-params` y se guardan en `model_params.json`.
 - **xG de Flashscore:** el modelo de goles mezcla los goles reales con el xG que Flashscore publica por partido (lo lee Firecrawl con la clave `FIRECRAWL_API_KEY`, inyectada por el proxy en la nube). Cada partido se lee una sola vez y se guarda en `history/flashscore_xg.json`, que `python track.py sync` sube junto al histórico. Si Firecrawl falla, el análisis sigue solo con goles.
 - Para medir el xG: `python backtest.py --teams-file leagues/<liga>.txt --xg` (compara los mismos partidos con y sin xG). Las listas de equipos por liga están en `leagues/`.

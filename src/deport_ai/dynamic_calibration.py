@@ -34,22 +34,6 @@ class DynamicCalibrator:
 
     def __init__(self, db: DatabaseManager) -> None:
         self.db = db
-        try:
-            self.purge_synthetic_seed()
-        except Exception:
-            pass
-
-    def purge_synthetic_seed(self) -> int:
-        """Elimina los registros ficticios creados por versiones anteriores (auto-seed).
-
-        Esas versiones generaban predicciones con probabilidades fijas y estadísticas
-        rivales inventadas. Se borran y la calibración se recalcula solo con datos reales.
-        """
-        removed = self.db.purge_synthetic_seed()
-        if removed:
-            self.db.clear_calibration()
-            self.recompute_calibrations()
-        return removed
 
     def recompute_calibrations(self, min_sample: int = MIN_CALIBRATION_SAMPLE) -> int:
         """Recalcula y actualiza los factores de calibración en la base de datos a partir de apuestas liquidadas."""
@@ -63,6 +47,9 @@ class DynamicCalibrator:
         global_grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
         for p in settled:
+            # Las anuladas (VOID) no dicen nada del acierto: no cuentan para la muestra.
+            if p.get("status") not in ("WON", "LOST"):
+                continue
             l_id = p.get("league_id") or 0
             cat = p.get("category", "")
             grouped[(l_id, cat)].append(p)
@@ -105,7 +92,6 @@ class DynamicCalibrator:
 
     @staticmethod
     def _calculate_factor_entry(items: list[dict[str, Any]]) -> dict[str, Any]:
-        n = len(items)
         won = sum(1 for i in items if i["status"] == "WON")
         lost = sum(1 for i in items if i["status"] == "LOST")
         resolved = won + lost
@@ -157,7 +143,7 @@ class DynamicCalibrator:
             bias_offset = 0.0
 
         return {
-            "sample_size": n,
+            "sample_size": resolved,
             "hit_rate": hit_rate,
             "brier_score": brier_avg,
             "bias_offset": bias_offset,

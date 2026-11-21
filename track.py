@@ -133,19 +133,59 @@ def cmd_calibrate(args: argparse.Namespace) -> None:
     print(f"⚡ Calibración adaptativa completada: {updated} factores de liga y categorías actualizados en SQLite.")
 
 
+HISTORY_FILE = "history/predictions.jsonl"
+XG_FILE = "history/flashscore_xg.json"
+
+
+def _git(repo: Path, *args: str, check: bool = False) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, check=check)
+
+
+def merge_xg_caches(local: dict, remote: dict) -> dict:
+    """Une dos cachés de xG de Flashscore; ante el mismo partido manda la local."""
+    return {"version": 1, "matches": {**remote.get("matches", {}), **local.get("matches", {})}}
+
+
+def _merge_remote_history(repo: Path, db: DatabaseManager) -> None:
+    """Trae main y fusiona su histórico antes de exportar, para no pisar liquidaciones."""
+    if _git(repo, "fetch", "origin", "main").returncode != 0:
+        print("⚠️ No se pudo leer main remoto: se sube solo el histórico local.")
+        return
+    remote_history = _git(repo, "show", f"FETCH_HEAD:{HISTORY_FILE}")
+    if remote_history.returncode == 0:
+        merged = db.merge_history(remote_history.stdout)
+        if merged:
+            print(f"🔄 {merged} partidos actualizados desde el histórico remoto.")
+    xg_path = repo / XG_FILE
+    local_xg = json.loads(xg_path.read_text(encoding="utf-8")) if xg_path.exists() else {}
+    remote_xg_raw = _git(repo, "show", f"FETCH_HEAD:{XG_FILE}")
+    remote_xg = json.loads(remote_xg_raw.stdout) if remote_xg_raw.returncode == 0 else {}
+    # Si esta copia va por detrás de main, avanza: el histórico se reescribe enseguida
+    # desde la base (que ya incluye lo remoto) y la caché de xG se vuelve a unir.
+    behind = _git(repo, "merge-base", "--is-ancestor", "HEAD", "FETCH_HEAD").returncode == 0
+    if behind and _git(repo, "rev-parse", "HEAD").stdout != _git(repo, "rev-parse", "FETCH_HEAD").stdout:
+        _git(repo, "checkout", "--", HISTORY_FILE, XG_FILE)
+        if _git(repo, "merge", "--ff-only", "FETCH_HEAD").returncode != 0:
+            print("⚠️ No se pudo avanzar a main remoto (hay otros cambios locales).")
+    if local_xg or remote_xg:
+        merged_xg = merge_xg_caches(local_xg, remote_xg)
+        merged_xg["matches"] = dict(sorted(merged_xg["matches"].items(), key=lambda kv: int(kv[0])))
+        xg_path.write_text(json.dumps(merged_xg, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+
+
 def cmd_sync(args: argparse.Namespace) -> None:
     repo = Path(__file__).resolve().parent
     db = DatabaseManager()
+    _merge_remote_history(repo, db)
     path = db.export_history()
     rel = path.relative_to(repo)
-    subprocess.run(["git", "add", str(rel)], cwd=repo, check=True)
-    xg_cache = repo / "history" / "flashscore_xg.json"
-    if xg_cache.exists():  # xG de Flashscore ya leído: se conserva para no gastar créditos otra vez
-        subprocess.run(["git", "add", str(xg_cache.relative_to(repo))], cwd=repo, check=True)
-    if subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=repo).returncode == 0:
+    _git(repo, "add", str(rel), check=True)
+    if (repo / XG_FILE).exists():  # xG de Flashscore ya leído: se conserva para no gastar créditos otra vez
+        _git(repo, "add", XG_FILE, check=True)
+    if _git(repo, "diff", "--cached", "--quiet").returncode == 0:
         print("El histórico ya está al día en git.")
         return
-    subprocess.run(["git", "commit", "-m", f"Histórico de predicciones {date.today().isoformat()}"], cwd=repo, check=True)
+    _git(repo, "commit", "-m", f"Histórico de predicciones {date.today().isoformat()}", check=True)
     push = subprocess.run(["git", "push", "origin", "HEAD:main"], cwd=repo)
     if push.returncode != 0:
         sys.exit(push.returncode)

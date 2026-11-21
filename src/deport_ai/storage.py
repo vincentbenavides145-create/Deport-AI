@@ -48,34 +48,92 @@ class DatabaseManager:
 
     # ------------------------------------------------------------------ histórico
     def _sync_from_history(self) -> None:
-        """Si la base no tiene un partido que sí está en el histórico, lo importa."""
+        """Al abrir la base, incorpora lo que el histórico del repositorio tenga de más."""
         if self.history_path is None or not self.history_path.exists():
             return
+        self.merge_history(self.history_path.read_text(encoding="utf-8"))
+
+    def merge_history(self, text: str) -> int:
+        """Fusiona un histórico (JSONL) con la base local sin perder liquidaciones.
+
+        - Un partido que la base no tiene se importa entero. Los ``id`` de las
+          predicciones no se copian: cada base numera las suyas, y copiarlos chocaba
+          con la clave primaria cuando el histórico venía de otra base.
+        - Un partido que la base ya tiene conserva sus predicciones, pero si el
+          histórico ya lo liquidó y la base no, se copia el resultado y el estado de
+          cada predicción (emparejada por mercado y selección). Una versión local
+          antigua ya no pisa la liquidación más reciente.
+
+        Si algo cambia, recalcula la calibración: la tabla de calibración no viaja en
+        el histórico y una base reconstruida la necesita sin esperar a ``track.py update``.
+        Devuelve cuántos partidos se importaron o actualizaron.
+        """
+        changed = 0
         with self._get_connection() as conn:
-            known = {row[0] for row in conn.execute("SELECT fixture_id FROM tracked_fixtures")}
+            local = {row["fixture_id"]: row["status"] for row in conn.execute(
+                "SELECT fixture_id, status FROM tracked_fixtures")}
             fixture_cols = {row[1] for row in conn.execute("PRAGMA table_info(tracked_fixtures)")}
-            pred_cols = {row[1] for row in conn.execute("PRAGMA table_info(tracked_predictions)")}
-            for line in self.history_path.read_text(encoding="utf-8").splitlines():
+            pred_cols = {row[1] for row in conn.execute("PRAGMA table_info(tracked_predictions)")} - {"id"}
+            for line in text.splitlines():
                 if not line.strip():
                     continue
                 record = json.loads(line)
-                if record.get("fixture_id") in known:
-                    continue
+                fid = record.get("fixture_id")
                 fixture = {k: v for k, v in record.items() if k in fixture_cols}
-                cols = ", ".join(fixture)
-                conn.execute(
-                    f"INSERT INTO tracked_fixtures ({cols}) VALUES ({', '.join('?' for _ in fixture)})",
-                    list(fixture.values()),
-                )
-                for pred in record.get("predictions", []):
-                    row = {k: v for k, v in pred.items() if k in pred_cols}
+                preds = [{k: v for k, v in p.items() if k in pred_cols} for p in record.get("predictions", [])]
+                if fid not in local:
                     conn.execute(
-                        f"INSERT INTO tracked_predictions ({', '.join(row)}) VALUES ({', '.join('?' for _ in row)})",
-                        list(row.values()),
+                        f"INSERT INTO tracked_fixtures ({', '.join(fixture)}) VALUES ({', '.join('?' for _ in fixture)})",
+                        list(fixture.values()),
                     )
-
-        with self._get_connection() as conn:
+                    for row in preds:
+                        row["fixture_id"] = fid
+                        conn.execute(
+                            f"INSERT INTO tracked_predictions ({', '.join(row)}) VALUES ({', '.join('?' for _ in row)})",
+                            list(row.values()),
+                        )
+                    local[fid] = fixture.get("status", "PENDING")
+                    changed += 1
+                    continue
+                if self._merge_settlement(conn, fid, local[fid], fixture, preds):
+                    local[fid] = fixture.get("status", local[fid])
+                    changed += 1
             _migrate_shots_on_target_labels(conn)
+        if changed:
+            from .dynamic_calibration import DynamicCalibrator  # import local: evita el ciclo
+
+            DynamicCalibrator(self).recompute_calibrations()
+        return changed
+
+    @staticmethod
+    def _merge_settlement(
+        conn: sqlite3.Connection,
+        fixture_id: int,
+        local_status: str,
+        fixture: dict[str, Any],
+        preds: list[dict[str, Any]],
+    ) -> bool:
+        """Copia la liquidación del histórico a un partido local que sigue pendiente."""
+        changed = False
+        if local_status == "PENDING" and fixture.get("status", "PENDING") != "PENDING":
+            result = {k: v for k, v in fixture.items() if k not in ("fixture_id", "created_at")}
+            conn.execute(
+                f"UPDATE tracked_fixtures SET {', '.join(f'{k} = ?' for k in result)} WHERE fixture_id = ?",
+                [*result.values(), fixture_id],
+            )
+            changed = True
+        for pred in preds:
+            if pred.get("status", "PENDING") == "PENDING":
+                continue
+            cur = conn.execute(
+                """
+                UPDATE tracked_predictions SET status = ?, pnl = ?
+                WHERE fixture_id = ? AND market = ? AND selection = ? AND status = 'PENDING'
+                """,
+                (pred["status"], pred.get("pnl"), fixture_id, pred.get("market"), pred.get("selection")),
+            )
+            changed = changed or cur.rowcount > 0
+        return changed
 
     def export_history(self) -> Path | None:
         """Escribe todo el seguimiento (partidos + predicciones) en el histórico de texto."""
@@ -470,31 +528,6 @@ class DatabaseManager:
                     now_iso,
                 ),
             )
-
-    def purge_synthetic_seed(self) -> int:
-        """Borra los partidos ficticios que generaba el antiguo auto-seed de calibración.
-
-        Se identifican por la firma exacta que usaba ese código: visitante 'Visitante'
-        y liga 'Liga'. Devuelve el número de partidos eliminados.
-        """
-        with self._get_connection() as conn:
-            ids = [
-                row[0]
-                for row in conn.execute(
-                    "SELECT fixture_id FROM tracked_fixtures "
-                    "WHERE away_team_name = 'Visitante' AND league_name = 'Liga'"
-                ).fetchall()
-            ]
-            if not ids:
-                return 0
-            marks = ",".join("?" for _ in ids)
-            conn.execute(f"DELETE FROM tracked_predictions WHERE fixture_id IN ({marks})", ids)
-            conn.execute(f"DELETE FROM tracked_fixtures WHERE fixture_id IN ({marks})", ids)
-            return len(ids)
-
-    def clear_calibration(self) -> None:
-        with self._get_connection() as conn:
-            conn.execute("DELETE FROM dynamic_calibration")
 
     def get_calibration(
         self,

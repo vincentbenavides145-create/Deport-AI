@@ -82,14 +82,18 @@ def extract_match_actual_stats(fixture_detail: dict[str, Any]) -> dict[str, Any]
     offsides_home = _get_stat(home_stats, ("Offsides", "OFFSIDES"))
     offsides_away = _get_stat(away_stats, ("Offsides", "OFFSIDES"))
 
-    # Sportmonks omite los tiros al palo cuando no hubo: en un partido con estadísticas
-    # completas su ausencia es 0; sin estadísticas no se sabe y queda sin resolver.
-    woodwork_h = _get_stat(home_stats, ("Hit Woodwork", "HIT_WOODWORK", "WOODWORK"))
-    woodwork_a = _get_stat(away_stats, ("Hit Woodwork", "HIT_WOODWORK", "WOODWORK"))
-    if woodwork_h is None and woodwork_a is None and not (_is_detailed(home_stats) and _is_detailed(away_stats)):
-        total_woodwork = None
-    else:
+    # Sportmonks omite los tiros al palo cuando no hubo: si un equipo tiene estadísticas
+    # completas su ausencia es 0; si no las tiene, su dato es desconocido. El total solo
+    # se conoce con los dos equipos, salvo que el conocido ya sume alguno (basta para
+    # saber que hubo tiro al palo en el partido).
+    woodwork_h = _woodwork(home_stats)
+    woodwork_a = _woodwork(away_stats)
+    if woodwork_h is not None and woodwork_a is not None:
+        total_woodwork = woodwork_h + woodwork_a
+    elif (woodwork_h or 0) + (woodwork_a or 0) > 0:
         total_woodwork = (woodwork_h or 0) + (woodwork_a or 0)
+    else:
+        total_woodwork = None
 
     # Goles por mitad. El cliente entrega "halftime" (1T) y "second_half" (solo 2T);
     # un payload crudo trae "scores", donde "2ND_HALF" es acumulado y "2ND_HALF_ONLY" es el 2T.
@@ -174,6 +178,14 @@ def extract_match_actual_stats(fixture_detail: dict[str, Any]) -> dict[str, Any]
         # esas selecciones se anulan en vez de quedar pendientes para siempre.
         "detailed": _is_detailed(home_stats) and _is_detailed(away_stats),
     }
+
+
+def _woodwork(stats: dict[str, float]) -> int | None:
+    """Tiros al palo de un equipo: su dato, 0 si tiene estadísticas completas, o None."""
+    for key in ("Hit Woodwork", "HIT_WOODWORK", "WOODWORK"):
+        if key in stats:
+            return int(stats[key])
+    return 0 if _is_detailed(stats) else None
 
 
 def _is_detailed(stats: dict[str, float]) -> bool:
