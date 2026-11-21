@@ -15842,6 +15842,22 @@
    "xa_home": 1.6,
    "xa_away": 0.62
   },
+  "19722094": {
+   "mid": "0lPbl16l",
+   "date": "2026-11-21",
+   "home": "Tottenham Hotspur",
+   "away": "Ipswich Town",
+   "xg_home": 2.69,
+   "xg_away": 0.38,
+   "big_chances_home": 3.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 36.0,
+   "box_touches_away": 21.0,
+   "xgot_home": 4.46,
+   "xgot_away": 0.99,
+   "xa_home": 1.43,
+   "xa_away": 0.48
+  },
   "19722104": {
    "mid": "2ZAFSppS",
    "date": "2026-11-08",

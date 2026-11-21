@@ -59,7 +59,7 @@ class FakeRefereeClient(SportmonksClient):
 
 
 def test_fixture_referee_picks_main_referee():
-    assert FakeRefereeClient().fixture_referee(10) == {"referee_id": 29044, "season_id": 26763}
+    assert FakeRefereeClient().fixture_referee(10) == {"referee_id": 29044, "season_id": 26763, "name": None}
     assert FakeRefereeClient().fixture_referee(None) is None
 
 
@@ -81,7 +81,7 @@ def _match(i):
 
 
 def test_player_props_and_offsides_are_suspended_by_default():
-    assert SUSPENDED_CATEGORIES == {"Jugadores", "Fueras de juego"}
+    assert SUSPENDED_CATEGORIES == {"Jugadores", "Fueras de juego", "Mitades"}
     probs = ProbabilityReport(
         home_win=0.5, draw=0.25, away_win=0.25, over_15=0.7, over_25=0.5, under_25=0.5, btts=0.5,
         expected_home_goals=1.4, expected_away_goals=1.1, score_matrix=[[1.0]],
@@ -149,3 +149,14 @@ def test_cards_dispersion_follows_validated_values():
     assert without.dispersion_cards == 0.15
     assert with_ref.dispersion_cards == 0.05
     assert with_ref.cards_home + with_ref.cards_away > without.cards_home + without.cards_away
+
+
+def test_report_shows_the_referee_used_in_the_card_projection():
+    from types import SimpleNamespace
+
+    from deport_ai.formatter import _referee_suffix
+
+    used = SimpleNamespace(referee={"name": "Chris Kavanagh", "cards_per_match": 4.355, "matches": 72})
+    assert _referee_suffix(used) == " (árbitro Chris Kavanagh: 4.36 por partido en 72)"
+    assert _referee_suffix(SimpleNamespace(referee={"name": "X", "cards_per_match": 5.0, "matches": 3})) == ""
+    assert _referee_suffix(SimpleNamespace(referee=None)) == ""

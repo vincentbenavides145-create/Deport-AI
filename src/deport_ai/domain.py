@@ -166,6 +166,8 @@ class AnalysisReport:
     dynamic_calibration_info: Any = None
     top_pick: dict[str, Any] | None = None
     featured_markets: list[dict[str, Any]] = field(default_factory=list)
+    # Árbitro asignado cuyo promedio de tarjetas entra en la proyección (nombre, promedio, partidos).
+    referee: dict[str, Any] | None = None
 
     def json_payload(self) -> dict[str, Any]:
         """Datos cerrados del análisis para la salida JSON (`analyze.py --json`)."""

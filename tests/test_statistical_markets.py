@@ -1,5 +1,20 @@
+"""Mecánica del catálogo (líneas, familias, formato). Estas pruebas fijan el piso anterior
+del 60 % y no exigen calibración propia a los "Menos de": la política de publicación
+(75 %, lados calibrados, categorías suspendidas) se prueba en test_publication_policy.py."""
+
+from functools import partial
+
+import pytest
+
+import deport_ai.statistical_markets as statistical_markets
 from deport_ai.domain import ExpectedMetrics, ProbabilityReport, Team
-from deport_ai.statistical_markets import select_statistical_markets
+
+select_statistical_markets = partial(statistical_markets.select_statistical_markets, minimum_probability=0.60)
+
+
+@pytest.fixture(autouse=True)
+def _catalog_mechanics_only(monkeypatch):
+    monkeypatch.setattr(statistical_markets, "UNDER_NEEDS_OWN_CALIBRATION", frozenset())
 
 
 def _probabilities() -> ProbabilityReport:
@@ -564,7 +579,7 @@ def test_creative_markets_generation_and_selection():
         shots_on_away=3.2,
     )
 
-    markets = select_statistical_markets(home, away, probs, expected)
+    markets = select_statistical_markets(home, away, probs, expected, suspended_categories=frozenset())
 
     selections = [m["selection"] for m in markets]
 

@@ -10,22 +10,27 @@ from .markets_catalog import (
     MarketDefinition,
     build_declarative_catalog,
 )
-from .dynamic_calibration import MIN_CALIBRATION_SAMPLE
+from .dynamic_calibration import MIN_CALIBRATION_SAMPLE, factor_for, selection_side, side_key
 from .odds import MIN_EDGE, expected_value, odds_key_for_candidate
 from .presentation_catalog import MarketPresentationCatalog, get_exigence_score
 from .stats_engine import CARDS_KEY, negative_binomial_pmf, stat_value
 
 
-MINIMUM_PROBABILITY = 0.60
+# Mínimo publicado: en resultados reales (17-21/11/2026) el acierto siguió a la probabilidad
+# (73 % prometido, 73 % acertado); solo desde el 75 % se acercaba al 80 % de acierto.
+MINIMUM_PROBABILITY = 0.75
 MAXIMUM_PROBABILITY = 0.88
 # Filtro de coherencia: muestra mínima para citar un historial y desvío máximo tolerado
 # entre la probabilidad del modelo y la tasa histórica que se cita como justificación.
 MIN_EVIDENCE_SAMPLE = 6
 MAX_MODEL_GAP = 0.20
-# Categorías suspendidas tras medir resultados reales (17-19/11/2026): props de jugador
-# (50% de acierto con 70% prometido) y fueras de juego (54% con 73%). Se siguen calculando
-# para el backtest, pero no se publican hasta que el modelo demuestre acierto.
-SUSPENDED_CATEGORIES: frozenset[str] = frozenset({"Jugadores", "Fueras de juego"})
+# Categorías suspendidas tras medir resultados reales: props de jugador (54 % de acierto
+# con 70 % prometido), fueras de juego (54 % con 73 %) y mitades (61 % con 67 %). Se siguen
+# calculando para el backtest, pero no se publican hasta que el modelo demuestre acierto.
+SUSPENDED_CATEGORIES: frozenset[str] = frozenset({"Jugadores", "Fueras de juego", "Mitades"})
+# Conteos cuyos "Menos de" salieron sobreconfiados en resultados reales: solo se publican
+# cuando ese lado tiene su propia calibración (30+ predicciones liquidadas).
+UNDER_NEEDS_OWN_CALIBRATION: frozenset[str] = frozenset({"Córners", "Tarjetas", "Tiros al arco", "Remates", "Faltas"})
 
 
 def _safe_complement(p: float | None) -> float | None:
@@ -1030,9 +1035,12 @@ def select_statistical_markets(
             continue
 
         cat = c.get("category", "")
-        # Si existe calibración dinámica activa para esta categoría, aplicar factor empírico
-        if cat in cat_factors:
-            f_info = cat_factors[cat]
+        side = selection_side(c)
+        if cat in UNDER_NEEDS_OWN_CALIBRATION and side == "under" and side_key(cat, side) not in cat_factors:
+            continue
+        # Factor empírico del lado de la categoría (o de la categoría) si hay calibración activa.
+        f_info = factor_for(cat_factors, cat, side)
+        if f_info:
             shrinkage = f_info.get("shrinkage_factor", 1.0)
             hit_rate = f_info.get("hit_rate", 0.0)
             sample_size = f_info.get("sample_size", 0)

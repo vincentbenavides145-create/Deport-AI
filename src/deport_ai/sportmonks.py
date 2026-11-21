@@ -622,16 +622,21 @@ class SportmonksClient:
         return result
 
     def fixture_referee(self, fixture_id: int | None) -> dict[str, Any] | None:
-        """Árbitro principal asignado al partido (tipo 6 de Sportmonks) y la temporada."""
+        """Árbitro principal asignado al partido (tipo 6 de Sportmonks), su nombre y la temporada."""
         if not fixture_id:
             return None
         try:
-            raw = self._get(f"fixtures/{fixture_id}", include="referees")
+            raw = self._get(f"fixtures/{fixture_id}", include="referees.referee")
         except Exception:
             return None
         for row in (raw or {}).get("referees") or []:
             if int(row.get("type_id") or -1) == MAIN_REFEREE_TYPE and row.get("referee_id"):
-                return {"referee_id": int(row["referee_id"]), "season_id": (raw or {}).get("season_id")}
+                person = row.get("referee") or {}
+                return {
+                    "referee_id": int(row["referee_id"]),
+                    "season_id": (raw or {}).get("season_id"),
+                    "name": person.get("display_name") or person.get("common_name"),
+                }
         return None
 
     def referee_card_rate(self, referee_id: int, exclude_season: int | None = None) -> tuple[float, int] | None:

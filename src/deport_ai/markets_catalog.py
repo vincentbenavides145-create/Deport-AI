@@ -17,7 +17,6 @@ class MarketDefinition:
     probability_source: str
     projection_source: str | None
     explanation_template: str
-    minimum_probability: float = 0.60
     requires_starter_confirmation: bool = False
     is_experimental: bool = False
 

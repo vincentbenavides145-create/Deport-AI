@@ -5,6 +5,17 @@ from typing import Any
 
 from .dynamic_calibration import MIN_CALIBRATION_SAMPLE
 from .domain import AnalysisReport
+from .statistical_markets import MINIMUM_PROBABILITY
+from .stats_engine import REFEREE_MIN_MATCHES
+
+
+def _referee_suffix(report: AnalysisReport) -> str:
+    """Árbitro cuyo promedio entra en la proyección de tarjetas (si dirigió lo suficiente)."""
+    referee = getattr(report, "referee", None)
+    if not referee or referee.get("matches", 0) < REFEREE_MIN_MATCHES:
+        return ""
+    name = referee.get("name") or "asignado"
+    return f" (árbitro {name}: {referee['cards_per_match']:.2f} por partido en {referee['matches']})"
 
 
 def _sum_optional(first: float | None, second: float | None) -> float | None:
@@ -38,7 +49,7 @@ def format_adaptive_report(report: AnalysisReport, full: bool = False) -> str:
 
     # 2.5 Pick Recomendado Oficial
     top_pick = getattr(report, "top_pick", None)
-    if top_pick and top_pick.get("probability", 0.0) >= 0.60:
+    if top_pick and top_pick.get("probability", 0.0) >= MINIMUM_PROBABILITY:
         sel = top_pick.get("selection", "")
         prob = top_pick.get("probability", 0.0)
         expl = top_pick.get("explanation", "").strip()
@@ -77,7 +88,7 @@ def format_adaptive_report(report: AnalysisReport, full: bool = False) -> str:
             markets_by_cat[cat].append(m)
 
     # El Pick Recomendado ya se muestra arriba: no se repite dentro de su categoría.
-    top_selection = top_pick.get("selection") if top_pick and top_pick.get("probability", 0.0) >= 0.60 else None
+    top_selection = top_pick.get("selection") if top_pick and top_pick.get("probability", 0.0) >= MINIMUM_PROBABILITY else None
 
     if not full:
         featured = list(getattr(report, "featured_markets", None) or [])
@@ -139,7 +150,7 @@ def format_adaptive_report(report: AnalysisReport, full: bool = False) -> str:
     if total_corners is not None:
         lines.append(f"• **Córners estimados:** {total_corners:.2f}  ")
     if total_cards is not None:
-        lines.append(f"• **Tarjetas estimadas:** {total_cards:.2f}  ")
+        lines.append(f"• **Tarjetas estimadas:** {total_cards:.2f}{_referee_suffix(report)}  ")
     if total_shots is not None:
         lines.append(f"• **Remates estimados:** {total_shots:.1f}  ")
     lines.append(f"• **Marcador más probable:** {best_score_str} ({best_score_prob * 100:.1f}%)")

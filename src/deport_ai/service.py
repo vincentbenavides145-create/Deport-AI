@@ -228,7 +228,8 @@ class AnalysisService:
             away_name=away.name,
             club_tier_scale=model_params.club_tier_scale,
         )
-        referee_cards = self._referee_cards(fixture_id) if REFEREE_FACTOR_ENABLED else None
+        referee = self._referee(fixture_id) if REFEREE_FACTOR_ENABLED else None
+        referee_cards = (referee["cards_per_match"], referee["matches"]) if referee else None
         altitude_impact = detect_altitude_impact(home.id, home.name, away.id, away.name, home.country, away.country)
         absence_home, absence_away, absence_notes = self._absences(
             fixture_id, fixture.date if fixture else None, home, away, home_matches, away_matches
@@ -375,6 +376,7 @@ class AnalysisService:
             dynamic_calibration_info=calibration,
             top_pick=top_pick,
             featured_markets=featured,
+            referee=referee,
         )
 
         should_track = self.auto_track if track is None else track
@@ -400,15 +402,18 @@ class AnalysisService:
 
         return report
 
-    def _referee_cards(self, fixture_id: int | None) -> tuple[float, int] | None:
-        """Promedio de tarjetas del árbitro asignado, si el proveedor lo publica."""
+    def _referee(self, fixture_id: int | None) -> dict[str, Any] | None:
+        """Árbitro asignado con su promedio de tarjetas, si el proveedor lo publica."""
         if not fixture_id or not hasattr(self.api, "fixture_referee"):
             return None
         try:
             referee = self.api.fixture_referee(fixture_id)
-            return self.api.referee_card_rate(referee["referee_id"]) if referee else None
+            rate = self.api.referee_card_rate(referee["referee_id"]) if referee else None
         except Exception:
             return None
+        if not rate:
+            return None
+        return {"name": referee.get("name"), "cards_per_match": rate[0], "matches": rate[1]}
 
     @staticmethod
     def _orientation(first: Team, second: Team, fixture: MatchRef | None) -> tuple[Team, Team]:

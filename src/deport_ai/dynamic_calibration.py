@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from dataclasses import dataclass
 from statistics import fmean
@@ -16,6 +17,34 @@ CREDIBILITY_K = 50.0
 # Goles no se corrige aquí: sus probabilidades salen de la matriz de marcadores, que ya
 # está calculada, y mover solo los goles esperados dejaría cifras que no corresponden.
 TOTAL_MARKETS = {"Córners": "Córners totales", "Tarjetas": "Tarjetas totales"}
+# Además de por categoría, se calibra por lado (Más/Menos): en resultados reales los
+# "Menos de" de córners, tarjetas y tiros al arco acertaron 58-64 % con 71-75 % prometido,
+# y los "Más de" iban bien; un solo factor por categoría mezclaba ambos y no corregía nada.
+SIDES = ("over", "under")
+_SIDE_RE = re.compile(r"\b(Más|Menos) de\b", re.IGNORECASE)
+
+
+def side_key(category: str, side: str) -> str:
+    """Clave de calibración de un lado de la categoría, p. ej. "Córners|under"."""
+    return f"{category}|{side}"
+
+
+def selection_side(item: dict[str, Any]) -> str | None:
+    """Lado (over/under) de una predicción o candidato: su campo `side` o el texto."""
+    side = item.get("side")
+    if side in SIDES:
+        return side
+    match = _SIDE_RE.search(str(item.get("selection") or ""))
+    if not match:
+        return None
+    return "over" if match.group(1).lower() == "más" else "under"
+
+
+def factor_for(category_factors: dict[str, dict[str, float]], category: str, side: str | None) -> dict[str, float] | None:
+    """Factor del lado de la categoría si tiene muestra propia; si no, el de la categoría."""
+    if side in SIDES and side_key(category, side) in category_factors:
+        return category_factors[side_key(category, side)]
+    return category_factors.get(category)
 
 
 @dataclass
@@ -52,8 +81,13 @@ class DynamicCalibrator:
                 continue
             l_id = p.get("league_id") or 0
             cat = p.get("category", "")
-            grouped[(l_id, cat)].append(p)
-            global_grouped[cat].append(p)
+            keys = [cat]
+            side = selection_side(p)
+            if side:
+                keys.append(side_key(cat, side))
+            for key in keys:
+                grouped[(l_id, key)].append(p)
+                global_grouped[key].append(p)
 
         updated_count = 0
 
@@ -61,7 +95,7 @@ class DynamicCalibrator:
         for (l_id, cat), items in grouped.items():
             if len(items) < min_sample:
                 continue
-            factor_entry = self._calculate_factor_entry(items)
+            factor_entry = self._entry(cat, items)
             self.db.save_calibration(
                 league_id=l_id,
                 category=cat,
@@ -76,7 +110,7 @@ class DynamicCalibrator:
         # 2. Calibraciones Globales (league_id = 0)
         for cat, items in global_grouped.items():
             if len(items) >= min_sample:
-                factor_entry = self._calculate_factor_entry(items)
+                factor_entry = self._entry(cat, items)
                 self.db.save_calibration(
                     league_id=0,
                     category=cat,
@@ -89,6 +123,15 @@ class DynamicCalibrator:
                 updated_count += 1
 
         return updated_count
+
+    @classmethod
+    def _entry(cls, key: str, items: list[dict[str, Any]]) -> dict[str, Any]:
+        # El sesgo de proyección es del total del partido: solo vale en la fila de la
+        # categoría (una fila de lado es un subconjunto elegido por su resultado esperado).
+        entry = cls._calculate_factor_entry(items)
+        if "|" in key:
+            entry["bias_offset"] = 0.0
+        return entry
 
     @staticmethod
     def _calculate_factor_entry(items: list[dict[str, Any]]) -> dict[str, Any]:
@@ -152,10 +195,13 @@ class DynamicCalibrator:
 
     def get_calibration_summary(self, league_id: int | None, league_name: str | None = None) -> DynamicCalibrationSummary:
         """Construye un resumen de calibración aplicable para la liga o global."""
-        rows = self.db.get_calibration(league_id=league_id)
-        if not rows and league_id != 0:
-            # Fallback a calibración global
-            rows = self.db.get_calibration(league_id=0)
+        # Lo de la liga manda; lo que la liga aún no tiene (p. ej. un lado con muestra
+        # propia) se toma de la calibración global.
+        merged: dict[str, dict[str, Any]] = {}
+        if league_id != 0:
+            merged.update({r["category"]: r for r in self.db.get_calibration(league_id=0)})
+        merged.update({r["category"]: r for r in self.db.get_calibration(league_id=league_id)})
+        rows = list(merged.values())
 
         if not rows:
             return DynamicCalibrationSummary(
@@ -183,14 +229,16 @@ class DynamicCalibrator:
             sh = float(r["shrinkage_factor"])
             bias = float(r["bias_offset"])
 
-            total_samples += sz
-            total_won_weighted += (hr * sz)
             cat_factors[cat] = {
                 "hit_rate": hr,
                 "shrinkage_factor": sh,
                 "bias_offset": bias,
                 "sample_size": sz,
             }
+            if "|" in cat:
+                continue  # las filas por lado no se suman al total (ya están en su categoría)
+            total_samples += sz
+            total_won_weighted += (hr * sz)
             if abs(bias) >= 0.3:
                 bias_offsets[cat] = bias
 
