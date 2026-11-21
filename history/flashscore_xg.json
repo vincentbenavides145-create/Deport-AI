@@ -11137,6 +11137,22 @@
    "xa_home": 1.65,
    "xa_away": 1.05
   },
+  "19735118": {
+   "mid": "IZzmtYqB",
+   "date": "2026-11-08",
+   "home": "FC Köln",
+   "away": "Bayer 04 Leverkusen",
+   "xg_home": 1.61,
+   "xg_away": 1.87,
+   "big_chances_home": 3.0,
+   "big_chances_away": 4.0,
+   "box_touches_home": 23.0,
+   "box_touches_away": 33.0,
+   "xgot_home": 1.11,
+   "xgot_away": 4.59,
+   "xa_home": 0.76,
+   "xa_away": 1.27
+  },
   "19735119": {
    "mid": "pMxurfFb",
    "date": "2026-11-06",
@@ -11329,6 +11345,22 @@
    "xa_home": 1.63,
    "xa_away": 1.84
   },
+  "19735133": {
+   "mid": "nFCn4vXg",
+   "date": "2026-10-31",
+   "home": "Bayer 04 Leverkusen",
+   "away": "VfB Stuttgart",
+   "xg_home": 1.79,
+   "xg_away": 2.61,
+   "big_chances_home": 4.0,
+   "big_chances_away": 5.0,
+   "box_touches_home": 46.0,
+   "box_touches_away": 16.0,
+   "xgot_home": 1.54,
+   "xgot_away": 3.19,
+   "xa_home": 2.23,
+   "xa_away": 1.41
+  },
   "19735134": {
    "mid": "E1Ev602s",
    "date": "2026-10-31",
@@ -11344,6 +11376,22 @@
    "xgot_away": 1.55,
    "xa_home": 1.54,
    "xa_away": 1.07
+  },
+  "19735135": {
+   "mid": "82n7O8I8",
+   "date": "2026-10-24",
+   "home": "Paderborn",
+   "away": "Hamburger SV",
+   "xg_home": 1.37,
+   "xg_away": 0.46,
+   "big_chances_home": 2.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 36.0,
+   "box_touches_away": 13.0,
+   "xgot_home": 1.0,
+   "xgot_away": 0.65,
+   "xa_home": 1.74,
+   "xa_away": 0.63
   },
   "19735138": {
    "mid": "Cber8mYR",
@@ -11457,6 +11505,22 @@
    "xa_home": 1.16,
    "xa_away": 2.06
   },
+  "19735146": {
+   "mid": "Esx3itWj",
+   "date": "2026-10-17",
+   "home": "Werder Bremen",
+   "away": "Paderborn",
+   "xg_home": 3.21,
+   "xg_away": 1.15,
+   "big_chances_home": 5.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 36.0,
+   "box_touches_away": 22.0,
+   "xgot_home": 3.56,
+   "xgot_away": 1.29,
+   "xa_home": 1.83,
+   "xa_away": 1.02
+  },
   "19735148": {
    "mid": "zZsPbOwH",
    "date": "2026-10-18",
@@ -11537,6 +11601,22 @@
    "xa_home": 3.53,
    "xa_away": 0.69
   },
+  "19735153": {
+   "mid": "vBppnofB",
+   "date": "2026-10-10",
+   "home": "Paderborn",
+   "away": "VfB Stuttgart",
+   "xg_home": 1.96,
+   "xg_away": 2.47,
+   "big_chances_home": 4.0,
+   "big_chances_away": 6.0,
+   "box_touches_home": 36.0,
+   "box_touches_away": 34.0,
+   "xgot_home": 0.4,
+   "xgot_away": 1.85,
+   "xa_home": 1.89,
+   "xa_away": 1.83
+  },
   "19735154": {
    "mid": "hfnxl7Pb",
    "date": "2026-10-11",
@@ -11568,6 +11648,22 @@
    "xgot_away": 0.15,
    "xa_home": 1.2,
    "xa_away": 0.72
+  },
+  "19735156": {
+   "mid": "f1XIrCmJ",
+   "date": "2026-10-10",
+   "home": "FSV Mainz 05",
+   "away": "Bayer 04 Leverkusen",
+   "xg_home": 3.13,
+   "xg_away": 2.09,
+   "big_chances_home": 4.0,
+   "big_chances_away": 6.0,
+   "box_touches_home": 32.0,
+   "box_touches_away": 26.0,
+   "xgot_home": 1.62,
+   "xgot_away": 2.8,
+   "xa_home": 1.91,
+   "xa_away": 1.75
   },
   "19735158": {
    "mid": "ENV2nflf",
@@ -11793,6 +11889,22 @@
    "xa_home": 1.15,
    "xa_away": 1.75
   },
+  "19735175": {
+   "mid": "Q3IOHrq3",
+   "date": "2026-09-12",
+   "home": "FC Augsburg",
+   "away": "Bayer 04 Leverkusen",
+   "xg_home": 1.11,
+   "xg_away": 2.64,
+   "big_chances_home": 1.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 9.0,
+   "box_touches_away": 54.0,
+   "xgot_home": 1.38,
+   "xgot_away": 1.63,
+   "xa_home": 0.73,
+   "xa_away": 2.73
+  },
   "19735176": {
    "mid": "Y9Vxfuid",
    "date": "2026-09-12",
@@ -12000,6 +12112,22 @@
    "xgot_away": 1.75,
    "xa_home": 1.1,
    "xa_away": 1.33
+  },
+  "19735192": {
+   "mid": "r7qK1G8e",
+   "date": "2026-08-29",
+   "home": "FSV Mainz 05",
+   "away": "Paderborn",
+   "xg_home": 1.23,
+   "xg_away": 0.73,
+   "big_chances_home": 2.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 36.0,
+   "box_touches_away": 19.0,
+   "xgot_home": 0.7,
+   "xgot_away": 0.0,
+   "xa_home": 2.28,
+   "xa_away": 1.16
   },
   "19735194": {
    "mid": "vBft9bGL",
