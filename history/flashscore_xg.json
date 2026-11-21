@@ -11121,6 +11121,22 @@
    "xa_home": 0.59,
    "xa_away": 0.42
   },
+  "19735117": {
+   "mid": "4jZfvCEN",
+   "date": "2026-11-07",
+   "home": "Paderborn",
+   "away": "Eintracht Frankfurt",
+   "xg_home": 2.23,
+   "xg_away": 1.75,
+   "big_chances_home": 5.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 31.0,
+   "box_touches_away": 21.0,
+   "xgot_home": 1.27,
+   "xgot_away": 1.28,
+   "xa_home": 1.65,
+   "xa_away": 1.05
+  },
   "19735119": {
    "mid": "pMxurfFb",
    "date": "2026-11-06",
@@ -11152,6 +11168,22 @@
    "xgot_away": 0.0,
    "xa_home": 1.96,
    "xa_away": 0.51
+  },
+  "19735122": {
+   "mid": "EJeFRYUH",
+   "date": "2026-11-08",
+   "home": "TSG Hoffenheim",
+   "away": "Schalke 04",
+   "xg_home": 2.23,
+   "xg_away": 2.6,
+   "big_chances_home": 5.0,
+   "big_chances_away": 4.0,
+   "box_touches_home": 26.0,
+   "box_touches_away": 38.0,
+   "xgot_home": 1.88,
+   "xgot_away": 1.04,
+   "xa_home": 0.98,
+   "xa_away": 1.38
   },
   "19735124": {
    "mid": "Eoz0VGVh",
@@ -11217,6 +11249,22 @@
    "xa_home": 0.61,
    "xa_away": 1.15
   },
+  "19735128": {
+   "mid": "Wv0SGHGa",
+   "date": "2026-10-31",
+   "home": "Werder Bremen",
+   "away": "TSG Hoffenheim",
+   "xg_home": 1.29,
+   "xg_away": 1.06,
+   "big_chances_home": 1.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 34.0,
+   "box_touches_away": 24.0,
+   "xgot_home": 1.56,
+   "xgot_away": 0.08,
+   "xa_home": 0.82,
+   "xa_away": 1.58
+  },
   "19735129": {
    "mid": "OEdKIwnm",
    "date": "2026-10-31",
@@ -11265,6 +11313,22 @@
    "xa_home": 1.28,
    "xa_away": 1.24
   },
+  "19735132": {
+   "mid": "fuGf2I16",
+   "date": "2026-11-01",
+   "home": "Eintracht Frankfurt",
+   "away": "Hamburger SV",
+   "xg_home": 1.95,
+   "xg_away": 1.16,
+   "big_chances_home": 3.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 30.0,
+   "box_touches_away": 23.0,
+   "xgot_home": 4.41,
+   "xgot_away": 0.82,
+   "xa_home": 1.63,
+   "xa_away": 1.84
+  },
   "19735134": {
    "mid": "E1Ev602s",
    "date": "2026-10-31",
@@ -11312,6 +11376,22 @@
    "xgot_away": 3.22,
    "xa_home": 1.73,
    "xa_away": 1.5
+  },
+  "19735140": {
+   "mid": "WKgSBVY2",
+   "date": "2026-10-25",
+   "home": "TSG Hoffenheim",
+   "away": "Bayer 04 Leverkusen",
+   "xg_home": 3.46,
+   "xg_away": 0.57,
+   "big_chances_home": 4.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 28.0,
+   "box_touches_away": 20.0,
+   "xgot_home": 2.24,
+   "xgot_away": 0.22,
+   "xa_home": 1.02,
+   "xa_away": 0.71
   },
   "19735141": {
    "mid": "4EFr4JFd",
@@ -11409,6 +11489,22 @@
    "xa_home": 0.82,
    "xa_away": 1.69
   },
+  "19735150": {
+   "mid": "ADR926vh",
+   "date": "2026-10-16",
+   "home": "Eintracht Frankfurt",
+   "away": "FC Köln",
+   "xg_home": 1.8,
+   "xg_away": 0.8,
+   "big_chances_home": 3.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 28.0,
+   "box_touches_away": 22.0,
+   "xgot_home": 1.78,
+   "xgot_away": 1.14,
+   "xa_home": 1.34,
+   "xa_away": 0.73
+  },
   "19735151": {
    "mid": "r7ZNv3no",
    "date": "2026-10-18",
@@ -11489,6 +11585,22 @@
    "xa_home": 1.12,
    "xa_away": 0.37
   },
+  "19735159": {
+   "mid": "8QSflGJs",
+   "date": "2026-10-10",
+   "home": "TSG Hoffenheim",
+   "away": "Hamburger SV",
+   "xg_home": 0.93,
+   "xg_away": 1.28,
+   "big_chances_home": 3.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 41.0,
+   "box_touches_away": 19.0,
+   "xgot_home": 0.68,
+   "xgot_away": 1.66,
+   "xa_home": 1.67,
+   "xa_away": 0.61
+  },
   "19735160": {
    "mid": "xrxPgxdK",
    "date": "2026-10-10",
@@ -11520,6 +11632,22 @@
    "xgot_away": 1.89,
    "xa_home": 2.43,
    "xa_away": 0.5
+  },
+  "19735162": {
+   "mid": "xOoVXfZ0",
+   "date": "2026-09-20",
+   "home": "Paderborn",
+   "away": "TSG Hoffenheim",
+   "xg_home": 0.68,
+   "xg_away": 1.5,
+   "big_chances_home": 2.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 16.0,
+   "box_touches_away": 60.0,
+   "xgot_home": 1.89,
+   "xgot_away": 0.55,
+   "xa_home": 1.27,
+   "xa_away": 2.95
   },
   "19735163": {
    "mid": "4dYNZG4l",
@@ -11649,6 +11777,22 @@
    "xa_home": 1.52,
    "xa_away": 1.16
   },
+  "19735174": {
+   "mid": "YTLWFMDF",
+   "date": "2026-09-12",
+   "home": "FSV Mainz 05",
+   "away": "Eintracht Frankfurt",
+   "xg_home": 2.12,
+   "xg_away": 2.04,
+   "big_chances_home": 3.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 31.0,
+   "box_touches_away": 24.0,
+   "xgot_home": 1.68,
+   "xgot_away": 2.72,
+   "xa_home": 1.15,
+   "xa_away": 1.75
+  },
   "19735176": {
    "mid": "Y9Vxfuid",
    "date": "2026-09-12",
@@ -11664,6 +11808,22 @@
    "xgot_away": 0.0,
    "xa_home": 1.26,
    "xa_away": 0.38
+  },
+  "19735177": {
+   "mid": "t2DVe1Mq",
+   "date": "2026-09-12",
+   "home": "TSG Hoffenheim",
+   "away": "VfB Stuttgart",
+   "xg_home": 2.76,
+   "xg_away": 2.16,
+   "big_chances_home": 5.0,
+   "big_chances_away": 5.0,
+   "box_touches_home": 31.0,
+   "box_touches_away": 31.0,
+   "xgot_home": 2.89,
+   "xgot_away": 1.78,
+   "xa_home": 1.48,
+   "xa_away": 1.69
   },
   "19735178": {
    "mid": "z3obE9xB",
@@ -11745,6 +11905,22 @@
    "xa_home": 1.54,
    "xa_away": 0.55
   },
+  "19735185": {
+   "mid": "4h625Egt",
+   "date": "2026-09-06",
+   "home": "Eintracht Frankfurt",
+   "away": "FC Augsburg",
+   "xg_home": 2.22,
+   "xg_away": 1.13,
+   "big_chances_home": 4.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 38.0,
+   "box_touches_away": 18.0,
+   "xgot_home": 3.34,
+   "xgot_away": 2.81,
+   "xa_home": 2.64,
+   "xa_away": 1.17
+  },
   "19735186": {
    "mid": "GdRhoB8O",
    "date": "2026-09-05",
@@ -11792,6 +11968,22 @@
    "xgot_away": 2.01,
    "xa_home": 0.66,
    "xa_away": 2.34
+  },
+  "19735190": {
+   "mid": "bcMB76dE",
+   "date": "2026-08-29",
+   "home": "FC Köln",
+   "away": "TSG Hoffenheim",
+   "xg_home": 1.95,
+   "xg_away": 1.88,
+   "big_chances_home": 4.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 30.0,
+   "box_touches_away": 34.0,
+   "xgot_home": 2.84,
+   "xgot_away": 1.99,
+   "xa_home": 0.65,
+   "xa_away": 1.24
   },
   "19735191": {
    "mid": "UNsSafw8",
