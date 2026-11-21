@@ -18498,6 +18498,22 @@
    "xa_home": 2.11,
    "xa_away": 0.31
   },
+  "19732621": {
+   "mid": "G6MoOrne",
+   "date": "2026-11-20",
+   "home": "Athletic Club",
+   "away": "Espanyol",
+   "xg_home": 1.45,
+   "xg_away": 0.53,
+   "big_chances_home": 3.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 26.0,
+   "box_touches_away": 11.0,
+   "xgot_home": 1.71,
+   "xgot_away": 0.57,
+   "xa_home": 1.09,
+   "xa_away": 0.66
+  },
   "19732624": {
    "mid": "4SrapZ2c",
    "date": "2026-11-07",
@@ -19745,6 +19761,22 @@
    "xgot_away": 0.09,
    "xa_home": 0.59,
    "xa_away": 0.42
+  },
+  "19735116": {
+   "mid": "zZPQYkxo",
+   "date": "2026-11-20",
+   "home": "FC Bayern München",
+   "away": "FC Köln",
+   "xg_home": 1.07,
+   "xg_away": 1.99,
+   "big_chances_home": 2.0,
+   "big_chances_away": 4.0,
+   "box_touches_home": 35.0,
+   "box_touches_away": 22.0,
+   "xgot_home": 0.38,
+   "xgot_away": 1.63,
+   "xa_home": 1.94,
+   "xa_away": 0.62
   },
   "19735117": {
    "mid": "4jZfvCEN",
