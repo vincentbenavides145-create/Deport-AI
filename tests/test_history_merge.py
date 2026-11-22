@@ -1,5 +1,6 @@
 """Histórico compartido, calibración con anuladas y tiros al palo con datos parciales."""
 
+import collections
 import json
 
 from deport_ai.dynamic_calibration import DynamicCalibrator
@@ -183,3 +184,81 @@ def test_removals_travel_in_the_history_to_other_copies(tmp_path):
     assert b.get_fixture(10) is None
     rebuilt = DatabaseManager(tmp_path / "c.db", history_path=tmp_path / "after.jsonl")
     assert rebuilt.get_fixture(10) is None
+
+
+# ---------------------------------------------------------------- revisión: fusión y calibración
+
+def test_recalibration_drops_rows_that_no_longer_reach_the_minimum(tmp_path):
+    db = DatabaseManager(tmp_path / "a.db")
+    for fid in range(1, 31):
+        _save(db, fid, [_pred("Más de 1.5 goles")])
+        _settle(db, fid, {"Más de 1.5 goles": "WON" if fid == 1 else "VOID"})
+    db.save_calibration(8, "Goles", 30, 1.0, 0.0, 0.0, 1.15)  # fila de antes del arreglo de anuladas
+    DynamicCalibrator(db).recompute_calibrations()
+    summary = DynamicCalibrator(db).get_calibration_summary(8)
+    assert summary.active is False and summary.category_factors == {}
+
+
+def test_history_correction_reaches_a_copy_that_had_it_settled(tmp_path):
+    a = DatabaseManager(tmp_path / "a.db")
+    _save(a, 50, [_pred("Más de 1.5 goles")])
+    _settle(a, 50, {"Más de 1.5 goles": "LOST"})
+    wrong = _history_of(a, tmp_path, "wrong.jsonl")
+    a.update_prediction_status(a.get_predictions_for_fixture(50)[0]["id"], "WON", 0.0)  # corrección
+    fixed = _history_of(a, tmp_path, "fixed.jsonl")
+
+    b = DatabaseManager(tmp_path / "b.db")
+    b.merge_history(wrong)
+    assert b.get_predictions_for_fixture(50)[0]["status"] == "LOST"
+    assert b.merge_history(fixed) == 1
+    assert b.get_predictions_for_fixture(50)[0]["status"] == "WON"  # antes: seguía LOST
+    assert b.merge_history(wrong) == 0  # la versión vieja ya no deshace la corrección
+    assert b.get_predictions_for_fixture(50)[0]["status"] == "WON"
+
+
+def test_fixture_registered_again_after_removal_survives_rebuild(tmp_path):
+    db = DatabaseManager(tmp_path / "a.db")
+    _save(db, 60, [_pred("Más de 1.5 goles")])
+    old = _history_of(db, tmp_path, "with_tombstone_later.jsonl")
+    db.remove_fixture(60, "prueba")
+    tombstoned = _history_of(db, tmp_path, "tombstoned.jsonl")
+    _save(db, 60, [_pred("Más de 2.5 goles")])  # se vuelve a analizar
+    again = _history_of(db, tmp_path, "again.jsonl")
+    assert '"removed": true' not in again
+
+    rebuilt = DatabaseManager(tmp_path / "r.db", history_path=tmp_path / "again.jsonl")
+    assert [p["selection"] for p in rebuilt.get_predictions_for_fixture(60)] == ["Más de 2.5 goles"]
+    # Una copia que solo conocía el borrado recupera el partido registrado después.
+    other = DatabaseManager(tmp_path / "o.db")
+    other.merge_history(old)
+    other.merge_history(tombstoned)
+    assert other.get_fixture(60) is None
+    other.merge_history(again)
+    assert [p["selection"] for p in other.get_predictions_for_fixture(60)] == ["Más de 2.5 goles"]
+    # Y un borrado viejo que llegue después no borra el registro posterior.
+    other.merge_history(tombstoned)
+    assert other.get_fixture(60) is not None
+
+
+def test_newest_pending_analysis_wins_between_copies(tmp_path):
+    x = DatabaseManager(tmp_path / "x.db")
+    _save(x, 70, [_pred("Más de 1.5 goles")])
+    older = _history_of(x, tmp_path, "older.jsonl")
+    y = DatabaseManager(tmp_path / "y.db")
+    _save(y, 70, [_pred("Menos de 3.5 goles"), _pred("Ambos marcan: Sí")])  # re-análisis posterior
+    newer = _history_of(y, tmp_path, "newer.jsonl")
+
+    assert x.merge_history(newer) == 1  # antes: x se quedaba con su análisis viejo
+    assert {p["selection"] for p in x.get_predictions_for_fixture(70)} == {"Menos de 3.5 goles", "Ambos marcan: Sí"}
+    assert y.merge_history(older) == 0  # el más viejo no pisa al nuevo
+    assert len(y.get_predictions_for_fixture(70)) == 2
+
+
+def test_backtest_chooses_the_pick_before_capping_like_the_real_analysis():
+    from backtest import synthetic_league
+    from deport_ai.backtesting import build_fixtures, run_walk_forward
+
+    by_team, names = synthetic_league()
+    result = run_walk_forward(build_fixtures(by_team, names), by_team)
+    shown = collections.Counter(r["fixture_id"] for r in result.records if r["shown"])
+    assert shown and max(shown.values()) <= 5

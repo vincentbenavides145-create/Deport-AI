@@ -92,6 +92,9 @@ class DynamicCalibrator:
     def recompute_calibrations(self, min_sample: int = MIN_CALIBRATION_SAMPLE) -> int:
         """Recalcula y actualiza los factores de calibración en la base de datos a partir de apuestas liquidadas."""
         settled = self.db.get_settled_predictions()
+        # Se reescribe entera: un grupo que ya no llega al mínimo (p. ej. porque las anuladas
+        # dejaron de contar) no debe quedar activo con su factor antiguo.
+        self.db.clear_calibration()
         if not settled:
             return 0
 

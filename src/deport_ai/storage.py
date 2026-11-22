@@ -71,19 +71,24 @@ class DatabaseManager:
         """
         changed = 0
         records = [json.loads(line) for line in text.splitlines() if line.strip()]
-        for record in records:
-            if record.get("removed"):
-                changed += self._record_removal(int(record["fixture_id"]), record.get("reason"), record.get("removed_at"))
+        removals = {int(r["fixture_id"]): r for r in records if r.get("removed")}
         with self._get_connection() as conn:
-            removed = {row[0] for row in conn.execute("SELECT fixture_id FROM removed_fixtures")}
-            local = {row["fixture_id"]: row["status"] for row in conn.execute(
-                "SELECT fixture_id, status FROM tracked_fixtures")}
+            for fid, removal in removals.items():
+                changed += self._apply_removal(conn, fid, removal.get("reason"), removal.get("removed_at"))
+            removed = {row[0]: row[1] for row in conn.execute("SELECT fixture_id, removed_at FROM removed_fixtures")}
+            local = {row["fixture_id"]: dict(row) for row in conn.execute(
+                "SELECT fixture_id, status, settled_at, created_at FROM tracked_fixtures")}
             fixture_cols = {row[1] for row in conn.execute("PRAGMA table_info(tracked_fixtures)")}
             pred_cols = {row[1] for row in conn.execute("PRAGMA table_info(tracked_predictions)")} - {"id"}
             for record in records:
                 fid = record.get("fixture_id")
-                if record.get("removed") or fid in removed:
+                if record.get("removed"):
                     continue
+                if fid in removed:
+                    # Registrado de nuevo después del borrado: el registro manda y la marca sobra.
+                    if (record.get("created_at") or "") <= (removed[fid] or ""):
+                        continue
+                    conn.execute("DELETE FROM removed_fixtures WHERE fixture_id = ?", (fid,))
                 fixture = {k: v for k, v in record.items() if k in fixture_cols}
                 preds = [{k: v for k, v in p.items() if k in pred_cols} for p in record.get("predictions", [])]
                 if fid not in local:
@@ -91,17 +96,11 @@ class DatabaseManager:
                         f"INSERT INTO tracked_fixtures ({', '.join(fixture)}) VALUES ({', '.join('?' for _ in fixture)})",
                         list(fixture.values()),
                     )
-                    for row in preds:
-                        row["fixture_id"] = fid
-                        conn.execute(
-                            f"INSERT INTO tracked_predictions ({', '.join(row)}) VALUES ({', '.join('?' for _ in row)})",
-                            list(row.values()),
-                        )
-                    local[fid] = fixture.get("status", "PENDING")
+                    self._insert_predictions(conn, fid, preds)
+                    local[fid] = fixture
                     changed += 1
                     continue
-                if self._merge_settlement(conn, fid, local[fid], fixture, preds):
-                    local[fid] = fixture.get("status", local[fid])
+                if self._merge_fixture(conn, fid, local[fid], fixture, preds):
                     changed += 1
             _migrate_shots_on_target_labels(conn)
         if changed:
@@ -112,49 +111,80 @@ class DatabaseManager:
 
     def remove_fixture(self, fixture_id: int, reason: str | None = None) -> bool:
         """Borra un partido y sus predicciones, y lo recuerda para que no vuelva por una fusión."""
-        return bool(self._record_removal(fixture_id, reason, None))
-
-    def _record_removal(self, fixture_id: int, reason: str | None, removed_at: str | None) -> int:
         with self._get_connection() as conn:
-            had = conn.execute("SELECT 1 FROM tracked_fixtures WHERE fixture_id = ?", (fixture_id,)).fetchone()
-            known = conn.execute("SELECT 1 FROM removed_fixtures WHERE fixture_id = ?", (fixture_id,)).fetchone()
-            conn.execute("DELETE FROM tracked_predictions WHERE fixture_id = ?", (fixture_id,))
-            conn.execute("DELETE FROM tracked_fixtures WHERE fixture_id = ?", (fixture_id,))
-            conn.execute(
-                "INSERT OR IGNORE INTO removed_fixtures (fixture_id, reason, removed_at) VALUES (?, ?, ?)",
-                (fixture_id, reason, removed_at or datetime.now(timezone.utc).isoformat()),
-            )
-        return int(bool(had) or not known)
+            return bool(self._apply_removal(conn, fixture_id, reason, None, force=True))
 
     @staticmethod
-    def _merge_settlement(
+    def _apply_removal(
+        conn: sqlite3.Connection, fixture_id: int, reason: str | None, removed_at: str | None, force: bool = False
+    ) -> int:
+        """Aplica un borrado. Uno que llega por fusión no borra un registro posterior a él."""
+        removed_at = removed_at or datetime.now(timezone.utc).isoformat()
+        row = conn.execute("SELECT created_at FROM tracked_fixtures WHERE fixture_id = ?", (fixture_id,)).fetchone()
+        if row and not force and (row[0] or "") > removed_at:
+            return 0
+        known = conn.execute("SELECT 1 FROM removed_fixtures WHERE fixture_id = ?", (fixture_id,)).fetchone()
+        conn.execute("DELETE FROM tracked_predictions WHERE fixture_id = ?", (fixture_id,))
+        conn.execute("DELETE FROM tracked_fixtures WHERE fixture_id = ?", (fixture_id,))
+        conn.execute(
+            "INSERT OR REPLACE INTO removed_fixtures (fixture_id, reason, removed_at) VALUES (?, ?, ?)",
+            (fixture_id, reason, removed_at),
+        )
+        return int(bool(row) or not known)
+
+    @staticmethod
+    def _insert_predictions(conn: sqlite3.Connection, fixture_id: int, preds: list[dict[str, Any]]) -> None:
+        for row in preds:
+            row = {**row, "fixture_id": fixture_id}
+            conn.execute(
+                f"INSERT INTO tracked_predictions ({', '.join(row)}) VALUES ({', '.join('?' for _ in row)})",
+                list(row.values()),
+            )
+
+    @classmethod
+    def _merge_fixture(
+        cls,
         conn: sqlite3.Connection,
         fixture_id: int,
-        local_status: str,
+        local: dict[str, Any],
         fixture: dict[str, Any],
         preds: list[dict[str, Any]],
     ) -> bool:
-        """Copia la liquidación del histórico a un partido local que sigue pendiente."""
-        changed = False
-        if local_status == "PENDING" and fixture.get("status", "PENDING") != "PENDING":
+        """Fusiona un partido que ambas versiones tienen.
+
+        - Liquidación: gana la más reciente (``settled_at``). Así una corrección hecha en
+          otra copia (p. ej. una perdida que pasa a ganada) llega aquí, y una copia vieja ya
+          no la deshace. Las predicciones se emparejan por mercado y selección.
+        - Sin liquidar en ninguna de las dos: gana el análisis más reciente (``created_at``
+          de sus predicciones), que es el que reemplazó al anterior.
+        """
+        incoming_settled = fixture.get("settled_at")
+        if incoming_settled and incoming_settled > (local.get("settled_at") or ""):
             result = {k: v for k, v in fixture.items() if k not in ("fixture_id", "created_at")}
             conn.execute(
                 f"UPDATE tracked_fixtures SET {', '.join(f'{k} = ?' for k in result)} WHERE fixture_id = ?",
                 [*result.values(), fixture_id],
             )
-            changed = True
-        for pred in preds:
-            if pred.get("status", "PENDING") == "PENDING":
-                continue
-            cur = conn.execute(
-                """
-                UPDATE tracked_predictions SET status = ?, pnl = ?
-                WHERE fixture_id = ? AND market = ? AND selection = ? AND status = 'PENDING'
-                """,
-                (pred["status"], pred.get("pnl"), fixture_id, pred.get("market"), pred.get("selection")),
-            )
-            changed = changed or cur.rowcount > 0
-        return changed
+            for pred in preds:
+                if pred.get("status", "PENDING") == "PENDING":
+                    continue
+                conn.execute(
+                    "UPDATE tracked_predictions SET status = ?, pnl = ? WHERE fixture_id = ? AND market = ? AND selection = ?",
+                    (pred["status"], pred.get("pnl"), fixture_id, pred.get("market"), pred.get("selection")),
+                )
+            local["settled_at"] = incoming_settled
+            return True
+        current = conn.execute(
+            "SELECT MAX(created_at), SUM(status != 'PENDING') FROM tracked_predictions WHERE fixture_id = ?",
+            (fixture_id,),
+        ).fetchone()
+        incoming_created = max((p.get("created_at") or "" for p in preds), default="")
+        all_pending = not current[1] and all(p.get("status", "PENDING") == "PENDING" for p in preds)
+        if preds and all_pending and incoming_created > (current[0] or ""):
+            conn.execute("DELETE FROM tracked_predictions WHERE fixture_id = ?", (fixture_id,))
+            cls._insert_predictions(conn, fixture_id, preds)
+            return True
+        return False
 
     def export_history(self) -> Path | None:
         """Escribe todo el seguimiento (partidos + predicciones) en el histórico de texto."""
@@ -333,6 +363,8 @@ class DatabaseManager:
                 ),
             )
 
+            # Volver a registrar un partido borrado lo restituye: la marca de borrado sobra.
+            conn.execute("DELETE FROM removed_fixtures WHERE fixture_id = ?", (fixture_id,))
             if replace_pending:
                 conn.execute(
                     "DELETE FROM tracked_predictions WHERE fixture_id = ? AND status = 'PENDING'", (fixture_id,)
@@ -497,6 +529,13 @@ class DatabaseManager:
                 """,
                 (status, pnl, prediction_id),
             )
+            # Cualquier liquidación o corrección cuenta como la más reciente del partido, para
+            # que la fusión del histórico la prefiera a una copia anterior.
+            conn.execute(
+                "UPDATE tracked_fixtures SET settled_at = ? WHERE fixture_id = "
+                "(SELECT fixture_id FROM tracked_predictions WHERE id = ?)",
+                (datetime.now(timezone.utc).isoformat(), prediction_id),
+            )
 
     def get_settled_predictions(
         self,
@@ -593,6 +632,11 @@ class DatabaseManager:
                     now_iso,
                 ),
             )
+
+    def clear_calibration(self) -> None:
+        """Vacía la calibración: cada recálculo la reescribe entera con los datos actuales."""
+        with self._get_connection() as conn:
+            conn.execute("DELETE FROM dynamic_calibration")
 
     def get_calibration(
         self,

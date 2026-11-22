@@ -34,7 +34,12 @@ from .stats_engine import (
     goal_probabilities,
     stat_value,
 )
-from .statistical_markets import calculate_candidate_markets, cap_selections, select_statistical_markets
+from .statistical_markets import (
+    calculate_candidate_markets,
+    cap_selections,
+    select_statistical_markets,
+    select_top_recommended_pick,
+)
 
 SELECTED_BINS = [0.60, 0.65, 0.70, 0.75, 0.80, 0.88]
 
@@ -232,7 +237,14 @@ def run_walk_forward(
         odds = (odds_by_fixture or {}).get(sample.fixture_id) or {}
         candidates = calculate_candidate_markets(home_team, away_team, probs, expected)
         originals = copy.deepcopy(candidates)
-        shown = cap_selections(select_statistical_markets(home_team, away_team, probs, expected, odds=odds))
+        # Igual que el análisis real: se elige el Pick y luego se limita a 5 por partido. La
+        # calibración dinámica no se aplica aquí a propósito: sale de resultados reales
+        # posteriores y usarla sería mirar el futuro; el backtest mide el modelo.
+        selected = select_statistical_markets(home_team, away_team, probs, expected, odds=odds)
+        pick = select_top_recommended_pick(
+            selected, recent_home=hist_home, recent_away=hist_away, probabilities=probs, expected=expected
+        )
+        shown = cap_selections(selected, pick)
         shown_keys = {(m["category"], m["market"], m["selection"]) for m in shown}
         shown_by_key = {(m["category"], m["market"], m["selection"]): m for m in shown}
         actual = actual_from_fixture(sample)
