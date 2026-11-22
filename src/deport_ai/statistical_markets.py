@@ -10,7 +10,7 @@ from .markets_catalog import (
     MarketDefinition,
     build_declarative_catalog,
 )
-from .dynamic_calibration import MIN_CALIBRATION_SAMPLE, factor_for, selection_side, side_key
+from .dynamic_calibration import MIN_CALIBRATION_SAMPLE, band_factor, factor_for, selection_side, side_key
 from .odds import MIN_EDGE, expected_value, odds_key_for_candidate
 from .presentation_catalog import MarketPresentationCatalog, get_exigence_score
 from .stats_engine import CARDS_KEY, negative_binomial_pmf, stat_value
@@ -1035,6 +1035,7 @@ def select_statistical_markets(
             continue
 
         cat = c.get("category", "")
+        c["model_prob"] = prob
         side = selection_side(c)
         if cat in UNDER_NEEDS_OWN_CALIBRATION and side == "under" and side_key(cat, side) not in cat_factors:
             continue
@@ -1057,6 +1058,16 @@ def select_statistical_markets(
                     f" (Categoría con {hit_rate * 100:.1f}% de acierto real en {sample_size} predicciones liquidadas)."
                 )
 
+        c["prob_before_band"] = prob
+        # Por encima del 88 % no se publica (sin valor en la cuota ni datos para calibrar).
+        if prob > maximum_probability:
+            continue
+        # Calibración por tramo: lleva cada probabilidad al acierto real de su tramo.
+        f_band = band_factor(cat_factors, prob)
+        if f_band and f_band.get("shrinkage_factor", 1.0) != 1.0:
+            prob = round(min(0.99, prob * f_band["shrinkage_factor"]), 4)
+            c["probability"] = prob
+
         if prob < minimum_probability:
             continue
 
@@ -1068,9 +1079,6 @@ def select_statistical_markets(
         # Las props de jugador exigen siempre historial real (sin él no se publican).
         evidence = c.get("evidence") if not is_player else (c.get("evidence") or {"hits": 0, "n": 0})
         if evidence_contradicts(prob, evidence, group in STAT_EVIDENCE_GROUPS or is_player):
-            continue
-
-        if prob > maximum_probability:
             continue
 
         price = (odds or {}).get(odds_key_for_candidate(c.get("id")) or "")

@@ -24,6 +24,31 @@ SIDES = ("over", "under")
 _SIDE_RE = re.compile(r"\b(Más|Menos) de\b", re.IGNORECASE)
 
 
+# Tramos de probabilidad publicada para la calibración por tramo (global). En resultados
+# reales lo prometido al 85-88 % acertó ~73 % y arrastraba al Pick, que suele ser la
+# selección más probable; del 75 al 85 % el modelo iba calibrado.
+PROB_BANDS = (0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.89)
+
+
+def band_key(probability: float) -> str | None:
+    """Clave del tramo de una probabilidad, p. ej. "prob|0.85"; None fuera de los tramos."""
+    for low, high in zip(PROB_BANDS, PROB_BANDS[1:]):
+        if low <= probability < high:
+            return f"prob|{low:.2f}"
+    return None
+
+
+def band_factor(category_factors: dict[str, dict[str, float]], probability: float) -> dict[str, float] | None:
+    key = band_key(probability)
+    return category_factors.get(key) if key else None
+
+
+def _prob(item: dict[str, Any], key: str) -> float:
+    """Probabilidad de una etapa; las predicciones anteriores solo guardaron la publicada."""
+    value = item.get(key)
+    return float(value if value is not None else item["predicted_prob"])
+
+
 def side_key(category: str, side: str) -> str:
     """Clave de calibración de un lado de la categoría, p. ej. "Córners|under"."""
     return f"{category}|{side}"
@@ -75,10 +100,14 @@ class DynamicCalibrator:
         # También acumular un global (league_id = 0, category)
         global_grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
+        band_grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for p in settled:
             # Las anuladas (VOID) no dicen nada del acierto: no cuentan para la muestra.
             if p.get("status") not in ("WON", "LOST"):
                 continue
+            band = band_key(_prob(p, "prob_before_band"))
+            if band:
+                band_grouped[band].append(p)
             l_id = p.get("league_id") or 0
             cat = p.get("category", "")
             keys = [cat]
@@ -122,6 +151,23 @@ class DynamicCalibrator:
                 )
                 updated_count += 1
 
+        # 3. Calibración por tramo de probabilidad (global): se mide sobre la probabilidad
+        # previa al tramo, para que la corrección no se anule a sí misma con el tiempo.
+        for key, items in band_grouped.items():
+            if len(items) >= min_sample:
+                entry = self._calculate_factor_entry(items, prob_key="prob_before_band")
+                entry["bias_offset"] = 0.0
+                self.db.save_calibration(
+                    league_id=0,
+                    category=key,
+                    sample_size=entry["sample_size"],
+                    hit_rate=entry["hit_rate"],
+                    brier_score=entry["brier_score"],
+                    bias_offset=0.0,
+                    shrinkage_factor=entry["shrinkage_factor"],
+                )
+                updated_count += 1
+
         return updated_count
 
     @classmethod
@@ -134,13 +180,14 @@ class DynamicCalibrator:
         return entry
 
     @staticmethod
-    def _calculate_factor_entry(items: list[dict[str, Any]]) -> dict[str, Any]:
+    def _calculate_factor_entry(items: list[dict[str, Any]], prob_key: str = "model_prob") -> dict[str, Any]:
+        # Categoría y lado se miden sobre la probabilidad del modelo (antes de calibrar).
         won = sum(1 for i in items if i["status"] == "WON")
         lost = sum(1 for i in items if i["status"] == "LOST")
         resolved = won + lost
         hit_rate = (won / resolved) if resolved > 0 else 0.0
 
-        probs = [float(i["predicted_prob"]) for i in items if i["status"] in ("WON", "LOST")]
+        probs = [_prob(i, prob_key) for i in items if i["status"] in ("WON", "LOST")]
         avg_prob = fmean(probs) if probs else 0.65
 
         # Brier Score
@@ -148,7 +195,7 @@ class DynamicCalibrator:
         for i in items:
             if i["status"] in ("WON", "LOST"):
                 outcome_val = 1.0 if i["status"] == "WON" else 0.0
-                brier += (float(i["predicted_prob"]) - outcome_val) ** 2
+                brier += (_prob(i, prob_key) - outcome_val) ** 2
         brier_avg = (brier / resolved) if resolved > 0 else 0.20
 
         # Factor de corrección con credibilidad: ratio observado/esperado, atenuado

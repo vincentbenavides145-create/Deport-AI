@@ -16194,6 +16194,22 @@
    "xa_home": 1.36,
    "xa_away": 0.81
   },
+  "19722126": {
+   "mid": "t8xcEZ7K",
+   "date": "2026-10-25",
+   "home": "Liverpool",
+   "away": "Brighton & Hove Albion",
+   "xg_home": 1.2,
+   "xg_away": 1.32,
+   "big_chances_home": 1.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 30.0,
+   "box_touches_away": 39.0,
+   "xgot_home": 1.25,
+   "xgot_away": 0.09,
+   "xa_home": 0.86,
+   "xa_away": 1.7
+  },
   "19722127": {
    "mid": "lEkBjWFD",
    "date": "2026-10-23",
@@ -16433,6 +16449,22 @@
    "xgot_away": 0.05,
    "xa_home": 0.69,
    "xa_away": 0.47
+  },
+  "19722142": {
+   "mid": "2Jf9ROto",
+   "date": "2026-10-17",
+   "home": "Brentford",
+   "away": "Liverpool",
+   "xg_home": 0.88,
+   "xg_away": 1.64,
+   "big_chances_home": 2.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 26.0,
+   "box_touches_away": 38.0,
+   "xgot_home": 1.17,
+   "xgot_away": 1.23,
+   "xa_home": 0.69,
+   "xa_away": 1.18
   },
   "19722143": {
    "mid": "Y34wXpJN",
@@ -17025,6 +17057,22 @@
    "xgot_away": 2.57,
    "xa_home": 2.53,
    "xa_away": 0.39
+  },
+  "19722180": {
+   "mid": "QsyJgS7m",
+   "date": "2026-09-06",
+   "home": "Everton",
+   "away": "Manchester United",
+   "xg_home": 1.01,
+   "xg_away": 0.69,
+   "big_chances_home": 1.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 32.0,
+   "box_touches_away": 26.0,
+   "xgot_home": 1.09,
+   "xgot_away": 0.93,
+   "xa_home": 0.67,
+   "xa_away": 0.64
   },
   "19722181": {
    "mid": "UBkmalpQ",

@@ -123,3 +123,76 @@ def test_recompute_creates_side_rows_and_summary_merges_global(tmp_path):
 
     other = DynamicCalibrator(db).get_calibration_summary(564)  # sin filas propias: usa la global
     assert side_key("Córners", "under") in other.category_factors
+
+
+# ---------------------------------------------------------------- calibración por tramo
+
+def test_band_key_covers_published_range():
+    from deport_ai.dynamic_calibration import band_key
+
+    assert band_key(0.76) == "prob|0.75"
+    assert band_key(0.85) == "prob|0.85"
+    assert band_key(0.885) == "prob|0.85"
+    assert band_key(0.59) is None and band_key(0.90) is None
+
+
+def test_band_factor_corrects_overconfident_top_band_and_changes_the_pick(run):
+    band = {"hit_rate": 0.73, "shrinkage_factor": 0.88, "bias_offset": 0.0, "sample_size": 150}
+    shown = run([
+        _candidate("g1", "Goles", "Más de 1.5 goles", 0.87, "over"),
+        _candidate("r1", "Resultado", "A o Empate (1X)", 0.83),
+    ], _summary({"prob|0.85": band}))
+    assert shown["Más de 1.5 goles"] == pytest.approx(0.7656)  # 0.87 × 0.88
+    assert shown["A o Empate (1X)"] == 0.83  # su tramo no tiene corrección
+    assert max(shown, key=shown.get) == "A o Empate (1X)"
+
+
+def test_maximum_is_checked_before_the_band(run):
+    band = {"hit_rate": 0.73, "shrinkage_factor": 0.80, "bias_offset": 0.0, "sample_size": 150}
+    # 0.95 del modelo no se publica aunque el tramo lo bajara (sin datos por encima del 88 %).
+    assert run([_candidate("g1", "Goles", "Más de 0.5 goles", 0.95, "over")],
+               _summary({"prob|0.85": band})) == {}
+
+
+def test_published_predictions_keep_each_stage_probability(run):
+    side = {"hit_rate": 0.70, "shrinkage_factor": 0.95, "bias_offset": 0.0, "sample_size": 61}
+    band = {"hit_rate": 0.73, "shrinkage_factor": 0.90, "bias_offset": 0.0, "sample_size": 150}
+    import deport_ai.statistical_markets as sm_module
+
+    captured = {}
+    original = sm_module.select_statistical_markets
+
+    def spy(*args, **kwargs):
+        markets = original(*args, **kwargs)
+        captured.update({m["selection"]: m for m in markets})
+        return markets
+
+    sm_module.select_statistical_markets = spy
+    try:
+        run([_candidate("c1", "Córners", "Más de 7.5 córners", 0.90, "over")],
+            _summary({side_key("Córners", "over"): side, "prob|0.85": band}))
+    finally:
+        sm_module.select_statistical_markets = original
+    item = captured["Más de 7.5 córners"]
+    assert item["model_prob"] == 0.90
+    assert item["prob_before_band"] == pytest.approx(0.855)
+    assert item["probability"] == pytest.approx(0.7695)
+
+
+def test_band_rows_are_measured_before_the_band_and_stored(tmp_path):
+    db = DatabaseManager(tmp_path / "a.db")
+    for fid in range(1, 41):
+        _save(db, fid, 8, [
+            {"category": "Goles", "market": "Goles totales", "selection": "Más de 1.5 goles", "line": 1.5,
+             "side": "over", "probability": 0.77, "model_prob": 0.86, "prob_before_band": 0.86},
+        ])
+        db.update_fixture_result(fid, {"home_goals": 1, "away_goals": 1})
+        for pred in db.get_predictions_for_fixture(fid):
+            assert (pred["model_prob"], pred["prob_before_band"]) == (0.86, 0.86)
+            db.update_prediction_status(pred["id"], "WON" if fid % 4 else "LOST", None)  # 75 %
+    DynamicCalibrator(db).recompute_calibrations()
+    factors = DynamicCalibrator(db).get_calibration_summary(8).category_factors
+    # Medido sobre 0.86 (antes del tramo), no sobre 0.77 (lo publicado): baja, no sube.
+    assert "prob|0.85" in factors and factors["prob|0.85"]["shrinkage_factor"] < 1.0
+    assert "prob|0.75" not in factors
+    assert DynamicCalibrator(db).get_calibration_summary(8).sample_size == 40  # no suma los tramos

@@ -272,6 +272,11 @@ class DatabaseManager:
             pred_cols = {row[1] for row in conn.execute("PRAGMA table_info(tracked_predictions)")}
             if "highlight" not in pred_cols:
                 conn.execute("ALTER TABLE tracked_predictions ADD COLUMN highlight TEXT")
+            # Migración: probabilidad de cada etapa (modelo y antes del tramo), para que
+            # cada calibración se mida sobre su propia entrada.
+            for column in ("model_prob", "prob_before_band"):
+                if column not in pred_cols:
+                    conn.execute(f"ALTER TABLE tracked_predictions ADD COLUMN {column} REAL")
             # Migración: faltas y córners del 1T también se liquidan; sin guardarlos el
             # histórico no permitía revisar esas liquidaciones.
             fixture_cols = {row[1] for row in conn.execute("PRAGMA table_info(tracked_fixtures)")}
@@ -350,8 +355,9 @@ class DatabaseManager:
                         INSERT INTO tracked_predictions (
                             fixture_id, category, market, selection,
                             line, side, predicted_prob, odds,
-                            projection, basis, explanation, status, created_at, highlight
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+                            projection, basis, explanation, status, created_at, highlight,
+                            model_prob, prob_before_band
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?)
                         """,
                         (
                             fixture_id,
@@ -367,6 +373,8 @@ class DatabaseManager:
                             p.get("explanation"),
                             now_iso,
                             p.get("highlight"),
+                            p.get("model_prob"),
+                            p.get("prob_before_band"),
                         ),
                     )
 
