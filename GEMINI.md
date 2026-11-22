@@ -36,6 +36,7 @@ Cuando el usuario pida analizar un partido, pronósticos o predicciones de fútb
 - Los fueras de juego no se ofrecen si la competición los publica en menos del 80% de los partidos recientes de ambos equipos.
 - Las props de jugador y los fueras de juego están suspendidos (no se publican) desde el 20/11/2026: en resultados reales acertaron 50% y 54% con 70%+ prometido. Los mercados por mitad también, desde el 21/11/2026 (61% con 67% prometido).
 - El mínimo publicado es 75% desde el 21/11/2026: en resultados reales el acierto siguió a la probabilidad (73% prometido, 73% acertado) y solo desde el 75% se acercaba al 80%.
+- Máximo 5 selecciones publicadas y registradas por partido, contando el Pick (las 4 restantes son las más probables): las de un mismo partido caen juntas cuando el guion sale distinto. En resultados reales, 5 por partido acertó ~2 puntos más.
 - La proyección de tarjetas combina a los equipos con el promedio de tarjetas del árbitro asignado (peso hasta 75%, menor si dirigió pocos partidos; validado en 543 partidos de 5 ligas). El reporte lo muestra en «Tarjetas estimadas» con su nombre, promedio y partidos dirigidos.
 
 ## 📒 HISTÓRICO DE PREDICCIONES (OBLIGATORIO)
@@ -72,7 +73,7 @@ Si un equipo está jugando un partido en directo en este momento, el motor calcu
    ```
 2. El script ejecuta el motor de cálculo, aplica estrictamente el `MarketPresentationCatalog` (descartando líneas triviales o > 88% y eligiendo la selección con mayor probabilidad dentro del rango 75.0% - 88.0%) y genera DIRECTAMENTE el reporte oficial adaptativo en formato Markdown.
 3. **MUESTRA DIRECTAMENTE AL USUARIO EL REPORTE ADAPTATIVO OBTENIDO DEL COMANDO.**
-   - Por defecto el comando imprime el **formato corto**: Pick Recomendado + "🔒 Las más seguras" (hasta 5 selecciones de 75% o más de Goles, Faltas, Remates, Tiros al arco, Córners o Resultado, sin mercados por mitad y como máximo 2 por categoría) + Proyecciones numéricas.
+   - Por defecto el comando imprime el **formato corto**: Pick Recomendado + "🔒 Las más seguras" (hasta 4 selecciones de 75% o más de Goles, Faltas, Remates, Tiros al arco, Córners o Resultado, sin mercados por mitad y como máximo 2 por categoría) + Proyecciones numéricas.
    - El reporte con todas las categorías (estructura de abajo) se pide con `--completo`. Todas las selecciones se registran igual en el histórico, marcadas como `pick` o `top5` cuando corresponde; `python track.py report` muestra su acierto por separado.
    ⛔ **ESTÁ ESTRICTAMENTE PROHIBIDO:**
    - No intentes deducir, inventar ni recalcular líneas a mano a partir de estadísticas crudas (NUNCA inventar Más de 0.5 goles, Más de 3.5 córners, Más de 1.5 córners ni Más de 0.5 tarjetas).

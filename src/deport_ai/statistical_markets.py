@@ -1291,6 +1291,27 @@ FEATURED_MIN_PROBABILITY = 0.75
 FEATURED_MAX_PER_CATEGORY = 2
 
 
+# Máximo de selecciones publicadas (y registradas) por partido, contando el Pick. Las de un
+# mismo partido dependen del mismo guion: si sale distinto (un favorito que pierde, un 0-0
+# esperado abierto) caen juntas. En resultados reales, 5 por partido acertó ~2 puntos más.
+MAX_SELECTIONS_PER_MATCH = 5
+
+
+def cap_selections(
+    markets: list[dict[str, Any]],
+    top_pick: dict[str, Any] | None = None,
+    limit: int = MAX_SELECTIONS_PER_MATCH,
+) -> list[dict[str, Any]]:
+    """El Pick y las selecciones más probables hasta `limit`, en el orden original."""
+    pick = (top_pick or {}).get("selection")
+    others = sorted(
+        (m for m in markets if m.get("selection") != pick),
+        key=lambda m: -float(m.get("probability") or 0.0),
+    )
+    keep = {id(m) for m in others[: max(0, limit - (1 if pick else 0))]}
+    return [m for m in markets if id(m) in keep or (pick and m.get("selection") == pick)]
+
+
 def select_featured_markets(
     markets: list[dict[str, Any]],
     top_pick: dict[str, Any] | None = None,

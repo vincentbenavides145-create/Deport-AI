@@ -34,7 +34,7 @@ from .stats_engine import (
     goal_probabilities,
     stat_value,
 )
-from .statistical_markets import calculate_candidate_markets, select_statistical_markets
+from .statistical_markets import calculate_candidate_markets, cap_selections, select_statistical_markets
 
 SELECTED_BINS = [0.60, 0.65, 0.70, 0.75, 0.80, 0.88]
 
@@ -232,7 +232,7 @@ def run_walk_forward(
         odds = (odds_by_fixture or {}).get(sample.fixture_id) or {}
         candidates = calculate_candidate_markets(home_team, away_team, probs, expected)
         originals = copy.deepcopy(candidates)
-        shown = select_statistical_markets(home_team, away_team, probs, expected, odds=odds)
+        shown = cap_selections(select_statistical_markets(home_team, away_team, probs, expected, odds=odds))
         shown_keys = {(m["category"], m["market"], m["selection"]) for m in shown}
         shown_by_key = {(m["category"], m["market"], m["selection"]): m for m in shown}
         actual = actual_from_fixture(sample)

@@ -196,3 +196,31 @@ def test_band_rows_are_measured_before_the_band_and_stored(tmp_path):
     assert "prob|0.85" in factors and factors["prob|0.85"]["shrinkage_factor"] < 1.0
     assert "prob|0.75" not in factors
     assert DynamicCalibrator(db).get_calibration_summary(8).sample_size == 40  # no suma los tramos
+
+
+# ---------------------------------------------------------------- máximo por partido
+
+def test_cap_keeps_pick_and_most_probable_in_original_order():
+    from deport_ai.statistical_markets import MAX_SELECTIONS_PER_MATCH, cap_selections
+
+    markets = [{"selection": f"S{i}", "probability": p} for i, p in enumerate([0.76, 0.86, 0.80, 0.78, 0.84, 0.77, 0.82])]
+    pick = {"selection": "S0", "probability": 0.76}  # p. ej. elegido por EV, no por probabilidad
+    capped = cap_selections(markets, pick)
+    assert len(capped) == MAX_SELECTIONS_PER_MATCH == 5
+    assert [m["selection"] for m in capped] == ["S0", "S1", "S2", "S4", "S6"]
+    assert [m["selection"] for m in cap_selections(markets)] == ["S1", "S2", "S3", "S4", "S6"]
+    assert cap_selections(markets[:3], pick) == markets[:3]
+
+
+def test_service_registers_at_most_five_selections_per_match():
+    from datetime import datetime, timedelta, timezone
+
+    from tests.test_settlement_tracking_fixes import _analyze
+
+    db = DatabaseManager(":memory:")
+    report = _analyze(db, (datetime.now(timezone.utc) + timedelta(days=1)).isoformat())
+    tracked = db.get_predictions_for_fixture(555)
+    assert len(report.statistical_markets) <= 5 and len(tracked) == len(report.statistical_markets)
+    if report.top_pick:
+        assert report.top_pick["selection"] in {p["selection"] for p in tracked}
+    assert len(report.featured_markets) <= 4

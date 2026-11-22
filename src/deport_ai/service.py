@@ -12,6 +12,7 @@ from .model_params import load_parameters
 from .odds import normalize_odds
 from .parser import parse_match_query
 from .statistical_markets import (
+    cap_selections,
     mark_highlights,
     select_featured_markets,
     select_statistical_markets,
@@ -323,6 +324,7 @@ class AnalysisService:
             probabilities=probabilities,
             expected=expected,
         )
+        statistical_markets = cap_selections(statistical_markets, top_pick)
         featured = select_featured_markets(statistical_markets, top_pick)
         mark_highlights(statistical_markets, top_pick, featured)
         risks = sample_risks(home_matches, away_matches, expected)
