@@ -3889,6 +3889,22 @@
    "xa_home": 1.48,
    "xa_away": 1.9
   },
+  "19609702": {
+   "mid": "lSBJ5mKD",
+   "date": "2026-08-15",
+   "home": "Los Angeles FC",
+   "away": "San Diego",
+   "xg_home": 0.94,
+   "xg_away": 1.14,
+   "big_chances_home": 1.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 15.0,
+   "box_touches_away": 18.0,
+   "xgot_home": 0.27,
+   "xgot_away": 1.39,
+   "xa_home": 0.56,
+   "xa_away": 0.55
+  },
   "19609712": {
    "mid": "WSbPIfFa",
    "date": "2026-08-19",
@@ -3968,6 +3984,38 @@
    "xgot_away": 2.17,
    "xa_home": 1.5,
    "xa_away": 2.39
+  },
+  "19609726": {
+   "mid": "jVEQGYqC",
+   "date": "2026-08-19",
+   "home": "Sporting KC",
+   "away": "St. Louis City",
+   "xg_home": 1.3,
+   "xg_away": 0.52,
+   "big_chances_home": 3.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 33.0,
+   "box_touches_away": 12.0,
+   "xgot_home": 1.27,
+   "xgot_away": 0.9,
+   "xa_home": 1.07,
+   "xa_away": 0.53
+  },
+  "19609728": {
+   "mid": "29rqZFat",
+   "date": "2026-08-19",
+   "home": "Colorado Rapids",
+   "away": "Los Angeles FC",
+   "xg_home": 2.21,
+   "xg_away": 0.41,
+   "big_chances_home": 4.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 28.0,
+   "box_touches_away": 14.0,
+   "xgot_home": 1.24,
+   "xgot_away": 0.11,
+   "xa_home": 0.47,
+   "xa_away": 0.85
   },
   "19609730": {
    "mid": "AZoiXgUh",
@@ -4097,6 +4145,22 @@
    "xa_home": 1.42,
    "xa_away": 1.65
   },
+  "19609742": {
+   "mid": "6wFHqOJF",
+   "date": "2026-08-22",
+   "home": "St. Louis City",
+   "away": "Houston Dynamo",
+   "xg_home": 1.65,
+   "xg_away": 1.66,
+   "big_chances_home": 2.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 27.0,
+   "box_touches_away": 24.0,
+   "xgot_home": 1.01,
+   "xgot_away": 1.63,
+   "xa_home": 0.82,
+   "xa_away": 1.1
+  },
   "19609743": {
    "mid": "GCbKop2U",
    "date": "2026-08-22",
@@ -4176,6 +4240,22 @@
    "xgot_away": 1.04,
    "xa_home": 1.4,
    "xa_away": 0.71
+  },
+  "19609751": {
+   "mid": "6DVQA0IE",
+   "date": "2026-08-29",
+   "home": "DC United",
+   "away": "Los Angeles FC",
+   "xg_home": 1.23,
+   "xg_away": 1.8,
+   "big_chances_home": 3.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 17.0,
+   "box_touches_away": 35.0,
+   "xgot_home": 1.05,
+   "xgot_away": 0.16,
+   "xa_home": 0.67,
+   "xa_away": 1.33
   },
   "19609752": {
    "mid": "vRTY8vmR",
@@ -4625,6 +4705,22 @@
    "xa_home": 0.63,
    "xa_away": 0.89
   },
+  "19609789": {
+   "mid": "MBEQJUDD",
+   "date": "2026-09-09",
+   "home": "Los Angeles FC",
+   "away": "New York RB",
+   "xg_home": 1.44,
+   "xg_away": 0.43,
+   "big_chances_home": 1.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 30.0,
+   "box_touches_away": 21.0,
+   "xgot_home": 2.03,
+   "xgot_away": 0.09,
+   "xa_home": 0.8,
+   "xa_away": 1.15
+  },
   "19609790": {
    "mid": "f1pRtp8t",
    "date": "2026-09-09",
@@ -4705,6 +4801,22 @@
    "xa_home": 3.11,
    "xa_away": 0.84
   },
+  "19609799": {
+   "mid": "AT2YHTaN",
+   "date": "2026-09-12",
+   "home": "Sporting KC",
+   "away": "Los Angeles FC",
+   "xg_home": 1.95,
+   "xg_away": 2.19,
+   "big_chances_home": 2.0,
+   "big_chances_away": 4.0,
+   "box_touches_home": 22.0,
+   "box_touches_away": 31.0,
+   "xgot_home": 2.81,
+   "xgot_away": 2.36,
+   "xa_home": 0.76,
+   "xa_away": 2.05
+  },
   "19609800": {
    "mid": "xG4QJkVA",
    "date": "2026-09-12",
@@ -4720,6 +4832,22 @@
    "xgot_away": 1.1,
    "xa_home": 0.81,
    "xa_away": 1.4
+  },
+  "19609801": {
+   "mid": "UDq5C7Np",
+   "date": "2026-09-12",
+   "home": "St. Louis City",
+   "away": "Minnesota United",
+   "xg_home": 2.85,
+   "xg_away": 1.75,
+   "big_chances_home": 4.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 16.0,
+   "box_touches_away": 20.0,
+   "xgot_home": 3.37,
+   "xgot_away": 1.14,
+   "xa_home": 0.76,
+   "xa_away": 0.72
   },
   "19609802": {
    "mid": "dKyizBFi",
@@ -4784,6 +4912,22 @@
    "xgot_away": 2.62,
    "xa_home": 0.69,
    "xa_away": 1.6
+  },
+  "19609810": {
+   "mid": "hUyUyOjd",
+   "date": "2026-09-19",
+   "home": "SJ Earthquakes",
+   "away": "Los Angeles FC",
+   "xg_home": 1.53,
+   "xg_away": 0.47,
+   "big_chances_home": 2.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 40.0,
+   "box_touches_away": 12.0,
+   "xgot_home": 2.0,
+   "xgot_away": 1.2,
+   "xa_home": 1.85,
+   "xa_away": 0.45
   },
   "19609811": {
    "mid": "lSiOIXLj",
@@ -4880,6 +5024,22 @@
    "xgot_away": 0.26,
    "xa_home": 1.47,
    "xa_away": 0.26
+  },
+  "19609818": {
+   "mid": "4zzBtyEc",
+   "date": "2026-09-19",
+   "home": "St. Louis City",
+   "away": "Toronto",
+   "xg_home": 2.6,
+   "xg_away": 0.97,
+   "big_chances_home": 4.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 36.0,
+   "box_touches_away": 11.0,
+   "xgot_home": 3.23,
+   "xgot_away": 1.19,
+   "xa_home": 2.05,
+   "xa_away": 0.63
   },
   "19609820": {
    "mid": "C0wJvFrA",
@@ -4992,6 +5152,22 @@
    "xgot_away": 1.32,
    "xa_home": 0.52,
    "xa_away": 0.91
+  },
+  "19609828": {
+   "mid": "6VEYBeYP",
+   "date": "2026-09-30",
+   "home": "New York RB",
+   "away": "St. Louis City",
+   "xg_home": 1.18,
+   "xg_away": 2.24,
+   "big_chances_home": 1.0,
+   "big_chances_away": 4.0,
+   "box_touches_home": 15.0,
+   "box_touches_away": 32.0,
+   "xgot_home": 0.52,
+   "xgot_away": 4.05,
+   "xa_home": 0.7,
+   "xa_away": 2.01
   },
   "19609829": {
    "mid": "femM2ieC",
@@ -5249,6 +5425,22 @@
    "xa_home": 1.85,
    "xa_away": 0.6
   },
+  "19609871": {
+   "mid": "vuFJxbxq",
+   "date": "2026-10-11",
+   "home": "St. Louis City",
+   "away": "LA Galaxy",
+   "xg_home": 2.54,
+   "xg_away": 1.93,
+   "big_chances_home": 4.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 29.0,
+   "box_touches_away": 22.0,
+   "xgot_home": 3.53,
+   "xgot_away": 2.28,
+   "xa_home": 2.16,
+   "xa_away": 0.88
+  },
   "19609874": {
    "mid": "b9ZSv6PQ",
    "date": "2026-10-14",
@@ -5377,6 +5569,22 @@
    "xa_home": 1.54,
    "xa_away": 1.3
   },
+  "19609898": {
+   "mid": "AN9sp116",
+   "date": "2026-10-14",
+   "home": "Los Angeles FC",
+   "away": "Austin",
+   "xg_home": 4.46,
+   "xg_away": 0.68,
+   "big_chances_home": 7.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 35.0,
+   "box_touches_away": 22.0,
+   "xgot_home": 2.82,
+   "xgot_away": 1.58,
+   "xa_home": 1.82,
+   "xa_away": 0.94
+  },
   "19609899": {
    "mid": "EeGYoNWg",
    "date": "2026-10-14",
@@ -5409,6 +5617,22 @@
    "xa_home": 1.71,
    "xa_away": 0.76
   },
+  "19609906": {
+   "mid": "8Iy80Mom",
+   "date": "2026-10-17",
+   "home": "Minnesota United",
+   "away": "St. Louis City",
+   "xg_home": 3.43,
+   "xg_away": 1.68,
+   "big_chances_home": 6.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 41.0,
+   "box_touches_away": 21.0,
+   "xgot_home": 2.68,
+   "xgot_away": 2.51,
+   "xa_home": 1.99,
+   "xa_away": 0.85
+  },
   "19609908": {
    "mid": "4pVGb0Ga",
    "date": "2026-10-17",
@@ -5424,6 +5648,22 @@
    "xgot_away": 2.15,
    "xa_home": 0.96,
    "xa_away": 0.9
+  },
+  "19609910": {
+   "mid": "WbocvWUp",
+   "date": "2026-10-17",
+   "home": "New York City",
+   "away": "Los Angeles FC",
+   "xg_home": 0.69,
+   "xg_away": 0.64,
+   "big_chances_home": 2.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 26.0,
+   "box_touches_away": 14.0,
+   "xgot_home": 0.54,
+   "xgot_away": 0.2,
+   "xa_home": 1.13,
+   "xa_away": 0.33
   },
   "19609915": {
    "mid": "xbTOdvoC",
@@ -5697,6 +5937,22 @@
    "xa_home": 1.5,
    "xa_away": 0.73
   },
+  "19609961": {
+   "mid": "4K3UUOde",
+   "date": "2026-10-25",
+   "home": "Los Angeles FC",
+   "away": "LA Galaxy",
+   "xg_home": 2.68,
+   "xg_away": 1.68,
+   "big_chances_home": 4.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 28.0,
+   "box_touches_away": 11.0,
+   "xgot_home": 1.12,
+   "xgot_away": 2.0,
+   "xa_home": 1.86,
+   "xa_away": 0.69
+  },
   "19609963": {
    "mid": "htpPj6JE",
    "date": "2026-10-28",
@@ -5905,6 +6161,22 @@
    "xa_home": 0.92,
    "xa_away": 0.31
   },
+  "19609982": {
+   "mid": "2ymT8adc",
+   "date": "2026-11-01",
+   "home": "Los Angeles FC",
+   "away": "Minnesota United",
+   "xg_home": 1.08,
+   "xg_away": 0.84,
+   "big_chances_home": 1.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 27.0,
+   "box_touches_away": 10.0,
+   "xgot_home": 1.57,
+   "xgot_away": 0.89,
+   "xa_home": 1.01,
+   "xa_away": 0.47
+  },
   "19609983": {
    "mid": "0thEbUjt",
    "date": "2026-11-01",
@@ -5952,6 +6224,22 @@
    "xgot_away": 1.81,
    "xa_home": 1.28,
    "xa_away": 1.27
+  },
+  "19609987": {
+   "mid": "MHRgf0s4",
+   "date": "2026-10-31",
+   "home": "St. Louis City",
+   "away": "San Diego",
+   "xg_home": 1.94,
+   "xg_away": 0.96,
+   "big_chances_home": 5.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 40.0,
+   "box_touches_away": 18.0,
+   "xgot_home": 1.31,
+   "xgot_away": 0.06,
+   "xa_home": 1.48,
+   "xa_away": 0.76
   },
   "19609988": {
    "mid": "As0sod4j",
@@ -6097,6 +6385,22 @@
    "xa_home": 0.94,
    "xa_away": 1.29
   },
+  "19610000": {
+   "mid": "GfcaSpgm",
+   "date": "2026-11-07",
+   "home": "Seattle Sounders",
+   "away": "Los Angeles FC",
+   "xg_home": 0.71,
+   "xg_away": 1.94,
+   "big_chances_home": 1.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 15.0,
+   "box_touches_away": 47.0,
+   "xgot_home": 1.48,
+   "xgot_away": 2.55,
+   "xa_home": 1.13,
+   "xa_away": 2.78
+  },
   "19610001": {
    "mid": "4GTtA3wJ",
    "date": "2026-11-07",
@@ -6144,6 +6448,22 @@
    "xgot_away": 1.79,
    "xa_home": 0.85,
    "xa_away": 0.22
+  },
+  "19610006": {
+   "mid": "GtIQDovf",
+   "date": "2026-11-07",
+   "home": "Houston Dynamo",
+   "away": "St. Louis City",
+   "xg_home": 1.3,
+   "xg_away": 0.9,
+   "big_chances_home": 1.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 23.0,
+   "box_touches_away": 24.0,
+   "xgot_home": 0.85,
+   "xgot_away": 0.23,
+   "xa_home": 1.2,
+   "xa_away": 1.06
   },
   "19621730": {
    "mid": "G82JXY6M",
@@ -12497,6 +12817,22 @@
    "xa_home": 0.45,
    "xa_away": 0.51
   },
+  "19713516": {
+   "mid": "l2iCQrDl",
+   "date": "2026-11-08",
+   "home": "Fiorentina",
+   "away": "Juventus",
+   "xg_home": 2.1,
+   "xg_away": 2.44,
+   "big_chances_home": 3.0,
+   "big_chances_away": 4.0,
+   "box_touches_home": 25.0,
+   "box_touches_away": 38.0,
+   "xgot_home": 2.34,
+   "xgot_away": 1.68,
+   "xa_home": 1.26,
+   "xa_away": 1.86
+  },
   "19713517": {
    "mid": "YynsW4kR",
    "date": "2026-11-07",
@@ -13472,6 +13808,22 @@
    "xgot_away": 0.87,
    "xa_home": 0.24,
    "xa_away": 0.99
+  },
+  "19713578": {
+   "mid": "lWCq62DE",
+   "date": "2026-09-11",
+   "home": "Venezia",
+   "away": "Fiorentina",
+   "xg_home": 0.49,
+   "xg_away": 3.31,
+   "big_chances_home": 2.0,
+   "big_chances_away": 6.0,
+   "box_touches_home": 21.0,
+   "box_touches_away": 49.0,
+   "xgot_home": 0.85,
+   "xgot_away": 4.54,
+   "xa_home": 0.63,
+   "xa_away": 1.76
   },
   "19713579": {
    "mid": "dxQcraL7",
@@ -23282,6 +23634,22 @@
    "xa_home": 0.85,
    "xa_away": 0.47
   },
+  "19732678": {
+   "mid": "00VbGuWQ",
+   "date": "2026-09-18",
+   "home": "Espanyol",
+   "away": "Elche",
+   "xg_home": 1.05,
+   "xg_away": 1.61,
+   "big_chances_home": 2.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 35.0,
+   "box_touches_away": 16.0,
+   "xgot_home": 0.48,
+   "xgot_away": 2.05,
+   "xa_home": 1.58,
+   "xa_away": 0.44
+  },
   "19732679": {
    "mid": "hzSjI11E",
    "date": "2026-09-20",
@@ -23393,6 +23761,22 @@
    "xgot_away": 2.65,
    "xa_home": 0.13,
    "xa_away": 2.92
+  },
+  "19732686": {
+   "mid": "UagHqsek",
+   "date": "2026-10-21",
+   "home": "Levante",
+   "away": "Athletic Club",
+   "xg_home": 1.82,
+   "xg_away": 2.04,
+   "big_chances_home": 3.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 30.0,
+   "box_touches_away": 29.0,
+   "xgot_home": 2.79,
+   "xgot_away": 0.98,
+   "xa_home": 0.77,
+   "xa_away": 1.08
   },
   "19732687": {
    "mid": "bDWq2kBG",
@@ -23633,6 +24017,22 @@
    "xgot_away": 0.67,
    "xa_home": 0.61,
    "xa_away": 0.55
+  },
+  "19732702": {
+   "mid": "QPLotmXa",
+   "date": "2026-09-12",
+   "home": "Athletic Club",
+   "away": "Elche",
+   "xg_home": 1.6,
+   "xg_away": 0.84,
+   "big_chances_home": 3.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 40.0,
+   "box_touches_away": 7.0,
+   "xgot_home": 0.6,
+   "xgot_away": 0.87,
+   "xa_home": 2.34,
+   "xa_away": 0.11
   },
   "19732703": {
    "mid": "IaIwr92m",
@@ -24193,6 +24593,22 @@
    "xgot_away": 0.0,
    "xa_home": 2.43,
    "xa_away": 0.32
+  },
+  "19732738": {
+   "mid": "4ve9lHOQ",
+   "date": "2026-08-16",
+   "home": "Espanyol",
+   "away": "Levante",
+   "xg_home": 1.47,
+   "xg_away": 0.19,
+   "big_chances_home": 2.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 20.0,
+   "box_touches_away": 5.0,
+   "xgot_home": 2.27,
+   "xgot_away": 0.0,
+   "xa_home": 0.75,
+   "xa_away": 0.24
   },
   "19732739": {
    "mid": "dEi1jwfE",
@@ -25730,6 +26146,22 @@
    "xa_home": 1.65,
    "xa_away": 0.98
   },
+  "19746560": {
+   "mid": "4WhPwvjg",
+   "date": "2026-11-07",
+   "home": "Göztepe",
+   "away": "İstanbul Başakşehir",
+   "xg_home": 1.54,
+   "xg_away": 1.4,
+   "big_chances_home": 0.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 26.0,
+   "box_touches_away": 21.0,
+   "xgot_home": 1.71,
+   "xgot_away": 2.12,
+   "xa_home": 1.12,
+   "xa_away": 1.18
+  },
   "19746561": {
    "mid": "d6kHu0Lt",
    "date": "2026-11-08",
@@ -25793,6 +26225,22 @@
    "xgot_away": 2.42,
    "xa_home": 0.87,
    "xa_away": 0.63
+  },
+  "19746565": {
+   "mid": "dpnKsmiR",
+   "date": "2026-10-31",
+   "home": "Erzurumspor FK",
+   "away": "Çorum FK",
+   "xg_home": 0.59,
+   "xg_away": 1.22,
+   "big_chances_home": 1.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 24.0,
+   "box_touches_away": 9.0,
+   "xgot_home": 0.57,
+   "xgot_away": 1.98,
+   "xa_home": 0.88,
+   "xa_away": 0.36
   },
   "19746566": {
    "mid": "lKrCq9ME",
@@ -25986,6 +26434,22 @@
    "xa_home": 1.42,
    "xa_away": 0.34
   },
+  "19746578": {
+   "mid": "l2HcbBWq",
+   "date": "2026-10-25",
+   "home": "Göztepe",
+   "away": "Çorum FK",
+   "xg_home": 2.0,
+   "xg_away": 0.56,
+   "big_chances_home": 6.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 34.0,
+   "box_touches_away": 13.0,
+   "xgot_home": 2.55,
+   "xgot_away": 0.35,
+   "xa_home": 0.8,
+   "xa_away": 0.42
+  },
   "19746579": {
    "mid": "IJQR3X8M",
    "date": "2026-10-26",
@@ -26129,6 +26593,22 @@
    "xgot_away": 0.06,
    "xa_home": 0.91,
    "xa_away": 0.21
+  },
+  "19746589": {
+   "mid": "d8E5i3Ja",
+   "date": "2026-10-18",
+   "home": "İstanbul Başakşehir",
+   "away": "Gaziantep F.K.",
+   "xg_home": 1.95,
+   "xg_away": 1.42,
+   "big_chances_home": 3.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 28.0,
+   "box_touches_away": 25.0,
+   "xgot_home": 1.58,
+   "xgot_away": 1.36,
+   "xa_home": 1.0,
+   "xa_away": 0.87
   },
   "19746590": {
    "mid": "jBBcgPlm",
@@ -26290,6 +26770,22 @@
    "xa_home": 0.45,
    "xa_away": 1.33
   },
+  "19746600": {
+   "mid": "6orFX8SQ",
+   "date": "2026-10-11",
+   "home": "Gaziantep F.K.",
+   "away": "Çorum FK",
+   "xg_home": 0.99,
+   "xg_away": 2.67,
+   "big_chances_home": 2.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 18.0,
+   "box_touches_away": 25.0,
+   "xgot_home": 0.35,
+   "xgot_away": 2.72,
+   "xa_home": 0.59,
+   "xa_away": 1.64
+  },
   "19746601": {
    "mid": "YXq7ZUcE",
    "date": "2026-09-20",
@@ -26385,6 +26881,22 @@
    "xgot_away": 2.1,
    "xa_home": 0.56,
    "xa_away": 0.71
+  },
+  "19746607": {
+   "mid": "vBjtSRYj",
+   "date": "2026-09-19",
+   "home": "İstanbul Başakşehir",
+   "away": "Gençlerbirliği",
+   "xg_home": 2.74,
+   "xg_away": 0.52,
+   "big_chances_home": 4.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 25.0,
+   "box_touches_away": 9.0,
+   "xgot_home": 3.08,
+   "xgot_away": 0.0,
+   "xa_home": 1.14,
+   "xa_away": 0.25
   },
   "19746608": {
    "mid": "Ae0AXmBT",
@@ -27233,6 +27745,22 @@
    "xgot_away": 1.44,
    "xa_home": 1.43,
    "xa_away": 0.77
+  },
+  "19766377": {
+   "mid": "zoWFCkPr",
+   "date": "2026-09-04",
+   "home": "Kalba",
+   "away": "Al Ain",
+   "xg_home": 1.3,
+   "xg_away": 2.94,
+   "big_chances_home": 1.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 22.0,
+   "box_touches_away": 26.0,
+   "xgot_home": 0.4,
+   "xgot_away": 2.79,
+   "xa_home": 1.74,
+   "xa_away": 1.05
   },
   "19766378": {
    "mid": "rBZNATge",
@@ -29042,6 +29570,22 @@
    "xa_home": 1.26,
    "xa_away": 0.22
   },
+  "19867909": {
+   "mid": "jgKoYuCT",
+   "date": "2026-09-10",
+   "home": "Al Ain",
+   "away": "Al Wasl",
+   "xg_home": 2.13,
+   "xg_away": 0.65,
+   "big_chances_home": 2.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 30.0,
+   "box_touches_away": 16.0,
+   "xgot_home": 1.74,
+   "xgot_away": 0.63,
+   "xa_home": 2.02,
+   "xa_away": 0.86
+  },
   "19867910": {
    "mid": "fku1zWhc",
    "date": "2026-09-11",
@@ -29121,6 +29665,22 @@
    "xgot_away": 0.01,
    "xa_home": 1.0,
    "xa_away": 0.55
+  },
+  "19881769": {
+   "mid": "0dZwpJL8",
+   "date": "2026-10-17",
+   "home": "Shabab Al Ahli Dubai",
+   "away": "Al Ain",
+   "xg_home": 3.04,
+   "xg_away": 2.79,
+   "big_chances_home": 2.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 14.0,
+   "box_touches_away": 37.0,
+   "xgot_home": 2.32,
+   "xgot_away": 0.5,
+   "xa_home": 2.29,
+   "xa_away": 2.38
   },
   "19881770": {
    "mid": "v9aJPlzf",
@@ -29233,6 +29793,22 @@
    "xgot_away": 0.61,
    "xa_home": 1.9,
    "xa_away": 1.04
+  },
+  "19889057": {
+   "mid": "2k3VvWsf",
+   "date": "2026-11-19",
+   "home": "Al Ain",
+   "away": "Al Dhafra",
+   "xg_home": 1.86,
+   "xg_away": 0.38,
+   "big_chances_home": 4.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 24.0,
+   "box_touches_away": 10.0,
+   "xgot_home": 1.59,
+   "xgot_away": 0.15,
+   "xa_home": 1.48,
+   "xa_away": 0.35
   },
   "19904929": {
    "mid": "AHmOxWfB",
