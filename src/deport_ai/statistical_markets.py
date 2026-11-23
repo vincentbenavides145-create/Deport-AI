@@ -10,7 +10,16 @@ from .markets_catalog import (
     MarketDefinition,
     build_declarative_catalog,
 )
-from .dynamic_calibration import MIN_CALIBRATION_SAMPLE, band_factor, factor_for, selection_side, side_key
+from .dynamic_calibration import (
+    MATCH_TOTAL_CATEGORIES,
+    MIN_CALIBRATION_SAMPLE,
+    band_factor,
+    factor_for,
+    is_match_total,
+    selection_side,
+    side_key,
+    total_side_key,
+)
 from .odds import MIN_EDGE, expected_value, odds_key_for_candidate
 from .presentation_catalog import MarketPresentationCatalog, get_exigence_score
 from .stats_engine import CARDS_KEY, negative_binomial_pmf, stat_value
@@ -31,6 +40,13 @@ SUSPENDED_CATEGORIES: frozenset[str] = frozenset({"Jugadores", "Fueras de juego"
 # Conteos cuyos "Menos de" salieron sobreconfiados en resultados reales: solo se publican
 # cuando ese lado tiene su propia calibración (30+ predicciones liquidadas).
 UNDER_NEEDS_OWN_CALIBRATION: frozenset[str] = frozenset({"Córners", "Tarjetas", "Tiros al arco", "Remates", "Faltas"})
+# Mercados suspendidos dentro de categorías que sí se publican: córners del 1T (63 % de
+# acierto con 74 % prometido; son de mitades aunque se registren como Córners) y "quién
+# saca más córners" (63 % con 74 %).
+SUSPENDED_GROUPS: frozenset[str] = frozenset({"corners_first_half", "corners_1x2"})
+# Córners Más/Menos: solo con 2+ córners de distancia entre la proyección y la línea
+# (80 % de acierto con ese margen frente a 62 % por debajo).
+MIN_CORNER_MARGIN = 2.0
 
 
 def _safe_complement(p: float | None) -> float | None:
@@ -988,6 +1004,14 @@ def _candidate_rank_key(c: dict[str, Any]) -> tuple[float, float, float, float]:
     return (has_edge, float(edge) if edge is not None else 0.0, prob, directional_margin)
 
 
+def _corner_margin(candidate: dict[str, Any]) -> float:
+    """Córners de distancia entre la proyección y la línea, a favor del lado elegido."""
+    projection, line = candidate.get("projection"), candidate.get("line")
+    if projection is None or line is None:
+        return 0.0
+    return projection - line if selection_side(candidate) == "over" else line - projection
+
+
 def select_statistical_markets(
     home: Team,
     away: Team,
@@ -1003,6 +1027,7 @@ def select_statistical_markets(
     min_edge: float = MIN_EDGE,
     exclude_categories: set[str] | frozenset[str] | None = None,
     suspended_categories: set[str] | frozenset[str] = SUSPENDED_CATEGORIES,
+    suspended_groups: set[str] | frozenset[str] = SUSPENDED_GROUPS,
 ) -> list[dict[str, Any]]:
     """Aplica la capa de presentación:
     1. Filtra candidatos estrictamente según MarketPresentationCatalog (excluye triviales y no catalogados).
@@ -1025,6 +1050,8 @@ def select_statistical_markets(
     excluded = set(exclude_categories or ()) | set(suspended_categories)
     eligible: list[dict[str, Any]] = []
     cat_factors = getattr(calibration, "category_factors", {}) if calibration else {}
+    # Categorías frenadas en esta liga por su acierto real (ver FREEZE_MAX_HIT_RATE).
+    frozen = getattr(calibration, "frozen_categories", frozenset()) if calibration else frozenset()
 
     for c in candidates:
         if not MarketPresentationCatalog.is_presentable(c):
@@ -1035,9 +1062,16 @@ def select_statistical_markets(
             continue
 
         cat = c.get("category", "")
+        if cat in frozen or c.get("group") in suspended_groups:
+            continue
         c["model_prob"] = prob
         side = selection_side(c)
         if cat in UNDER_NEEDS_OWN_CALIBRATION and side == "under" and side_key(cat, side) not in cat_factors:
+            continue
+        if (cat in MATCH_TOTAL_CATEGORIES and side == "under" and is_match_total(c)
+                and total_side_key(cat, side) not in cat_factors):
+            continue
+        if cat == "Córners" and side in ("over", "under") and _corner_margin(c) < MIN_CORNER_MARGIN:
             continue
         # Factor empírico del lado de la categoría (o de la categoría) si hay calibración activa.
         f_info = factor_for(cat_factors, cat, side)

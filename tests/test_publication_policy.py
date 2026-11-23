@@ -14,21 +14,26 @@ from deport_ai.domain import ExpectedMetrics, ProbabilityReport, Team
 from deport_ai.storage import DatabaseManager
 
 
-def _candidate(cid, category, selection, probability, side=None, group=None):
+def _candidate(cid, category, selection, probability, side=None, group=None, line=None, projection=None):
+    if category == "Córners" and side in ("over", "under") and projection is None:
+        # Córners lejos de la línea, para que no los frene el margen mínimo.
+        line = line if line is not None else float(selection.split(" de ")[1].split()[0])
+        projection = line + 3 if side == "over" else line - 3
     return {"id": cid, "category": category, "market": category, "selection": selection,
-            "probability": probability, "side": side, "group": group or cid, "explanation": "Porque sí."}
+            "probability": probability, "side": side, "group": group or cid, "explanation": "Porque sí.",
+            "line": line, "projection": projection}
 
 
 @pytest.fixture
 def run(monkeypatch):
     """Ejecuta el selector con candidatos fijos (sin depender del modelo)."""
-    def _run(candidates, calibration=None):
+    def _run(candidates, calibration=None, **kwargs):
         monkeypatch.setattr(sm, "calculate_candidate_markets", lambda *a, **k: [dict(c) for c in candidates])
         monkeypatch.setattr(sm.MarketPresentationCatalog, "is_presentable", staticmethod(lambda c: True))
         probs = ProbabilityReport(home_win=0.5, draw=0.25, away_win=0.25, over_15=0.7, over_25=0.5, under_25=0.5,
                                   btts=0.5, expected_home_goals=1.4, expected_away_goals=1.1, score_matrix=[[1.0]])
         markets = sm.select_statistical_markets(Team(1, "A"), Team(2, "B"), probs, ExpectedMetrics(),
-                                                calibration=calibration)
+                                                calibration=calibration, **kwargs)
         return {m["selection"]: m["probability"] for m in markets}
     return _run
 
@@ -53,10 +58,10 @@ def test_halves_are_suspended(run):
 def test_count_unders_need_their_own_calibration(run):
     corners_under = _candidate("c1", "Córners", "Menos de 10.5 córners", 0.80, "under")
     corners_over = _candidate("c2", "Córners", "Más de 7.5 córners", 0.80, "over")
-    goals_under = _candidate("g1", "Goles", "Menos de 3.5 goles", 0.80, "under")
+    goals_under = _candidate("g1", "Goles", "B Menos de 2.5 goles", 0.80, "under")
     shown = run([corners_under, corners_over, goals_under])
     assert "Menos de 10.5 córners" not in shown  # sin calibración propia del lado
-    assert {"Más de 7.5 córners", "Menos de 3.5 goles"} <= set(shown)
+    assert {"Más de 7.5 córners", "B Menos de 2.5 goles"} <= set(shown)
 
     side = {"hit_rate": 0.80, "shrinkage_factor": 1.0, "bias_offset": 0.0, "sample_size": 40}
     shown = run([corners_under], _summary({side_key("Córners", "under"): side}))
@@ -224,3 +229,75 @@ def test_service_registers_at_most_five_selections_per_match():
     if report.top_pick:
         assert report.top_pick["selection"] in {p["selection"] for p in tracked}
     assert len(report.featured_markets) <= 4
+
+
+# ---------------------------------------------------------------- córners y totales débiles
+
+def test_first_half_corners_and_corner_race_are_suspended(run):
+    shown = run([
+        _candidate("c1", "Córners", "1T Menos de 5.5 córners", 0.80, "under", group="corners_first_half"),
+        _candidate("c2", "Córners", "A saca más córners", 0.80, "1x2", group="corners_1x2"),
+        _candidate("c3", "Córners", "Más de 7.5 córners", 0.80, "over", group="corners_total"),
+    ])
+    assert set(shown) == {"Más de 7.5 córners"}
+
+
+def test_corners_need_two_corners_of_margin(run):
+    near = _candidate("c1", "Córners", "Más de 7.5 córners", 0.80, "over", line=7.5, projection=9.3)
+    far = _candidate("c2", "Córners", "A Más de 3.5 córners", 0.80, "over", line=3.5, projection=5.6)
+    unknown = _candidate("c3", "Córners", "B Más de 2.5 córners", 0.80, "over", line=2.5, projection=None)
+    unknown["projection"] = None
+    assert set(run([near, far, unknown])) == {"A Más de 3.5 córners"}
+    side = {"hit_rate": 0.80, "shrinkage_factor": 1.0, "bias_offset": 0.0, "sample_size": 40}
+    under = _candidate("c4", "Córners", "Menos de 10.5 córners", 0.80, "under", line=10.5, projection=8.9)
+    assert run([under], _summary({side_key("Córners", "under"): side})) == {}
+
+
+def test_match_total_goal_unders_need_their_own_calibration(run):
+    from deport_ai.dynamic_calibration import total_side_key
+
+    total = _candidate("g1", "Goles", "Menos de 3.5 goles", 0.80, "under")
+    team = _candidate("g2", "Goles", "B Menos de 2.5 goles", 0.80, "under")
+    goals_under = {"hit_rate": 0.80, "shrinkage_factor": 1.0, "bias_offset": 0.0, "sample_size": 120}
+    assert set(run([total, team], _summary({side_key("Goles", "under"): goals_under}))) == {"B Menos de 2.5 goles"}
+    own = {"hit_rate": 0.80, "shrinkage_factor": 1.0, "bias_offset": 0.0, "sample_size": 30}
+    assert "Menos de 3.5 goles" in run([total], _summary({total_side_key("Goles", "under"): own}))
+
+
+def test_frozen_category_is_not_published_in_that_league(run):
+    summary = _summary({})
+    summary.frozen_categories = frozenset({"Córners"})
+    shown = run([_candidate("c1", "Córners", "Más de 7.5 córners", 0.80, "over"),
+                 _candidate("g1", "Goles", "Más de 1.5 goles", 0.80, "over")], summary)
+    assert set(shown) == {"Más de 1.5 goles"}
+
+
+def test_league_freeze_and_match_total_rows_from_history(tmp_path):
+    from deport_ai.dynamic_calibration import FREEZE_MIN_SAMPLE, total_side_key
+
+    db = DatabaseManager(tmp_path / "a.db")
+    for fid in range(1, FREEZE_MIN_SAMPLE + 1):
+        _save(db, fid, 8, [
+            {"category": "Córners", "market": "Córners totales", "selection": "Más de 7.5 córners", "line": 7.5,
+             "side": "over", "probability": 0.80},
+            {"category": "Goles", "market": "Goles totales", "selection": "Menos de 3.5 goles", "line": 3.5,
+             "side": "under", "probability": 0.80},
+        ])
+        db.update_fixture_result(fid, {"home_goals": 1, "away_goals": 0, "corners_home": 4, "corners_away": 4})
+        for pred in db.get_predictions_for_fixture(fid):
+            won = pred["category"] == "Goles" or fid % 2 == 0  # córners: 50 %
+            db.update_prediction_status(pred["id"], "WON" if won else "LOST", None)
+    for fid in range(100, 111):  # más totales de goles en otra liga para llegar a 30 global
+        _save(db, fid, 564, [{"category": "Goles", "market": "Goles totales", "selection": "Menos de 3.5 goles",
+                              "line": 3.5, "side": "under", "probability": 0.80}])
+        db.update_fixture_result(fid, {"home_goals": 1, "away_goals": 1})
+        for pred in db.get_predictions_for_fixture(fid):
+            db.update_prediction_status(pred["id"], "WON", None)
+    DynamicCalibrator(db).recompute_calibrations()
+
+    premier = DynamicCalibrator(db).get_calibration_summary(8)
+    assert premier.frozen_categories == {"Córners"}  # 10 de 20 con 20+ casos
+    assert "Córners" not in premier.category_factors  # menos de 30: no altera probabilidades
+    assert total_side_key("Goles", "under") in premier.category_factors  # 31 casos en el global
+    assert premier.sample_size == 0  # las filas de totales no suman a la muestra
+    assert DynamicCalibrator(db).get_calibration_summary(564).frozen_categories == frozenset()

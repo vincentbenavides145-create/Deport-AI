@@ -22,6 +22,14 @@ TOTAL_MARKETS = {"Córners": "Córners totales", "Tarjetas": "Tarjetas totales"}
 # y los "Más de" iban bien; un solo factor por categoría mezclaba ambos y no corregía nada.
 SIDES = ("over", "under")
 _SIDE_RE = re.compile(r"\b(Más|Menos) de\b", re.IGNORECASE)
+# Los totales del partido se miden aparte de los de equipo en estas categorías: el total
+# "Menos de 3.5 goles" acertó 67 % (78.7 % prometido) y los "Menos" de equipo 82 %.
+MATCH_TOTAL_CATEGORIES = frozenset({"Goles"})
+# Freno por liga: una categoría que en una liga acierta menos del 65 % con 20+ predicciones
+# liquidadas no se publica en esa liga (córners de la Premier: 13 de 26). Se levanta sola
+# cuando su acierto vuelve a superar el umbral.
+FREEZE_MIN_SAMPLE = 20
+FREEZE_MAX_HIT_RATE = 0.65
 
 
 # Tramos de probabilidad publicada para la calibración por tramo (global). En resultados
@@ -65,6 +73,16 @@ def selection_side(item: dict[str, Any]) -> str | None:
     return "over" if match.group(1).lower() == "más" else "under"
 
 
+def is_match_total(item: dict[str, Any]) -> bool:
+    """Si la selección es un total del partido ("Más/Menos de ..." sin nombre de equipo)."""
+    return str(item.get("selection") or "").startswith(("Más de", "Menos de"))
+
+
+def total_side_key(category: str, side: str) -> str:
+    """Clave del lado de los totales del partido, p. ej. "Goles total|under"."""
+    return f"{category} total|{side}"
+
+
 def factor_for(category_factors: dict[str, dict[str, float]], category: str, side: str | None) -> dict[str, float] | None:
     """Factor del lado de la categoría si tiene muestra propia; si no, el de la categoría."""
     if side in SIDES and side_key(category, side) in category_factors:
@@ -81,6 +99,7 @@ class DynamicCalibrationSummary:
     overall_hit_rate: float
     category_factors: dict[str, dict[str, float]]
     bias_offsets: dict[str, float]
+    frozen_categories: frozenset[str] = frozenset()
 
 
 class DynamicCalibrator:
@@ -117,6 +136,8 @@ class DynamicCalibrator:
             side = selection_side(p)
             if side:
                 keys.append(side_key(cat, side))
+                if cat in MATCH_TOTAL_CATEGORIES and is_match_total(p):
+                    keys.append(total_side_key(cat, side))
             for key in keys:
                 grouped[(l_id, key)].append(p)
                 global_grouped[key].append(p)
@@ -125,7 +146,10 @@ class DynamicCalibrator:
 
         # 1. Calibraciones por Liga
         for (l_id, cat), items in grouped.items():
-            if len(items) < min_sample:
+            # Las filas de categoría de una liga se guardan desde FREEZE_MIN_SAMPLE para
+            # poder frenarla; solo alteran probabilidades desde MIN_CALIBRATION_SAMPLE.
+            needed = min(min_sample, FREEZE_MIN_SAMPLE) if l_id and "|" not in cat else min_sample
+            if len(items) < needed:
                 continue
             factor_entry = self._entry(cat, items)
             self.db.save_calibration(
@@ -248,10 +272,16 @@ class DynamicCalibrator:
         # Lo de la liga manda; lo que la liga aún no tiene (p. ej. un lado con muestra
         # propia) se toma de la calibración global.
         merged: dict[str, dict[str, Any]] = {}
+        league_rows = self.db.get_calibration(league_id=league_id)
         if league_id != 0:
             merged.update({r["category"]: r for r in self.db.get_calibration(league_id=0)})
-        merged.update({r["category"]: r for r in self.db.get_calibration(league_id=league_id)})
+        merged.update({r["category"]: r for r in league_rows})
         rows = list(merged.values())
+        frozen = frozenset(
+            r["category"] for r in league_rows
+            if league_id and "|" not in r["category"]
+            and int(r["sample_size"]) >= FREEZE_MIN_SAMPLE and float(r["hit_rate"]) < FREEZE_MAX_HIT_RATE
+        )
 
         if not rows:
             return DynamicCalibrationSummary(
@@ -262,6 +292,7 @@ class DynamicCalibrator:
                 overall_hit_rate=0.0,
                 category_factors={},
                 bias_offsets={},
+                frozen_categories=frozen,
             )
 
         cat_factors: dict[str, dict[str, float]] = {}
@@ -302,6 +333,7 @@ class DynamicCalibrator:
             overall_hit_rate=round(overall_hr, 4),
             category_factors=cat_factors,
             bias_offsets=bias_offsets,
+            frozen_categories=frozen,
         )
 
     def apply_dynamic_calibration_to_projections(

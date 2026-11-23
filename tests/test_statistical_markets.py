@@ -158,7 +158,7 @@ def test_corners_1x2_has_no_label_and_requires_valid_metrics():
         corners_1x2_home=0.64,
         corners_1x2_away=0.25,
     )
-    markets = select_statistical_markets(home, away, probs, expected)
+    markets = select_statistical_markets(home, away, probs, expected, suspended_groups=frozenset())
     corner_1x2 = next((m for m in markets if m["market"] == "Córners 1X2"), None)
     assert corner_1x2 is not None
     # Sin etiquetas internas en la selección publicada
