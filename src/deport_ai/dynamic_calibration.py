@@ -275,7 +275,9 @@ class DynamicCalibrator:
         league_rows = self.db.get_calibration(league_id=league_id)
         if league_id != 0:
             merged.update({r["category"]: r for r in self.db.get_calibration(league_id=0)})
-        merged.update({r["category"]: r for r in league_rows})
+        # Las filas de liga con menos de MIN_CALIBRATION_SAMPLE solo sirven para el freno:
+        # no deben tapar la fila global de su categoría.
+        merged.update({r["category"]: r for r in league_rows if int(r["sample_size"]) >= MIN_CALIBRATION_SAMPLE})
         rows = list(merged.values())
         frozen = frozenset(
             r["category"] for r in league_rows

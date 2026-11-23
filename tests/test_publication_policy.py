@@ -299,5 +299,20 @@ def test_league_freeze_and_match_total_rows_from_history(tmp_path):
     assert premier.frozen_categories == {"Córners"}  # 10 de 20 con 20+ casos
     assert "Córners" not in premier.category_factors  # menos de 30: no altera probabilidades
     assert total_side_key("Goles", "under") in premier.category_factors  # 31 casos en el global
-    assert premier.sample_size == 0  # las filas de totales no suman a la muestra
+    assert premier.sample_size == 31  # la fila global de Goles; la de totales no se suma otra vez
     assert DynamicCalibrator(db).get_calibration_summary(564).frozen_categories == frozenset()
+
+
+def test_small_league_rows_do_not_hide_the_global_factor(tmp_path):
+    db = DatabaseManager(tmp_path / "a.db")
+    for fid in range(1, 41):  # 40 en el global, 20 de ellas en la liga 8 (todas acertadas)
+        _save(db, fid, 8 if fid <= 20 else 564, [
+            {"category": "Tarjetas", "market": "Tarjetas totales", "selection": "Más de 3.5 tarjetas", "line": 3.5,
+             "side": "over", "probability": 0.75}])
+        db.update_fixture_result(fid, {"home_goals": 1, "away_goals": 0, "cards_home": 3, "cards_away": 3})
+        for pred in db.get_predictions_for_fixture(fid):
+            db.update_prediction_status(pred["id"], "WON" if fid <= 20 or fid % 2 else "LOST", None)
+    DynamicCalibrator(db).recompute_calibrations()
+    summary = DynamicCalibrator(db).get_calibration_summary(8)
+    assert summary.category_factors["Tarjetas"]["sample_size"] == 40  # la global, no la de 20
+    assert summary.sample_size == 40 and summary.frozen_categories == frozenset()
