@@ -882,15 +882,15 @@ TEAM_ALTITUDES: dict[str, int] = {
     "pasto": 2520,
     "once caldas": 2160,
     # México - Sedes de Altura
+    # Sin "america" ni "pumas" sueltos: confundían a América de Cali (~1,000 m) y a Pumas
+    # Tabasco (nivel del mar) con los de Ciudad de México. América y Pumas UNAM van por id.
     "toluca": 2660,
     "puebla": 2135,
-    "america": 2240,
-    "américa": 2240,
     "club america": 2240,
     "cruz azul": 2240,
-    "pumas": 2240,
     "pumas unam": 2240,
     "pachuca": 2400,
+    "america de quito": 2850,
 }
 
 # Ids de equipo verificados en Sportmonks (los anteriores eran de otro proveedor y
@@ -916,6 +916,13 @@ TEAM_ALTITUDE_IDS: dict[int, int] = {
     12832: 2520,   # Deportivo Pasto
     3547: 2160,    # Once Caldas
     14615: 2810,   # Boyacá Chicó
+    2687: 2240,    # América (Ciudad de México)
+    2626: 2240,    # Cruz Azul
+    2989: 2240,    # Pumas UNAM
+    967: 2660,     # Toluca
+    10036: 2400,   # Pachuca
+    3849: 2135,    # Puebla
+    9269: 1000,    # América de Cali (no es sede de altura)
 }
 
 # Países con sedes de altura (country_id de Sportmonks): la coincidencia por nombre solo

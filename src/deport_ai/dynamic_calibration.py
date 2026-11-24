@@ -99,7 +99,7 @@ class DynamicCalibrationSummary:
     overall_hit_rate: float
     category_factors: dict[str, dict[str, float]]
     bias_offsets: dict[str, float]
-    frozen_categories: frozenset[str] = frozenset()
+    frozen_categories: tuple[str, ...] = ()  # tupla: la salida JSON no admite conjuntos
 
 
 class DynamicCalibrator:
@@ -279,11 +279,11 @@ class DynamicCalibrator:
         # no deben tapar la fila global de su categoría.
         merged.update({r["category"]: r for r in league_rows if int(r["sample_size"]) >= MIN_CALIBRATION_SAMPLE})
         rows = list(merged.values())
-        frozen = frozenset(
+        frozen = tuple(sorted(
             r["category"] for r in league_rows
             if league_id and "|" not in r["category"]
             and int(r["sample_size"]) >= FREEZE_MIN_SAMPLE and float(r["hit_rate"]) < FREEZE_MAX_HIT_RATE
-        )
+        ))
 
         if not rows:
             return DynamicCalibrationSummary(

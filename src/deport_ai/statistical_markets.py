@@ -1051,7 +1051,7 @@ def select_statistical_markets(
     eligible: list[dict[str, Any]] = []
     cat_factors = getattr(calibration, "category_factors", {}) if calibration else {}
     # Categorías frenadas en esta liga por su acierto real (ver FREEZE_MAX_HIT_RATE).
-    frozen = getattr(calibration, "frozen_categories", frozenset()) if calibration else frozenset()
+    frozen = getattr(calibration, "frozen_categories", ()) if calibration else ()
 
     for c in candidates:
         if not MarketPresentationCatalog.is_presentable(c):

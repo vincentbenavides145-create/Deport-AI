@@ -266,7 +266,7 @@ def test_match_total_goal_unders_need_their_own_calibration(run):
 
 def test_frozen_category_is_not_published_in_that_league(run):
     summary = _summary({})
-    summary.frozen_categories = frozenset({"Córners"})
+    summary.frozen_categories = ("Córners",)
     shown = run([_candidate("c1", "Córners", "Más de 7.5 córners", 0.80, "over"),
                  _candidate("g1", "Goles", "Más de 1.5 goles", 0.80, "over")], summary)
     assert set(shown) == {"Más de 1.5 goles"}
@@ -296,11 +296,11 @@ def test_league_freeze_and_match_total_rows_from_history(tmp_path):
     DynamicCalibrator(db).recompute_calibrations()
 
     premier = DynamicCalibrator(db).get_calibration_summary(8)
-    assert premier.frozen_categories == {"Córners"}  # 10 de 20 con 20+ casos
+    assert premier.frozen_categories == ("Córners",)  # 10 de 20 con 20+ casos
     assert "Córners" not in premier.category_factors  # menos de 30: no altera probabilidades
     assert total_side_key("Goles", "under") in premier.category_factors  # 31 casos en el global
     assert premier.sample_size == 31  # la fila global de Goles; la de totales no se suma otra vez
-    assert DynamicCalibrator(db).get_calibration_summary(564).frozen_categories == frozenset()
+    assert DynamicCalibrator(db).get_calibration_summary(564).frozen_categories == ()
 
 
 def test_small_league_rows_do_not_hide_the_global_factor(tmp_path):
@@ -315,4 +315,14 @@ def test_small_league_rows_do_not_hide_the_global_factor(tmp_path):
     DynamicCalibrator(db).recompute_calibrations()
     summary = DynamicCalibrator(db).get_calibration_summary(8)
     assert summary.category_factors["Tarjetas"]["sample_size"] == 40  # la global, no la de 20
-    assert summary.sample_size == 40 and summary.frozen_categories == frozenset()
+    assert summary.sample_size == 40 and summary.frozen_categories == ()
+
+
+def test_calibration_summary_is_json_serializable():
+    """`analyze.py --json` vuelca el resumen con asdict: no puede llevar conjuntos."""
+    import json
+    from dataclasses import asdict
+
+    summary = _summary({})
+    summary.frozen_categories = ("Córners", "Goles")
+    assert json.loads(json.dumps(asdict(summary)))["frozen_categories"] == ["Córners", "Goles"]

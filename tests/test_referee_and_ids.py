@@ -117,6 +117,16 @@ def test_altitude_ids_and_name_fallback_are_safe():
     assert get_team_altitude(None, "Gutcastle", None) == 0
 
 
+def test_america_de_cali_and_pumas_tabasco_are_not_mexico_city():
+    # "america" y "pumas" sueltos daban 2,240 m a América de Cali y a Pumas Tabasco.
+    assert get_team_altitude(9269, "América de Cali", "353") < 2200
+    assert get_team_altitude(None, "América de Cali", "353") == 0
+    assert detect_altitude_impact(9269, "América de Cali", 4296, "Deportivo Cali", "353", "353") is None
+    assert get_team_altitude(None, "Pumas Tabasco", "458") == 0
+    assert get_team_altitude(2687, "América", "458") == 2240
+    assert get_team_altitude(2989, "Pumas UNAM", "458") == 2240
+
+
 # ---------------------------------------------------------------- ids de ligas y países
 
 def test_league_profiles_use_sportmonks_ids():
