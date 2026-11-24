@@ -170,3 +170,23 @@ def test_report_shows_the_referee_used_in_the_card_projection():
     assert _referee_suffix(used) == " (árbitro Chris Kavanagh: 4.36 por partido en 72)"
     assert _referee_suffix(SimpleNamespace(referee={"name": "X", "cards_per_match": 5.0, "matches": 3})) == ""
     assert _referee_suffix(SimpleNamespace(referee=None)) == ""
+
+
+# ---------------------------------------------------------------- tabla de niveles de club
+
+def test_club_tiers_need_the_whole_name_not_a_part_of_it():
+    from deport_ai.stats_engine import get_club_tier_offset as tier
+
+    # Clubes de la tabla con sus nombres en Sportmonks (partículas y números aparte).
+    assert tier("FC Barcelona") == tier("Barcelona") == 180.0
+    assert tier("FC Bayern München") == 200.0
+    assert tier("Bayer 04 Leverkusen") == 170.0
+    assert tier("AC Milan") == 170.0 and tier("Inter") == 180.0
+    assert tier("FC St. Pauli") == -130.0 and tier("Angers SCO") == -130.0
+    assert tier("Independiente Santa Fe") == tier("Santa Fe") == 85.0
+    # Homónimos de otros países y filiales: antes heredaban el nivel del club grande.
+    for other in ("Liverpool Montevideo", "Arsenal de Sarandí", "Barcelona SC", "Inter Turku", "Unión Santa Fe",
+                  "Botafogo-SP", "Real Madrid Castilla", "Juventus Next Gen", "Benfica B", "Milan Futuro",
+                  "Atalanta U23"):
+        assert tier(other) == 0.0, other
+    assert tier("Equipo sin tabla", league_id=2) == 120.0  # Champions: bonus genérico

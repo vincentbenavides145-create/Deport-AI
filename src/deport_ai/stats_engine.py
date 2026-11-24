@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import re
+import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass, replace
 from statistics import fmean, median
@@ -500,6 +501,7 @@ CLUB_TIER_OFFSETS: dict[str, float] = {
     "fbc melgar": 90.0,
     "millonarios": 90.0,
     "santa fe": 85.0,
+    "independiente santa fe": 85.0,
     "atletico nacional": 90.0,
     "junior": 85.0,
     "inter miami": 100.0,
@@ -555,27 +557,59 @@ CLUB_TIER_OFFSETS: dict[str, float] = {
 }
 
 
+# Partículas que no distinguen a un club ("FC Barcelona" = "Barcelona"), quitadas al
+# principio o al final del nombre; los números se quitan siempre ("Bayer 04 Leverkusen").
+_CLUB_AFFIXES = frozenset({
+    "fc", "cf", "ac", "as", "sc", "afc", "ssc", "club", "cd", "ud", "rcd", "sv", "vfl", "vfb", "tsg", "aj",
+    "sco", "losc",
+})
+# Homónimos de otro país que, sin partículas, quedarían igual que un club de la tabla.
+_CLUB_HOMONYMS = frozenset({"barcelona sc"})
+
+
+def _normalize_club(name: str) -> str:
+    text = unicodedata.normalize("NFKD", name.lower())
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
+
+
+def _strip_club_affixes(normalized: str) -> str:
+    tokens = [t for t in normalized.split() if not t.isdigit()]
+    while len(tokens) > 1 and tokens[0] in _CLUB_AFFIXES:
+        tokens.pop(0)
+    while len(tokens) > 1 and tokens[-1] in _CLUB_AFFIXES:
+        tokens.pop()
+    return " ".join(tokens)
+
+
+def _club_tier_index() -> dict[str, float]:
+    index: dict[str, float] = {}
+    for key, value in CLUB_TIER_OFFSETS.items():
+        normalized = _normalize_club(key)
+        index[normalized] = value
+        index.setdefault(_strip_club_affixes(normalized), value)
+    return index
+
+
+_CLUB_TIER_INDEX = _club_tier_index()
+
+
 def get_club_tier_offset(name: str | None, league_id: int | None = None) -> float:
-    """
-    Estratificación de Clubes (Opción 2):
-    Devuelve el desfase Elo base según el estatus competitivo del club dentro de su liga.
+    """Desfase Elo del club según la tabla de niveles (prior; el backtest del 24/11/2026
+    mostró que mejora la calidad de las probabilidades en 4 de 5 ligas).
+
+    El nombre debe coincidir entero, sin partículas como "FC" o "AC": buscarlo como
+    parte del nombre confundía a Liverpool (Montevideo), Unión Santa Fe, Inter Turku o
+    las filiales (Real Madrid Castilla, Benfica B) con los clubes de la tabla.
     """
     if not name:
         return 0.0
-    low = name.lower().strip()
-    low = (
-        low.replace("á", "a")
-        .replace("é", "e")
-        .replace("í", "i")
-        .replace("ó", "o")
-        .replace("ú", "u")
-        .replace("ü", "u")
-        .replace("ñ", "n")
-    )
-    for k in sorted(CLUB_TIER_OFFSETS.keys(), key=len, reverse=True):
-        pattern = r"\b" + re.escape(k) + r"\b"
-        if re.search(pattern, low):
-            return CLUB_TIER_OFFSETS[k]
+    normalized = _normalize_club(name)
+    if normalized in _CLUB_HOMONYMS:
+        return 0.0
+    for candidate in (normalized, _strip_club_affixes(normalized)):
+        if candidate in _CLUB_TIER_INDEX:
+            return _CLUB_TIER_INDEX[candidate]
 
     # Ids de Sportmonks: 2 Champions League, 5 Europa League (2451/2452 son amistosos).
     if league_id == 2:  # Champions League
