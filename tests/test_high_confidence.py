@@ -101,3 +101,22 @@ def test_report_shows_the_high_confidence_section():
     high = {"category": "Faltas", "selection": "Local Más de 10.5 faltas", "probability": 0.83}
     text = format_adaptive_report(replace(report, high_confidence=high))
     assert "🎯 Alta confianza" in text and "Local Más de 10.5 faltas — 83.0%" in text
+
+
+def test_club_tier_coverage_counts_fixtures_with_a_listed_club():
+    from types import SimpleNamespace
+
+    from deport_ai.backtesting import club_tier_coverage
+    from deport_ai.domain import TeamMatch
+
+    def matches(team_id):
+        return [TeamMatch(fixture_id=team_id * 100 + i, date=f"2026-01-{i + 1:02d}", team_id=team_id, opponent_id=9,
+                          opponent_name="X", is_home=True, goals_for=1, goals_against=0, result="W") for i in range(8)]
+
+    def sample(fid, home, away):
+        return SimpleNamespace(fixture_id=fid, date="2026-03-01", league_id=8, home_name=home, away_name=away,
+                               home=SimpleNamespace(team_id=1), away=SimpleNamespace(team_id=2))
+
+    by_team = {1: matches(1), 2: matches(2)}
+    fixtures = [sample(1, "Arsenal", "Brentford"), sample(2, "Brentford", "Fulham")]
+    assert club_tier_coverage(fixtures, by_team) == (2, 1)

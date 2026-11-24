@@ -31,6 +31,7 @@ from .stats_engine import (
     lineup_deficit,
     calculate_elo,
     expected_metrics,
+    get_club_tier_offset,
     goal_probabilities,
     stat_value,
 )
@@ -670,6 +671,25 @@ def absence_coverage(
 def fixtures_with_lineups(fixtures: list[FixtureSample]) -> list[FixtureSample]:
     """Partidos con el once inicial de ambos equipos publicado."""
     return [f for f in fixtures if len(f.home.starters) >= 11 and len(f.away.starters) >= 11]
+
+
+def club_tier_coverage(
+    fixtures: list[FixtureSample],
+    matches_by_team: dict[int, list[TeamMatch]],
+    min_history: int = 6,
+    window: int = 12,
+) -> tuple[int, int]:
+    """(partidos evaluables, partidos donde algún equipo figura en la tabla de niveles)."""
+    evaluable = affected = 0
+    for sample in fixtures:
+        hist_home = history_before(matches_by_team, sample.home.team_id, sample.date, window)
+        hist_away = history_before(matches_by_team, sample.away.team_id, sample.date, window)
+        if len(hist_home) < min_history or len(hist_away) < min_history:
+            continue
+        evaluable += 1
+        if get_club_tier_offset(sample.home_name, sample.league_id) or get_club_tier_offset(sample.away_name, sample.league_id):
+            affected += 1
+    return evaluable, affected
 
 
 def lineup_coverage(

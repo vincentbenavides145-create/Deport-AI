@@ -305,6 +305,19 @@ def run_lineup_comparison(args: argparse.Namespace, matches_by_team, team_names)
     )
 
 
+def run_club_tier_comparison(args: argparse.Namespace, matches_by_team, team_names) -> None:
+    """Elo solo con resultados (sin la tabla manual de niveles de club) frente a la tabla."""
+    from deport_ai.backtesting import club_tier_coverage
+
+    _run_factor_comparison(
+        args, matches_by_team, team_names, field="club_tier_scale", weights=args.club_tier_weights,
+        select_fixtures=lambda fixtures: fixtures, coverage_fn=club_tier_coverage,
+        title="Backtest niveles de club — liga {}",
+        coverage_label="con algún equipo en la tabla de niveles",
+        base_label="Base: Elo solo con resultados (sin tabla de niveles)", label="Con tabla de niveles, escala {:.2f}",
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Backtest walk-forward y ajuste de parámetros de DEPORT AI")
     source = parser.add_mutually_exclusive_group()
@@ -334,6 +347,10 @@ def main() -> None:
                         help="Compara el modelo con y sin el ajuste por fuerza del once (titulares habituales)")
     parser.add_argument("--lineup-weights", type=str, default="0.5,1.0,1.5",
                         help="Pesos del ajuste por el once a comparar contra 0 (separados por coma)")
+    parser.add_argument("--club-tiers", action="store_true",
+                        help="Compara el Elo solo con resultados frente a la tabla manual de niveles de club")
+    parser.add_argument("--club-tier-weights", type=str, default="1.0",
+                        help="Escalas de la tabla de niveles a comparar contra 0 (separadas por coma)")
     parser.add_argument("--xg-max-new", type=int, default=None,
                         help="Máximo de partidos nuevos a leer de Flashscore (créditos de Firecrawl)")
     args = parser.parse_args()
@@ -374,6 +391,12 @@ def main() -> None:
         matches_by_team, team_names = load_from_sportmonks(client, queries, args.count, log=print)
         title = "Backtest walk-forward — datos reales Sportmonks"
 
+    if args.club_tiers:
+        if client is None:
+            print("--club-tiers necesita datos reales (--teams o --teams-file).")
+            sys.exit(1)
+        run_club_tier_comparison(args, matches_by_team, team_names)
+        return
     if args.lineups:
         if client is None:
             print("--lineups necesita datos reales (--teams o --teams-file).")
