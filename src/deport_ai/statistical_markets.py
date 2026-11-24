@@ -1028,6 +1028,7 @@ def select_statistical_markets(
     exclude_categories: set[str] | frozenset[str] | None = None,
     suspended_categories: set[str] | frozenset[str] = SUSPENDED_CATEGORIES,
     suspended_groups: set[str] | frozenset[str] = SUSPENDED_GROUPS,
+    unpublished: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Aplica la capa de presentación:
     1. Filtra candidatos estrictamente según MarketPresentationCatalog (excluye triviales y no catalogados).
@@ -1041,6 +1042,10 @@ def select_statistical_markets(
     Si hay cuotas (`odds`, claves de `normalize_odds`), cada selección con precio recibe
     `odds` y `edge` (EV = prob × cuota − 1). Las de EV < `min_edge` se descartan aunque
     sean muy probables, y dentro de cada subfamilia se elige la de mayor EV.
+
+    Las categorías frenadas en la liga (`calibration.frozen_categories`) no se devuelven;
+    si se pasa la lista `unpublished`, sus selecciones válidas se agregan ahí para
+    registrarlas sin publicar.
     """
     candidates = calculate_candidate_markets(
         home, away, probabilities, expected, recent_home=recent_home, recent_away=recent_away
@@ -1052,6 +1057,7 @@ def select_statistical_markets(
     cat_factors = getattr(calibration, "category_factors", {}) if calibration else {}
     # Categorías frenadas en esta liga por su acierto real (ver FREEZE_MAX_HIT_RATE).
     frozen = getattr(calibration, "frozen_categories", ()) if calibration else ()
+    frozen_eligible: list[dict[str, Any]] = []
 
     for c in candidates:
         if not MarketPresentationCatalog.is_presentable(c):
@@ -1062,7 +1068,7 @@ def select_statistical_markets(
             continue
 
         cat = c.get("category", "")
-        if cat in frozen or c.get("group") in suspended_groups:
+        if c.get("group") in suspended_groups:
             continue
         c["model_prob"] = prob
         side = selection_side(c)
@@ -1074,7 +1080,7 @@ def select_statistical_markets(
         if cat == "Córners" and side in ("over", "under") and _corner_margin(c) < MIN_CORNER_MARGIN:
             continue
         # Factor empírico del lado de la categoría (o de la categoría) si hay calibración activa.
-        f_info = factor_for(cat_factors, cat, side)
+        f_info = factor_for(cat_factors, cat, side, match_total=is_match_total(c))
         if f_info:
             shrinkage = f_info.get("shrinkage_factor", 1.0)
             hit_rate = f_info.get("hit_rate", 0.0)
@@ -1124,8 +1130,16 @@ def select_statistical_markets(
             c["odds"] = price
             c["edge"] = edge
 
-        eligible.append(c)
+        (frozen_eligible if cat in frozen else eligible).append(c)
 
+    if unpublished is not None:
+        unpublished.extend(_choose_markets(frozen_eligible, max_per_category))
+    return _choose_markets(eligible, max_per_category)
+
+
+def _choose_markets(eligible: list[dict[str, Any]], max_per_category: int) -> list[dict[str, Any]]:
+    """De los candidatos válidos, el mejor por subfamilia y concepto, y hasta
+    `max_per_category` por categoría, en orden descendente de probabilidad."""
     # 2. Agrupación por subfamilia
     by_subfamily: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for c in eligible:
@@ -1329,6 +1343,9 @@ FEATURED_MAX_PER_CATEGORY = 2
 # mismo partido dependen del mismo guion: si sale distinto (un favorito que pierde, un 0-0
 # esperado abierto) caen juntas. En resultados reales, 5 por partido acertó ~2 puntos más.
 MAX_SELECTIONS_PER_MATCH = 5
+# Selecciones de categorías frenadas que se registran sin publicar, por partido: bastan
+# para medir si la categoría se recuperó sin inflar el histórico.
+MAX_UNPUBLISHED_PER_MATCH = 2
 
 
 def cap_selections(

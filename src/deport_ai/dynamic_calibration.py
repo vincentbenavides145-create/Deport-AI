@@ -25,11 +25,13 @@ _SIDE_RE = re.compile(r"\b(Más|Menos) de\b", re.IGNORECASE)
 # Los totales del partido se miden aparte de los de equipo en estas categorías: el total
 # "Menos de 3.5 goles" acertó 67 % (78.7 % prometido) y los "Menos" de equipo 82 %.
 MATCH_TOTAL_CATEGORIES = frozenset({"Goles"})
-# Freno por liga: una categoría que en una liga acierta menos del 65 % con 20+ predicciones
-# liquidadas no se publica en esa liga (córners de la Premier: 13 de 26). Se levanta sola
-# cuando su acierto vuelve a superar el umbral.
+# Freno por liga: una categoría cuyas últimas 20 predicciones liquidadas en una liga
+# acertaron menos del 65 % no se publica en esa liga (córners de la Premier: 13 de 26).
+# Mientras está frenada se sigue registrando sin publicar (`unpublished`), así que sus
+# resultados nuevos pueden levantar el freno.
 FREEZE_MIN_SAMPLE = 20
 FREEZE_MAX_HIT_RATE = 0.65
+RECENT_SUFFIX = "|recent"
 
 
 # Tramos de probabilidad publicada para la calibración por tramo (global). En resultados
@@ -83,8 +85,15 @@ def total_side_key(category: str, side: str) -> str:
     return f"{category} total|{side}"
 
 
-def factor_for(category_factors: dict[str, dict[str, float]], category: str, side: str | None) -> dict[str, float] | None:
-    """Factor del lado de la categoría si tiene muestra propia; si no, el de la categoría."""
+def factor_for(
+    category_factors: dict[str, dict[str, float]], category: str, side: str | None, match_total: bool = False
+) -> dict[str, float] | None:
+    """El factor más específico con muestra propia: total del partido por lado (en
+    MATCH_TOTAL_CATEGORIES), lado de la categoría o la categoría."""
+    if match_total and side in SIDES and category in MATCH_TOTAL_CATEGORIES:
+        specific = category_factors.get(total_side_key(category, side))
+        if specific:
+            return specific
     if side in SIDES and side_key(category, side) in category_factors:
         return category_factors[side_key(category, side)]
     return category_factors.get(category)
@@ -110,7 +119,8 @@ class DynamicCalibrator:
 
     def recompute_calibrations(self, min_sample: int = MIN_CALIBRATION_SAMPLE) -> int:
         """Recalcula y actualiza los factores de calibración en la base de datos a partir de apuestas liquidadas."""
-        settled = self.db.get_settled_predictions()
+        # Las no publicadas (categorías frenadas) también miden al modelo y levantan el freno.
+        settled = self.db.get_settled_predictions(include_unpublished=True)
         # Se reescribe entera: un grupo que ya no llega al mínimo (p. ej. porque las anuladas
         # dejaron de contar) no debe quedar activo con su factor antiguo.
         self.db.clear_calibration()
@@ -144,12 +154,26 @@ class DynamicCalibrator:
 
         updated_count = 0
 
+        # 0. Acierto reciente por liga y categoría (para el freno por liga).
+        for (l_id, cat), items in grouped.items():
+            if not l_id or "|" in cat or len(items) < FREEZE_MIN_SAMPLE:
+                continue
+            recent = sorted(items, key=lambda i: (i.get("match_date") or "", i.get("id") or 0))[-FREEZE_MIN_SAMPLE:]
+            won = sum(1 for i in recent if i["status"] == "WON")
+            self.db.save_calibration(
+                league_id=l_id,
+                category=cat + RECENT_SUFFIX,
+                sample_size=len(recent),
+                hit_rate=won / len(recent),
+                brier_score=0.0,
+                bias_offset=0.0,
+                shrinkage_factor=1.0,
+            )
+            updated_count += 1
+
         # 1. Calibraciones por Liga
         for (l_id, cat), items in grouped.items():
-            # Las filas de categoría de una liga se guardan desde FREEZE_MIN_SAMPLE para
-            # poder frenarla; solo alteran probabilidades desde MIN_CALIBRATION_SAMPLE.
-            needed = min(min_sample, FREEZE_MIN_SAMPLE) if l_id and "|" not in cat else min_sample
-            if len(items) < needed:
+            if len(items) < min_sample:
                 continue
             factor_entry = self._entry(cat, items)
             self.db.save_calibration(
@@ -182,7 +206,7 @@ class DynamicCalibrator:
         # previa al tramo, para que la corrección no se anule a sí misma con el tiempo.
         for key, items in band_grouped.items():
             if len(items) >= min_sample:
-                entry = self._calculate_factor_entry(items, prob_key="prob_before_band")
+                entry = self._staged_entry(items, "prob_before_band")
                 entry["bias_offset"] = 0.0
                 self.db.save_calibration(
                     league_id=0,
@@ -201,9 +225,26 @@ class DynamicCalibrator:
     def _entry(cls, key: str, items: list[dict[str, Any]]) -> dict[str, Any]:
         # El sesgo de proyección es del total del partido: solo vale en la fila de la
         # categoría (una fila de lado es un subconjunto elegido por su resultado esperado).
-        entry = cls._calculate_factor_entry(items)
+        entry = cls._staged_entry(items, "model_prob")
         if "|" in key:
             entry["bias_offset"] = 0.0
+        return entry
+
+    @classmethod
+    def _staged_entry(cls, items: list[dict[str, Any]], prob_key: str) -> dict[str, Any]:
+        """Acierto y muestra con todas las liquidadas; el factor y el Brier, con las que
+        guardan la probabilidad de su etapa si ya son 30+.
+
+        Las predicciones anteriores al 21/11/2026 solo guardaron la probabilidad publicada
+        (ya corregida por la calibración de entonces); medir el factor sobre ella es una
+        aproximación que se abandona en cuanto hay muestra limpia suficiente.
+        """
+        entry = cls._calculate_factor_entry(items, prob_key=prob_key)
+        staged = [i for i in items if i.get(prob_key) is not None]
+        if len(staged) < len(items) and len(staged) >= MIN_CALIBRATION_SAMPLE:
+            clean = cls._calculate_factor_entry(staged, prob_key=prob_key)
+            entry["shrinkage_factor"] = clean["shrinkage_factor"]
+            entry["brier_score"] = clean["brier_score"]
         return entry
 
     @staticmethod
@@ -275,13 +316,12 @@ class DynamicCalibrator:
         league_rows = self.db.get_calibration(league_id=league_id)
         if league_id != 0:
             merged.update({r["category"]: r for r in self.db.get_calibration(league_id=0)})
-        # Las filas de liga con menos de MIN_CALIBRATION_SAMPLE solo sirven para el freno:
-        # no deben tapar la fila global de su categoría.
-        merged.update({r["category"]: r for r in league_rows if int(r["sample_size"]) >= MIN_CALIBRATION_SAMPLE})
+        # Las filas de acierto reciente solo sirven para el freno, no para corregir.
+        merged.update({r["category"]: r for r in league_rows if not r["category"].endswith(RECENT_SUFFIX)})
         rows = list(merged.values())
         frozen = tuple(sorted(
-            r["category"] for r in league_rows
-            if league_id and "|" not in r["category"]
+            r["category"].removesuffix(RECENT_SUFFIX) for r in league_rows
+            if league_id and r["category"].endswith(RECENT_SUFFIX)
             and int(r["sample_size"]) >= FREEZE_MIN_SAMPLE and float(r["hit_rate"]) < FREEZE_MAX_HIT_RATE
         ))
 

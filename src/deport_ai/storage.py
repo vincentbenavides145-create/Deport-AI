@@ -112,7 +112,13 @@ class DatabaseManager:
     def remove_fixture(self, fixture_id: int, reason: str | None = None) -> bool:
         """Borra un partido y sus predicciones, y lo recuerda para que no vuelva por una fusión."""
         with self._get_connection() as conn:
-            return bool(self._apply_removal(conn, fixture_id, reason, None, force=True))
+            removed = bool(self._apply_removal(conn, fixture_id, reason, None, force=True))
+        if removed:
+            # Sin recalcular, la calibración seguiría contando el partido borrado.
+            from .dynamic_calibration import DynamicCalibrator  # import local: evita el ciclo
+
+            DynamicCalibrator(self).recompute_calibrations()
+        return removed
 
     @staticmethod
     def _apply_removal(
@@ -307,6 +313,10 @@ class DatabaseManager:
             for column in ("model_prob", "prob_before_band"):
                 if column not in pred_cols:
                     conn.execute(f"ALTER TABLE tracked_predictions ADD COLUMN {column} REAL")
+            # Migración: selecciones registradas sin publicar (categorías frenadas en la liga).
+            # Se liquidan y calibran, pero no cuentan en el acierto publicado.
+            if "unpublished" not in pred_cols:
+                conn.execute("ALTER TABLE tracked_predictions ADD COLUMN unpublished INTEGER NOT NULL DEFAULT 0")
             # Migración: faltas y córners del 1T también se liquidan; sin guardarlos el
             # histórico no permitía revisar esas liquidaciones.
             fixture_cols = {row[1] for row in conn.execute("PRAGMA table_info(tracked_fixtures)")}
@@ -388,8 +398,8 @@ class DatabaseManager:
                             fixture_id, category, market, selection,
                             line, side, predicted_prob, odds,
                             projection, basis, explanation, status, created_at, highlight,
-                            model_prob, prob_before_band
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?)
+                            model_prob, prob_before_band, unpublished
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?)
                         """,
                         (
                             fixture_id,
@@ -407,6 +417,7 @@ class DatabaseManager:
                             p.get("highlight"),
                             p.get("model_prob"),
                             p.get("prob_before_band"),
+                            int(bool(p.get("unpublished"))),
                         ),
                     )
 
@@ -542,8 +553,13 @@ class DatabaseManager:
         league_id: int | None = None,
         category: str | None = None,
         limit: int | None = None,
+        include_unpublished: bool = False,
     ) -> list[dict[str, Any]]:
-        """Recupera predicciones liquidadas (WON, LOST, VOID) con métricas del fixture."""
+        """Recupera predicciones liquidadas (WON, LOST, VOID) con métricas del fixture.
+
+        Las no publicadas solo se incluyen a pedido (la calibración las usa; el acierto
+        publicado, no).
+        """
         query = """
             SELECT
                 p.*,
@@ -577,6 +593,8 @@ class DatabaseManager:
             JOIN tracked_fixtures f ON p.fixture_id = f.fixture_id
             WHERE p.status IN ('WON', 'LOST', 'VOID')
         """
+        if not include_unpublished:
+            query += " AND p.unpublished = 0"
         params: list[Any] = []
         if league_id is not None:
             query += " AND f.league_id = ?"
@@ -660,11 +678,11 @@ class DatabaseManager:
     def get_summary_stats(self) -> dict[str, Any]:
         """Obtiene un resumen cuantitativo global del rendimiento."""
         with self._get_connection() as conn:
-            total_pred = conn.execute("SELECT COUNT(*) FROM tracked_predictions").fetchone()[0]
-            won = conn.execute("SELECT COUNT(*) FROM tracked_predictions WHERE status = 'WON'").fetchone()[0]
-            lost = conn.execute("SELECT COUNT(*) FROM tracked_predictions WHERE status = 'LOST'").fetchone()[0]
-            pending = conn.execute("SELECT COUNT(*) FROM tracked_predictions WHERE status = 'PENDING'").fetchone()[0]
-            void = conn.execute("SELECT COUNT(*) FROM tracked_predictions WHERE status = 'VOID'").fetchone()[0]
+            total_pred = conn.execute("SELECT COUNT(*) FROM tracked_predictions WHERE unpublished = 0").fetchone()[0]
+            won = conn.execute("SELECT COUNT(*) FROM tracked_predictions WHERE unpublished = 0 AND status = 'WON'").fetchone()[0]
+            lost = conn.execute("SELECT COUNT(*) FROM tracked_predictions WHERE unpublished = 0 AND status = 'LOST'").fetchone()[0]
+            pending = conn.execute("SELECT COUNT(*) FROM tracked_predictions WHERE unpublished = 0 AND status = 'PENDING'").fetchone()[0]
+            void = conn.execute("SELECT COUNT(*) FROM tracked_predictions WHERE unpublished = 0 AND status = 'VOID'").fetchone()[0]
 
             resolved = won + lost
             hit_rate = (won / resolved) if resolved > 0 else 0.0
@@ -680,7 +698,7 @@ class DatabaseManager:
                     SUM(CASE WHEN status = 'VOID' THEN 1 ELSE 0 END) as void,
                     AVG(predicted_prob) as avg_prob
                 FROM tracked_predictions
-                WHERE status IN ('WON', 'LOST', 'VOID')
+                WHERE unpublished = 0 AND status IN ('WON', 'LOST', 'VOID')
                 GROUP BY category
                 ORDER BY total DESC
                 """
@@ -711,7 +729,7 @@ class DatabaseManager:
                     SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END) as pending,
                     AVG(predicted_prob) as avg_prob
                 FROM tracked_predictions
-                WHERE highlight IS NOT NULL
+                WHERE unpublished = 0 AND highlight IS NOT NULL
                 GROUP BY highlight
                 """
             ).fetchall()

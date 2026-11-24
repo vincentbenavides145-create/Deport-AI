@@ -12,6 +12,7 @@ from .model_params import load_parameters
 from .odds import normalize_odds
 from .parser import parse_match_query
 from .statistical_markets import (
+    MAX_UNPUBLISHED_PER_MATCH,
     cap_selections,
     mark_highlights,
     select_featured_markets,
@@ -306,6 +307,7 @@ class AnalysisService:
             expected=expected,
             lineups_confirmed=lineups_confirmed,
         )
+        unpublished: list[dict[str, Any]] = []
         statistical_markets = select_statistical_markets(
             home,
             away,
@@ -316,7 +318,12 @@ class AnalysisService:
             recent_away=away_matches,
             odds=odds,
             exclude_categories=unreliable_categories(home_matches, away_matches, target_league_id),
+            unpublished=unpublished,
         )
+        # Categorías frenadas en la liga: se registran sin publicar para medir si se recuperan.
+        unpublished = [
+            {**m, "unpublished": True} for m in cap_selections(unpublished, limit=MAX_UNPUBLISHED_PER_MATCH)
+        ]
         top_pick = select_top_recommended_pick(
             statistical_markets,
             recent_home=home_matches,
@@ -395,7 +402,7 @@ class AnalysisService:
                     league_id=target_league_id,
                     league_name=target_league_name,
                     match_date=fixture.date,
-                    predictions=statistical_markets,
+                    predictions=statistical_markets + unpublished,
                     replace_pending=True,
                 )
                 self.db.export_history()

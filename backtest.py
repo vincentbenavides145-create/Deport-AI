@@ -136,6 +136,22 @@ def format_report(
     return "\n".join(lines)
 
 
+def storage_conflict(args: argparse.Namespace) -> str | None:
+    """Motivo para no ejecutar una combinación que guardaría datos que no valen para producción.
+
+    - Una liga simulada no debe dejar parámetros ni calibración: no tiene número de liga,
+      así que el ajuste se guardaba como global y se aplicaba a ligas reales.
+    - Con --fit el backtest se evalúa con los mismos partidos del ajuste: sus resultados
+      no son independientes y no deben entrar en la calibración.
+    """
+    if args.synthetic and (args.save_params or args.as_default or args.save_calibration):
+        return "Con --synthetic no se guardan parámetros ni calibración: la liga es simulada."
+    if args.fit and args.save_calibration:
+        return ("--fit y --save-calibration no van juntos: el backtest usaría los mismos partidos del ajuste. "
+                "Ajusta con una temporada y guarda la calibración con otra en una ejecución aparte.")
+    return None
+
+
 def save_calibration_from_backtest(result: BacktestResult) -> int:
     """Registra las selecciones mostradas y liquidadas como predicciones reales en SQLite."""
     from deport_ai.dynamic_calibration import DynamicCalibrator
@@ -305,6 +321,10 @@ def main() -> None:
     parser.add_argument("--xg-max-new", type=int, default=None,
                         help="Máximo de partidos nuevos a leer de Flashscore (créditos de Firecrawl)")
     args = parser.parse_args()
+    problem = storage_conflict(args)
+    if problem:
+        print(f"❌ {problem}")
+        sys.exit(2)
 
     client = None
     if not args.synthetic and not (args.teams or args.teams_file):
@@ -413,11 +433,8 @@ def main() -> None:
         Path(args.json).write_text(json.dumps(result.summary(), ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"Resumen JSON guardado en {args.json}")
     if args.save_calibration:
-        if client is None:
-            print("No se guarda calibración con datos simulados.")
-        else:
-            saved = save_calibration_from_backtest(result)
-            print(f"Calibración actualizada con {saved} predicciones walk-forward reales.")
+        saved = save_calibration_from_backtest(result)
+        print(f"Calibración actualizada con {saved} predicciones walk-forward reales.")
 
 
 if __name__ == "__main__":
