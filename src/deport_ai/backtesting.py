@@ -284,6 +284,13 @@ def run_walk_forward(
     return result
 
 
+def split_by_date(fixtures: list[FixtureSample], holdout: float) -> tuple[list[FixtureSample], list[FixtureSample]]:
+    """(ajuste, reserva): la reserva es la fracción `holdout` de partidos más recientes."""
+    ordered = sorted(fixtures, key=lambda f: (f.date, f.fixture_id))
+    cut = len(ordered) - int(round(len(ordered) * holdout))
+    return ordered[:cut], ordered[cut:]
+
+
 def scoreline_objective(
     fixtures: list[FixtureSample],
     matches_by_team: dict[int, list[TeamMatch]],

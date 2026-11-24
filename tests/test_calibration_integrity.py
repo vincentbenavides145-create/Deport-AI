@@ -29,7 +29,8 @@ def _backtest_module():
 
 
 def _args(**kwargs):
-    base = {"synthetic": False, "fit": False, "save_params": False, "as_default": False, "save_calibration": False}
+    base = {"synthetic": False, "fit": False, "save_params": False, "as_default": False, "save_calibration": False,
+            "holdout": 0.0}
     return argparse.Namespace(**{**base, **kwargs})
 
 
@@ -237,3 +238,32 @@ def test_fitted_fixture_ids_are_saved_and_collected(tmp_path):
     assert fitted_fixture_ids(path) == {11, 12, 13}
     assert load_parameters(8, path).fitted_fixture_ids == (11, 12)
     assert fitted_fixture_ids(tmp_path / "missing.json") == set()
+
+
+# ---------------------------------------------------------------- ajuste con reserva
+
+def test_holdout_goes_with_fit_and_is_a_fraction():
+    conflict = _backtest_module().storage_conflict
+    assert conflict(_args(holdout=0.3))  # sin --fit no hay nada que reservar
+    assert conflict(_args(fit=True, holdout=1.5))
+    assert conflict(_args(fit=True, save_params=True, holdout=0.3)) is None
+
+
+def test_split_by_date_reserves_the_most_recent_fixtures():
+    from types import SimpleNamespace
+
+    from deport_ai.backtesting import split_by_date
+
+    fixtures = [SimpleNamespace(fixture_id=i, date=f"2026-0{1 + i % 9}-01") for i in range(10)]
+    train, holdout = split_by_date(fixtures, 0.3)
+    assert len(train) == 7 and len(holdout) == 3
+    assert max(f.date for f in train) <= min(f.date for f in holdout)
+
+
+def test_holdout_metadata_round_trips(tmp_path):
+    from deport_ai.model_params import ModelParameters, load_parameters, save_parameters
+
+    path = tmp_path / "params.json"
+    save_parameters("8", ModelParameters(fitted=True, holdout_baseline_log_loss=3.04, holdout_log_loss=3.01), path)
+    loaded = load_parameters(8, path)
+    assert (loaded.holdout_baseline_log_loss, loaded.holdout_log_loss) == (3.04, 3.01)

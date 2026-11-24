@@ -56,6 +56,10 @@ class ModelParameters:
     # Partidos usados en el ajuste: no pueden entrar después en la calibración, porque
     # su resultado ya influyó en los parámetros (no sería una evaluación independiente).
     fitted_fixture_ids: tuple[int, ...] = ()
+    # Log-loss en la reserva (partidos más recientes, no usados en el ajuste): con los
+    # parámetros de partida y con los ajustados.
+    holdout_baseline_log_loss: float | None = None
+    holdout_log_loss: float | None = None
 
     def to_json(self) -> dict[str, Any]:
         return asdict(self)

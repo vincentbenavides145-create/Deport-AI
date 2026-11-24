@@ -47,6 +47,7 @@ from deport_ai.backtesting import (  # noqa: E402
     load_odds_from_sportmonks,
     run_walk_forward,
     scoreline_objective,
+    split_by_date,
     synthetic_league,
 )
 from deport_ai.model_params import (  # noqa: E402
@@ -147,6 +148,8 @@ def storage_conflict(args: argparse.Namespace) -> str | None:
     """
     if args.synthetic and (args.save_params or args.as_default or args.save_calibration):
         return "Con --synthetic no se guardan parámetros ni calibración: la liga es simulada."
+    if args.holdout and not (args.fit and 0.0 < args.holdout < 1.0):
+        return "--holdout va con --fit y es una fracción entre 0 y 1 (p. ej. 0.3)."
     if args.fit and args.save_calibration:
         return ("--fit y --save-calibration no van juntos: el backtest usaría los mismos partidos del ajuste. "
                 "Ajusta con una temporada y guarda la calibración con otra en una ejecución aparte.")
@@ -330,6 +333,9 @@ def main() -> None:
     parser.add_argument("--league-id", type=int, default=None, help="Liga a la que se asocian los parámetros")
     parser.add_argument("--fit", action="store_true", help="Ajusta parámetros por máxima verosimilitud")
     parser.add_argument("--save-params", action="store_true", help="Guarda los parámetros ajustados en model_params.json")
+    parser.add_argument("--holdout", type=float, default=0.0,
+                        help="Con --fit: fracción de partidos más recientes que no se usan en el ajuste; "
+                             "los parámetros solo se guardan si mejoran en ellos (p. ej. 0.3)")
     parser.add_argument("--as-default", action="store_true", help="Guarda los parámetros como globales (todas las ligas)")
     parser.add_argument("--with-odds", action="store_true", help="Descarga cuotas por partido para medir ROI")
     parser.add_argument("--save-calibration", action="store_true", help="Registra los resultados en la BD de calibración")
@@ -429,24 +435,37 @@ def main() -> None:
     params = load_parameters(league_id) if not args.fit else DEFAULT_PARAMETERS
     fitted_from = None
     if args.fit:
-        print("Ajustando parámetros (descenso por coordenadas, walk-forward)...")
-        objective = scoreline_objective(fixtures, matches_by_team, args.min_history, args.window)
+        train, holdout = split_by_date(fixtures, args.holdout) if args.holdout else (fixtures, [])
+        print(f"Ajustando parámetros con {len(train)} partidos (descenso por coordenadas, walk-forward)...")
+        objective = scoreline_objective(train, matches_by_team, args.min_history, args.window)
         fitted_from = params
         params = fit_parameters(objective, start=params)
         params = replace(
             params,
             fitted_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            fitted_fixture_ids=tuple(sorted({f.fixture_id for f in fixtures})),
-            **estimate_count_dispersions(fixtures),
+            fitted_fixture_ids=tuple(sorted({f.fixture_id for f in train})),
+            **estimate_count_dispersions(train),
         )
-        if args.save_params:
+        improves = True
+        if holdout:
+            check = scoreline_objective(holdout, matches_by_team, args.min_history, args.window)
+            base_loss, n_holdout = check(fitted_from)
+            fit_loss, _ = check(params)
+            params = replace(params, holdout_baseline_log_loss=round(base_loss, 5), holdout_log_loss=round(fit_loss, 5))
+            improves = fit_loss < base_loss
+            print(f"Reserva ({n_holdout} partidos más recientes, fuera del ajuste): log-loss "
+                  f"{base_loss:.5f} → {fit_loss:.5f} ({'mejora' if improves else 'no mejora'}).")
+        if args.save_params and improves:
             key = "default" if args.as_default or league_id is None else str(league_id)
             path = save_parameters(key, params)
             print(f"Parámetros guardados en {path} (clave '{key}').")
-        print(
-            "⚠️ El backtest siguiente usa los mismos partidos del ajuste (dentro de muestra). "
-            "Para una medición limpia, ajusta con una temporada y evalúa con otra."
-        )
+        elif args.save_params:
+            print("No se guardan los parámetros: no mejoran en los partidos reservados.")
+        if not holdout:
+            print(
+                "⚠️ El backtest siguiente usa los mismos partidos del ajuste (dentro de muestra). "
+                "Usa --holdout 0.3 para comprobarlo con partidos reservados."
+            )
 
     odds_by_fixture = None
     if args.with_odds and client is not None:
