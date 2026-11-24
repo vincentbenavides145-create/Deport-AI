@@ -16,6 +16,7 @@ from .statistical_markets import (
     cap_selections,
     mark_highlights,
     select_featured_markets,
+    select_high_confidence,
     select_statistical_markets,
     select_top_recommended_pick,
 )
@@ -386,6 +387,7 @@ class AnalysisService:
             top_pick=top_pick,
             featured_markets=featured,
             referee=referee,
+            high_confidence=select_high_confidence(statistical_markets),
         )
 
         should_track = self.auto_track if track is None else track

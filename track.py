@@ -34,6 +34,7 @@ from deport_ai.ai_critic import AICritic
 from deport_ai.config import Settings
 from deport_ai.dynamic_calibration import DynamicCalibrator
 from deport_ai.settlement import SettlementEngine
+from deport_ai.statistical_markets import select_high_confidence
 from deport_ai.sportmonks import SportmonksClient
 from deport_ai.storage import DatabaseManager
 
@@ -97,6 +98,9 @@ def cmd_report(args: argparse.Namespace) -> None:
                 continue
             rate = f"{h['hit_rate'] * 100:.1f}%" if h["hit_rate"] is not None else "sin liquidar"
             print(f"• **{label}:** {h['won']} ✅ | {h['lost']} ❌ | {h['pending']} pendientes · acierto `{rate}` · prob. media {h['avg_predicted_prob'] * 100:.1f}%")
+        won, lost = high_confidence_record(db.get_settled_predictions())
+        if won + lost:
+            print(f"• **Alta confianza (1 por partido):** {won} ✅ | {lost} ❌ · acierto `{won / (won + lost) * 100:.1f}%`")
         print("")
 
     if summary["by_category"]:
@@ -115,6 +119,21 @@ def cmd_report(args: argparse.Namespace) -> None:
             badge = "✅ WON" if s["status"] == "WON" else ("❌ LOST" if s["status"] == "LOST" else "↩️ VOID")
             fix = f"{s['home_team_name']} vs {s['away_team_name']}"
             print(f"| {fix} | {s['category']} | {s['selection']} | {s['predicted_prob']*100:.1f}% | {badge} |")
+
+
+def high_confidence_record(settled: list[dict]) -> tuple[int, int]:
+    """Aciertos y fallos de la selección de alta confianza de cada partido liquidado."""
+    by_fixture: dict[int, list[dict]] = {}
+    for pred in settled:
+        by_fixture.setdefault(pred["fixture_id"], []).append(pred)
+    won = lost = 0
+    for preds in by_fixture.values():
+        best = select_high_confidence(preds)
+        if best and best["status"] == "WON":
+            won += 1
+        elif best and best["status"] == "LOST":
+            lost += 1
+    return won, lost
 
 
 def cmd_ai_review(args: argparse.Namespace) -> None:

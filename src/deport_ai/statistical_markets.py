@@ -42,11 +42,37 @@ SUSPENDED_CATEGORIES: frozenset[str] = frozenset({"Jugadores", "Fueras de juego"
 UNDER_NEEDS_OWN_CALIBRATION: frozenset[str] = frozenset({"Córners", "Tarjetas", "Tiros al arco", "Remates", "Faltas"})
 # Mercados suspendidos dentro de categorías que sí se publican: córners del 1T (63 % de
 # acierto con 74 % prometido; son de mitades aunque se registren como Córners) y "quién
-# saca más córners" (63 % con 74 %).
-SUSPENDED_GROUPS: frozenset[str] = frozenset({"corners_first_half", "corners_1x2"})
+# saca más córners" (63 % con 74 %). Desde el 24/11/2026 también "equipo X tiene más tiros al
+# arco" (61 % en 23).
+SUSPENDED_GROUPS: frozenset[str] = frozenset({"corners_first_half", "corners_1x2", "shots_on_1x2"})
 # Córners Más/Menos: solo con 2+ córners de distancia entre la proyección y la línea
 # (80 % de acierto con ese margen frente a 62 % por debajo).
 MIN_CORNER_MARGIN = 2.0
+# "Menos de" de un solo equipo suspendidos: córners (65 % en 84) y tarjetas (70 % en 47).
+# Los "Menos de" del total del partido siguen sujetos a su calibración propia.
+SUSPENDED_TEAM_UNDERS: frozenset[str] = frozenset({"Córners", "Tarjetas"})
+# Lista de alta confianza: la selección más probable del partido entre los tipos que mejor
+# acertaron en resultados reales (al 24/11/2026: tiros al arco del partido "Más de" 89.7 %,
+# faltas de un equipo "Más de" 84.9 % y "Menos de" 84.1 %, remates del partido "Más de"
+# 83.6 %). Una por partido: 102 de 114 (89.5 %) en el histórico con el que se eligieron.
+HIGH_CONFIDENCE_TYPES: frozenset[tuple[str, str, str]] = frozenset({
+    ("Tiros al arco", "total", "over"),
+    ("Faltas", "equipo", "over"),
+    ("Faltas", "equipo", "under"),
+    ("Remates", "total", "over"),
+})
+
+
+def market_type(item: dict[str, Any]) -> tuple[str, str, str | None]:
+    """(categoría, "total" del partido o "equipo", lado) de una selección o predicción."""
+    scope = "total" if is_match_total(item) else "equipo"
+    return str(item.get("category") or ""), scope, selection_side(item)
+
+
+def select_high_confidence(markets: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """La selección más probable de los tipos de HIGH_CONFIDENCE_TYPES, o None."""
+    pool = [m for m in markets if market_type(m) in HIGH_CONFIDENCE_TYPES]
+    return max(pool, key=lambda m: float(m.get("probability") or m.get("predicted_prob") or 0.0), default=None)
 
 
 def _safe_complement(p: float | None) -> float | None:
@@ -1078,6 +1104,8 @@ def select_statistical_markets(
                 and total_side_key(cat, side) not in cat_factors):
             continue
         if cat == "Córners" and side in ("over", "under") and _corner_margin(c) < MIN_CORNER_MARGIN:
+            continue
+        if side == "under" and cat in SUSPENDED_TEAM_UNDERS and not is_match_total(c):
             continue
         # Factor empírico del lado de la categoría (o de la categoría) si hay calibración activa.
         f_info = factor_for(cat_factors, cat, side, match_total=is_match_total(c))

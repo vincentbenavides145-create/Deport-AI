@@ -64,6 +64,12 @@ def format_adaptive_report(report: AnalysisReport, full: bool = False) -> str:
             lines.append("  *(Requiere confirmar titularidad oficial)*.  ")
         lines.append("")
 
+    high = getattr(report, "high_confidence", None)
+    if high:
+        lines.append("#### 🎯 Alta confianza (una por partido, en evaluación)")
+        lines.append(f"• **{high.get('selection', '')} — {high.get('probability', 0.0) * 100:.1f}%**{_value_suffix(high)}  ")
+        lines.append("")
+
     # 3. Categorías temáticas oficiales
     categories_spec = [
         ("Resultado", "#### 🏆 Resultado"),

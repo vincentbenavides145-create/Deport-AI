@@ -171,6 +171,8 @@ class AnalysisReport:
     featured_markets: list[dict[str, Any]] = field(default_factory=list)
     # Árbitro asignado cuyo promedio de tarjetas entra en la proyección (nombre, promedio, partidos).
     referee: dict[str, Any] | None = None
+    # Lista de alta confianza: una selección por partido de los tipos que mejor aciertan.
+    high_confidence: dict[str, Any] | None = None
 
     def json_payload(self) -> dict[str, Any]:
         """Datos cerrados del análisis para la salida JSON (`analyze.py --json`)."""
