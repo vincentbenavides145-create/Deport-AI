@@ -53,6 +53,7 @@ from deport_ai.model_params import (  # noqa: E402
     DEFAULT_PARAMETERS,
     ModelParameters,
     fit_parameters,
+    fitted_fixture_ids,
     load_parameters,
     save_parameters,
 )
@@ -152,18 +153,32 @@ def storage_conflict(args: argparse.Namespace) -> str | None:
     return None
 
 
-def save_calibration_from_backtest(result: BacktestResult) -> int:
-    """Registra las selecciones mostradas y liquidadas como predicciones reales en SQLite."""
+def save_calibration_from_backtest(
+    result: BacktestResult, db: Any = None, excluded: set[int] | frozenset[int] = frozenset()
+) -> tuple[int, int]:
+    """Registra las selecciones mostradas y liquidadas para la calibración y las exporta
+    al histórico del repositorio (si no, se perdían al cerrar la sesión).
+
+    Se guardan como no publicadas (nunca se mostraron a nadie) y con la probabilidad del
+    modelo como `model_prob` (el backtest no aplica calibración). Los partidos de
+    `excluded` (usados en un ajuste de parámetros) no se guardan. Devuelve
+    (predicciones guardadas, partidos omitidos por haberse usado en un ajuste).
+    """
     from deport_ai.dynamic_calibration import DynamicCalibrator
     from deport_ai.storage import DatabaseManager
 
-    db = DatabaseManager()
+    db = db or DatabaseManager()
     by_fixture: dict[int, list[dict[str, Any]]] = {}
     for record in result.records:
         if record["shown"]:
-            by_fixture.setdefault(record["fixture_id"], []).append(record)
-    saved = 0
+            by_fixture.setdefault(record["fixture_id"], []).append(
+                {**record, "model_prob": record["probability"], "unpublished": True}
+            )
+    saved = skipped = 0
     for fixture_id, records in by_fixture.items():
+        if fixture_id in excluded:
+            skipped += 1
+            continue
         if db.get_fixture(fixture_id) is not None:
             continue  # ya existe (p. ej. seguido en vivo): no se duplica
         sample = result.samples[fixture_id]
@@ -187,7 +202,8 @@ def save_calibration_from_backtest(result: BacktestResult) -> int:
                 db.update_prediction_status(pred["id"], "WON" if won else "LOST")
         saved += len(records)
     DynamicCalibrator(db).recompute_calibrations()
-    return saved
+    db.export_history()
+    return saved, skipped
 
 
 def run_xg_comparison(args: argparse.Namespace, matches_by_team, team_names) -> None:
@@ -397,6 +413,7 @@ def main() -> None:
         params = replace(
             params,
             fitted_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            fitted_fixture_ids=tuple(sorted({f.fixture_id for f in fixtures})),
             **estimate_count_dispersions(fixtures),
         )
         if args.save_params:
@@ -433,8 +450,11 @@ def main() -> None:
         Path(args.json).write_text(json.dumps(result.summary(), ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"Resumen JSON guardado en {args.json}")
     if args.save_calibration:
-        saved = save_calibration_from_backtest(result)
-        print(f"Calibración actualizada con {saved} predicciones walk-forward reales.")
+        saved, skipped = save_calibration_from_backtest(result, excluded=fitted_fixture_ids())
+        print(f"Calibración actualizada con {saved} predicciones walk-forward reales (no publicadas).")
+        if skipped:
+            print(f"Omitidos {skipped} partidos ya usados en un ajuste de parámetros (no serían independientes).")
+        print("Quedaron en history/predictions.jsonl: súbelas con `python track.py sync`.")
 
 
 if __name__ == "__main__":

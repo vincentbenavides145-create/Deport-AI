@@ -53,6 +53,9 @@ class ModelParameters:
     log_loss: float | None = None
     baseline_log_loss: float | None = None
     fitted_at: str | None = None
+    # Partidos usados en el ajuste: no pueden entrar después en la calibración, porque
+    # su resultado ya influyó en los parámetros (no sería una evaluación independiente).
+    fitted_fixture_ids: tuple[int, ...] = ()
 
     def to_json(self) -> dict[str, Any]:
         return asdict(self)
@@ -60,7 +63,9 @@ class ModelParameters:
     @classmethod
     def from_json(cls, data: dict[str, Any]) -> "ModelParameters":
         known = {name for name in cls.__dataclass_fields__}
-        return cls(**{key: value for key, value in data.items() if key in known})
+        values = {key: value for key, value in data.items() if key in known}
+        values["fitted_fixture_ids"] = tuple(int(f) for f in values.get("fitted_fixture_ids") or ())
+        return cls(**values)
 
 
 DEFAULT_PARAMETERS = ModelParameters()
@@ -89,6 +94,11 @@ def load_all_parameters(path: Path | None = None) -> dict[str, ModelParameters]:
     except (OSError, ValueError):
         return {}
     return {str(key): ModelParameters.from_json(value) for key, value in raw.items() if isinstance(value, dict)}
+
+
+def fitted_fixture_ids(path: Path | None = None) -> set[int]:
+    """Todos los partidos usados en algún ajuste guardado (de cualquier liga o el global)."""
+    return {int(fid) for params in load_all_parameters(path).values() for fid in params.fitted_fixture_ids}
 
 
 def load_parameters(league_id: int | None, path: Path | None = None) -> ModelParameters:

@@ -190,3 +190,50 @@ def test_unpublished_flag_survives_the_history_round_trip(tmp_path):
     source.export_history()
     copy = DatabaseManager(tmp_path / "b.db", history_path=tmp_path / "h.jsonl")
     assert copy.get_predictions_for_fixture(1)[0]["unpublished"] == 1
+
+
+# ---------------------------------------------------------------- guardado del backtest
+
+def _backtest_result(fixture_ids):
+    from types import SimpleNamespace
+
+    records, samples, actuals = [], {}, {}
+    for fid in fixture_ids:
+        records.append({"fixture_id": fid, "league_id": 8, "category": "Goles", "market": "Goles totales",
+                        "selection": "Más de 1.5 goles", "line": 1.5, "side": "over", "projection": 2.8,
+                        "probability": 0.81, "won": True, "shown": True, "odds": None})
+        records.append({"fixture_id": fid, "league_id": 8, "category": "Faltas", "market": "Faltas totales",
+                        "selection": "Más de 21.5 faltas", "line": 21.5, "side": "over", "projection": 24.0,
+                        "probability": 0.77, "won": False, "shown": False, "odds": None})
+        samples[fid] = SimpleNamespace(home=SimpleNamespace(team_id=1), away=SimpleNamespace(team_id=2),
+                                       home_name="Local", away_name="Rival", league_id=8,
+                                       date="2025-03-01T15:00:00+00:00")
+        actuals[fid] = {"home_goals": 2, "away_goals": 1}
+    return SimpleNamespace(records=records, samples=samples, actuals=actuals)
+
+
+def test_backtest_calibration_is_exported_unpublished_and_skips_fitted_fixtures(tmp_path):
+    save = _backtest_module().save_calibration_from_backtest
+    history = tmp_path / "h.jsonl"
+    db = DatabaseManager(tmp_path / "a.db", history_path=history)
+    saved, skipped = save(_backtest_result([501, 502, 503]), db=db, excluded={503})
+    assert (saved, skipped) == (2, 1)  # solo las mostradas, sin el partido usado en el ajuste
+
+    rebuilt = DatabaseManager(tmp_path / "b.db", history_path=history)  # sesión nueva: desde el histórico
+    preds = rebuilt.get_predictions_for_fixture(501)
+    assert [(p["selection"], p["status"], p["unpublished"], p["model_prob"]) for p in preds] == [
+        ("Más de 1.5 goles", "WON", 1, 0.81)
+    ]
+    assert rebuilt.get_fixture(503) is None
+    assert rebuilt.get_summary_stats()["resolved"] == 0  # no cuentan como publicadas
+
+
+def test_fitted_fixture_ids_are_saved_and_collected(tmp_path):
+    from deport_ai.model_params import ModelParameters, fitted_fixture_ids, load_parameters, save_parameters
+
+    path = tmp_path / "params.json"
+    save_parameters("8", ModelParameters(fitted=True, fitted_fixture_ids=(11, 12)), path)
+    save_parameters("default", ModelParameters(fitted=True, fitted_fixture_ids=(12, 13)), path)
+    assert fitted_fixture_ids(path) == {11, 12, 13}
+    assert load_parameters(8, path).fitted_fixture_ids == (11, 12)
+    assert fitted_fixture_ids(tmp_path / "missing.json") == set()
