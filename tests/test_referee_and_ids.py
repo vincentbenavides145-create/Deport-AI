@@ -190,3 +190,14 @@ def test_club_tiers_need_the_whole_name_not_a_part_of_it():
                   "Atalanta U23"):
         assert tier(other) == 0.0, other
     assert tier("Equipo sin tabla", league_id=2) == 120.0  # Champions: bonus genérico
+
+
+def test_mid_altitude_visitors_reduce_the_altitude_gap():
+    # Atlas (Guadalajara, ~1,566 m) en Toluca (2,660 m): ~1,100 m, bajo el umbral de 1,200 m.
+    assert get_team_altitude(680, "Atlas", "458") == 1566
+    assert detect_altitude_impact(967, "Toluca", 680, "Atlas", "458", "458") is None
+    # Un visitante de llano sí recibe el ajuste.
+    assert detect_altitude_impact(967, "Toluca", 11023, "Tijuana", "458", "458") is not None
+    # Medellín (1,495 m) en Bogotá (2,640 m): 1,145 m, sin ajuste; Junior (Barranquilla) sí.
+    assert detect_altitude_impact(12506, "Santa Fe", 6597, "Atlético Nacional", "353", "353") is None
+    assert detect_altitude_impact(12506, "Santa Fe", 7792, "Junior FC", "353", "353") is not None

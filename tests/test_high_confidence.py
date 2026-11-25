@@ -120,3 +120,64 @@ def test_club_tier_coverage_counts_fixtures_with_a_listed_club():
     by_team = {1: matches(1), 2: matches(2)}
     fixtures = [sample(1, "Arsenal", "Brentford"), sample(2, "Brentford", "Fulham")]
     assert club_tier_coverage(fixtures, by_team) == (2, 1)
+
+
+# ---------------------------------------------------------------- Pick = alta confianza
+
+def test_pick_is_the_high_confidence_selection_when_there_is_one():
+    from deport_ai.statistical_markets import select_top_recommended_pick
+
+    markets = [
+        {"category": "Goles", "market": "Goles", "selection": "B Menos de 2.5 goles", "probability": 0.86},
+        {"category": "Resultado", "market": "1X2", "selection": "A o Empate (1X)", "probability": 0.85},
+        {"category": "Remates", "market": "Remates", "selection": "Más de 21.5 remates", "probability": 0.80},
+    ]
+    assert select_top_recommended_pick(markets)["selection"] == "Más de 21.5 remates"
+    # Sin selecciones de los tipos de alta confianza: la regla anterior (la más probable).
+    assert select_top_recommended_pick(markets[:2])["selection"] == "B Menos de 2.5 goles"
+    # Con cuotas manda el valor esperado.
+    priced = [dict(markets[0], odds=1.30, edge=0.12), dict(markets[2], odds=1.10, edge=-0.12)]
+    assert select_top_recommended_pick(priced)["selection"] == "B Menos de 2.5 goles"
+
+
+def test_high_confidence_section_is_hidden_when_it_is_the_pick():
+    from dataclasses import replace
+    from datetime import datetime, timedelta, timezone
+
+    from deport_ai.formatter import format_adaptive_report
+    from deport_ai.storage import DatabaseManager
+    from tests.test_settlement_tracking_fixes import _analyze
+
+    report = _analyze(DatabaseManager(":memory:"), (datetime.now(timezone.utc) + timedelta(days=1)).isoformat())
+    high = {"category": "Faltas", "selection": "Local Más de 10.5 faltas", "probability": 0.83,
+            "explanation": "Porque sí."}
+    text = format_adaptive_report(replace(report, high_confidence=high, top_pick=dict(high)))
+    assert "🎯 Alta confianza" not in text and "Local Más de 10.5 faltas — 83.0%" in text
+
+
+def test_labels_say_what_is_measured():
+    from types import SimpleNamespace
+
+    from deport_ai.formatter import _referee_suffix
+
+    report = SimpleNamespace(referee={"name": None, "cards_per_match": 4.47, "matches": 59})
+    assert "sin nombre publicado" in _referee_suffix(report)
+
+
+# ---------------------------------------------------------------- proyección frente al promedio
+
+def test_projection_far_from_the_cited_average_is_not_published(run):
+    near = _c("c1", "Remates", "A Más de 10.5 remates", 0.82, "over", line=10.5, projection=14.0)
+    near["evidence"] = {"hits": 7, "n": 8, "avg": 13.0, "line": 10.5, "side": "over"}
+    far = _c("c2", "Córners", "Más de 8.5 córners", 0.86, "over", line=8.5, projection=17.3)
+    far["evidence"] = {"hits": 15, "n": 16, "avg": 13.1, "line": 8.5, "side": "over"}  # +32 %
+    assert run([near, far]) == {"A Más de 10.5 remates"}
+
+
+def test_projection_departs_needs_both_numbers():
+    from deport_ai.statistical_markets import projection_departs
+
+    assert not projection_departs({"projection": 5.0})
+    assert not projection_departs({"projection": None, "evidence": {"avg": 3.0}})
+    assert projection_departs({"projection": 0.5, "evidence": {"avg": 1.2}})
+    assert not projection_departs({"projection": 1.5, "evidence": {"avg": 1.2}})

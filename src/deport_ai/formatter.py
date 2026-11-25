@@ -14,7 +14,7 @@ def _referee_suffix(report: AnalysisReport) -> str:
     referee = getattr(report, "referee", None)
     if not referee or referee.get("matches", 0) < REFEREE_MIN_MATCHES:
         return ""
-    name = referee.get("name") or "asignado"
+    name = referee.get("name") or "sin nombre publicado"
     return f" (árbitro {name}: {referee['cards_per_match']:.2f} por partido en {referee['matches']})"
 
 
@@ -37,7 +37,7 @@ def format_adaptive_report(report: AnalysisReport, full: bool = False) -> str:
     cal_info = getattr(report, "dynamic_calibration_info", None)
     cal_str = ""
     if cal_info and getattr(cal_info, "active", False) and getattr(cal_info, "sample_size", 0) >= MIN_CALIBRATION_SAMPLE:
-        cal_str = f", ⚡ Calibración Dinámica: {cal_info.sample_size} apuestas auditadas, {cal_info.overall_hit_rate * 100:.1f}% acierto"
+        cal_str = f", ⚡ Calibración Dinámica: {cal_info.sample_size} predicciones medidas en partidos reales, {cal_info.overall_hit_rate * 100:.1f}% acierto"
 
     if report.confidence:
         badge = "🟢" if report.confidence.level == "ALTA" else "🟡" if report.confidence.level == "MEDIA" else "🔴"
@@ -65,7 +65,8 @@ def format_adaptive_report(report: AnalysisReport, full: bool = False) -> str:
         lines.append("")
 
     high = getattr(report, "high_confidence", None)
-    if high:
+    # Sin cuotas el Pick ya es la de alta confianza: solo se muestra aparte si difiere.
+    if high and high.get("selection") != (top_pick or {}).get("selection"):
         lines.append("#### 🎯 Alta confianza (una por partido, en evaluación)")
         lines.append(f"• **{high.get('selection', '')} — {high.get('probability', 0.0) * 100:.1f}%**{_value_suffix(high)}  ")
         lines.append("")

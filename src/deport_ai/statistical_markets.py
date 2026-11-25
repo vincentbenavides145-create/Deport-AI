@@ -33,6 +33,10 @@ MAXIMUM_PROBABILITY = 0.88
 # entre la probabilidad del modelo y la tasa histórica que se cita como justificación.
 MIN_EVIDENCE_SAMPLE = 6
 MAX_MODEL_GAP = 0.20
+# Desvío máximo entre la proyección del modelo y el promedio reciente citado: con más del
+# 30 % las selecciones acertaron 69.6 % (115) frente a 79.0 % (666), y ese desvío suele
+# delatar un ajuste mal aplicado (p. ej. la altitud de Toluca–Atlas, 17.3 córners).
+MAX_PROJECTION_GAP = 0.30
 # Categorías suspendidas tras medir resultados reales: props de jugador (54 % de acierto
 # con 70 % prometido), fueras de juego (54 % con 73 %) y mitades (61 % con 67 %). Se siguen
 # calculando para el backtest, pero no se publican hasta que el modelo demuestre acierto.
@@ -476,6 +480,15 @@ def evidence_contradicts(probability: float, evidence: dict[str, Any] | None, st
         if (side == "over" and avg <= line) or (side == "under" and avg >= line):
             return True
     return False
+
+
+def projection_departs(candidate: dict[str, Any]) -> bool:
+    """True si la proyección se aleja más de MAX_PROJECTION_GAP del promedio reciente citado."""
+    projection = candidate.get("projection")
+    avg = (candidate.get("evidence") or {}).get("avg")
+    if projection is None or not avg or avg <= 0:
+        return False
+    return abs(float(projection) - avg) / avg > MAX_PROJECTION_GAP
 
 
 def calculate_candidate_markets(
@@ -1123,7 +1136,7 @@ def select_statistical_markets(
                 if not c.get("explanation", "").endswith("."):
                     c["explanation"] = c.get("explanation", "") + "."
                 c["explanation"] += (
-                    f" (Categoría con {hit_rate * 100:.1f}% de acierto real en {sample_size} predicciones liquidadas)."
+                    f" (Categoría con {hit_rate * 100:.1f}% de acierto en {sample_size} predicciones medidas en partidos reales)."
                 )
 
         c["prob_before_band"] = prob
@@ -1147,6 +1160,8 @@ def select_statistical_markets(
         # Las props de jugador exigen siempre historial real (sin él no se publican).
         evidence = c.get("evidence") if not is_player else (c.get("evidence") or {"hits": 0, "n": 0})
         if evidence_contradicts(prob, evidence, group in STAT_EVIDENCE_GROUPS or is_player):
+            continue
+        if projection_departs(c):
             continue
 
         price = (odds or {}).get(odds_key_for_candidate(c.get("id")) or "")
@@ -1312,9 +1327,8 @@ def select_top_recommended_pick(
 ) -> dict[str, Any] | None:
     """Selecciona la mejor recomendación global del partido (AI Top Pick).
 
-    Evalúa todas las selecciones filtradas del catálogo (rango 60.0% - 88.0%),
-    priorizando selecciones con alta probabilidad, consistencia en la muestra empírica
-    y menor varianza estructural.
+    Con cuotas, la de mayor valor esperado; sin cuotas, la de alta confianza
+    (`select_high_confidence`) o, si no hay, la más probable ponderada por categoría.
     """
     if not selected_markets:
         return None
@@ -1330,7 +1344,6 @@ def select_top_recommended_pick(
 
     def score_candidate(item: dict[str, Any]) -> float:
         prob = float(item.get("probability", 0.0))
-        bonus = 0.0
         cat = str(item.get("category", ""))
         # Ponderación por estabilidad de mercado
         cat_weight = 1.0
@@ -1338,12 +1351,15 @@ def select_top_recommended_pick(
             cat_weight = 1.05
         elif cat in ("Fueras de juego", "Especiales"):
             cat_weight = 0.95
-        return (prob + bonus) * cat_weight
+        return prob * cat_weight
 
     if priced_pool:
         best = max(pool, key=lambda item: (item["edge"], item["probability"]))
     else:
-        best = max(pool, key=score_candidate)
+        # Sin cuotas, el Pick es la selección de alta confianza si el partido tiene una: en
+        # resultados reales el Pick acertó 79 % (sobre todo goles y resultado) y la de alta
+        # confianza 88 %. Si no hay, la más probable con la ponderación por categoría.
+        best = select_high_confidence(pool) or max(pool, key=score_candidate)
 
     return {
         "market": best.get("market"),

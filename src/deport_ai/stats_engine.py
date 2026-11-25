@@ -957,6 +957,37 @@ TEAM_ALTITUDE_IDS: dict[int, int] = {
     10036: 2400,   # Pachuca
     3849: 2135,    # Puebla
     9269: 1000,    # América de Cali (no es sede de altura)
+    # Sedes de altura media: no generan ventaja propia, pero como visitantes de Toluca,
+    # Ciudad de México o Bogotá el desnivel real es menor. Sin ellas valían 0 m y el ajuste
+    # por altitud salía al máximo (p. ej. Toluca–Atlas: 2,660 m en vez de ~1,100 m).
+    427: 1566,     # Guadalajara
+    680: 1566,     # Atlas
+    10836: 1815,   # León
+    538: 1820,     # Querétaro
+    15522: 1860,   # Atlético San Luis
+    3951: 1888,    # Necaxa (Aguascalientes)
+    6335: 1140,    # Juárez
+    2844: 1120,    # Santos Laguna (Torreón)
+    2662: 540,     # Monterrey
+    609: 540,      # Tigres UANL
+    11023: 20,     # Tijuana
+    247689: 10,    # Mazatlán
+    6597: 1495,    # Atlético Nacional (Medellín)
+    332: 1495,     # Independiente Medellín
+    14708: 1575,   # Envigado
+    172: 2125,     # Rionegro Águilas
+    8260: 1411,    # Deportivo Pereira
+    10204: 1285,   # Deportes Tolima (Ibagué)
+    3479: 1000,    # Deportivo Cali
+    8238: 960,     # Atlético Bucaramanga
+    12833: 120,    # Alianza Petrolera
+    15153: 467,    # Llaneros (Villavicencio)
+    7792: 20,      # Junior (Barranquilla)
+    11234: 10,     # Unión Magdalena
+    14645: 320,    # Cúcuta Deportivo
+    12488: 18,     # Jaguares de Córdoba
+    6272: 2640,    # Fortaleza CEIF (Bogotá)
+    15096: 2810,   # Patriotas Boyacá
 }
 
 # Países con sedes de altura (country_id de Sportmonks): la coincidencia por nombre solo
