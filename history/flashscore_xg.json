@@ -10697,6 +10697,22 @@
    "xa_home": 0.22,
    "xa_away": 0.14
   },
+  "19636543": {
+   "mid": "4SmZ8Ya6",
+   "date": "2026-11-02",
+   "home": "Independiente Rivadavia",
+   "away": "Banfield",
+   "xg_home": 0.6,
+   "xg_away": 0.48,
+   "big_chances_home": 2.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 19.0,
+   "box_touches_away": 12.0,
+   "xgot_home": 0.39,
+   "xgot_away": 1.23,
+   "xa_home": 0.54,
+   "xa_away": 0.52
+  },
   "19636544": {
    "mid": "d2pRAfVg",
    "date": "2026-11-02",
@@ -11049,6 +11065,22 @@
    "xa_home": 0.3,
    "xa_away": 1.66
   },
+  "19636574": {
+   "mid": "MVGEROgC",
+   "date": "2026-10-17",
+   "home": "Independiente Rivadavia",
+   "away": "Tigre",
+   "xg_home": 1.11,
+   "xg_away": 1.25,
+   "big_chances_home": 2.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 16.0,
+   "box_touches_away": 15.0,
+   "xgot_home": 0.51,
+   "xgot_away": 2.14,
+   "xa_home": 0.73,
+   "xa_away": 0.83
+  },
   "19636575": {
    "mid": "E5D6TpPa",
    "date": "2026-10-17",
@@ -11176,6 +11208,22 @@
    "xgot_away": 0.92,
    "xa_home": 1.43,
    "xa_away": 0.5
+  },
+  "19636586": {
+   "mid": "YReGMxCF",
+   "date": "2026-10-16",
+   "home": "Boca Juniors",
+   "away": "Talleres Córdoba",
+   "xg_home": 0.92,
+   "xg_away": 0.39,
+   "big_chances_home": 2.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 20.0,
+   "box_touches_away": 9.0,
+   "xgot_home": 1.37,
+   "xgot_away": 0.25,
+   "xa_home": 0.54,
+   "xa_away": 0.33
   },
   "19636587": {
    "mid": "tKw9Obs3",
@@ -11497,6 +11545,22 @@
    "xa_home": 1.1,
    "xa_away": 0.82
   },
+  "19636615": {
+   "mid": "ltZzWOS7",
+   "date": "2026-10-02",
+   "home": "Boca Juniors",
+   "away": "Unión Santa Fe",
+   "xg_home": 2.76,
+   "xg_away": 0.16,
+   "big_chances_home": 4.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 42.0,
+   "box_touches_away": 6.0,
+   "xgot_home": 3.15,
+   "xgot_away": 0.2,
+   "xa_home": 2.59,
+   "xa_away": 0.13
+  },
   "19636616": {
    "mid": "8WQSXpbe",
    "date": "2026-10-02",
@@ -11608,6 +11672,22 @@
    "xgot_away": 0.55,
    "xa_home": 0.75,
    "xa_away": 0.17
+  },
+  "19636627": {
+   "mid": "GfawRxoB",
+   "date": "2026-09-20",
+   "home": "San Lorenzo",
+   "away": "Boca Juniors",
+   "xg_home": 0.21,
+   "xg_away": 2.15,
+   "big_chances_home": 1.0,
+   "big_chances_away": 4.0,
+   "box_touches_home": 4.0,
+   "box_touches_away": 29.0,
+   "xgot_home": 0.02,
+   "xgot_away": 2.86,
+   "xa_home": 0.51,
+   "xa_away": 1.9
   },
   "19636628": {
    "mid": "buE258Cc",
@@ -11721,6 +11801,22 @@
    "xa_home": 0.7,
    "xa_away": 0.89
   },
+  "19636636": {
+   "mid": "MJbVcvHO",
+   "date": "2026-09-12",
+   "home": "Independiente Rivadavia",
+   "away": "Aldosivi",
+   "xg_home": 2.54,
+   "xg_away": 1.75,
+   "big_chances_home": 4.0,
+   "big_chances_away": 4.0,
+   "box_touches_home": 24.0,
+   "box_touches_away": 25.0,
+   "xgot_home": 3.61,
+   "xgot_away": 3.56,
+   "xa_home": 0.92,
+   "xa_away": 0.69
+  },
   "19636637": {
    "mid": "04AMa0nC",
    "date": "2026-09-12",
@@ -11800,6 +11896,22 @@
    "xgot_away": 0.06,
    "xa_home": 0.78,
    "xa_away": 0.59
+  },
+  "19636644": {
+   "mid": "0ADWj53s",
+   "date": "2026-09-11",
+   "home": "Boca Juniors",
+   "away": "Central Cordoba SdE",
+   "xg_home": 1.74,
+   "xg_away": 1.06,
+   "big_chances_home": 4.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 12.0,
+   "box_touches_away": 17.0,
+   "xgot_home": 2.03,
+   "xgot_away": 0.91,
+   "xa_home": 0.63,
+   "xa_away": 0.69
   },
   "19636645": {
    "mid": "tQWadRuK",
@@ -12040,6 +12152,22 @@
    "xgot_away": 2.41,
    "xa_home": 0.44,
    "xa_away": 1.93
+  },
+  "19636667": {
+   "mid": "4Ih1IjtI",
+   "date": "2026-08-30",
+   "home": "Independiente Rivadavia",
+   "away": "Racing Club",
+   "xg_home": 3.0,
+   "xg_away": 0.77,
+   "big_chances_home": 5.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 22.0,
+   "box_touches_away": 13.0,
+   "xgot_home": 3.32,
+   "xgot_away": 1.09,
+   "xa_home": 0.31,
+   "xa_away": 0.82
   },
   "19636669": {
    "mid": "0QepMYtg",
@@ -16745,6 +16873,70 @@
    "xa_home": 0.73,
    "xa_away": 1.76
   },
+  "19715165": {
+   "mid": "xbQ3P6J5",
+   "date": "2026-11-21",
+   "home": "Tigres UANL",
+   "away": "América",
+   "xg_home": 0.74,
+   "xg_away": 0.36,
+   "big_chances_home": 1.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 20.0,
+   "box_touches_away": 16.0,
+   "xgot_home": 0.33,
+   "xgot_away": 0.3,
+   "xa_home": 1.22,
+   "xa_away": 0.42
+  },
+  "19715166": {
+   "mid": "W0NeRSlg",
+   "date": "2026-11-21",
+   "home": "Pumas UNAM",
+   "away": "Monterrey",
+   "xg_home": 1.93,
+   "xg_away": 1.07,
+   "big_chances_home": 4.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 20.0,
+   "box_touches_away": 12.0,
+   "xgot_home": 0.77,
+   "xgot_away": 1.82,
+   "xa_home": 1.53,
+   "xa_away": 0.72
+  },
+  "19715167": {
+   "mid": "OzKmTlKt",
+   "date": "2026-11-21",
+   "home": "Pachuca",
+   "away": "Toluca",
+   "xg_home": 2.22,
+   "xg_away": 0.61,
+   "big_chances_home": 2.0,
+   "big_chances_away": 0.0,
+   "box_touches_home": 33.0,
+   "box_touches_away": 14.0,
+   "xgot_home": 2.03,
+   "xgot_away": 0.85,
+   "xa_home": 1.16,
+   "xa_away": 0.54
+  },
+  "19715170": {
+   "mid": "EsrOCTZa",
+   "date": "2026-11-20",
+   "home": "Juárez",
+   "away": "Atlas",
+   "xg_home": 3.07,
+   "xg_away": 1.25,
+   "big_chances_home": 4.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 18.0,
+   "box_touches_away": 32.0,
+   "xgot_home": 2.31,
+   "xgot_away": 1.75,
+   "xa_home": 1.28,
+   "xa_away": 1.13
+  },
   "19715172": {
    "mid": "AogpKBsQ",
    "date": "2026-11-08",
@@ -17001,6 +17193,22 @@
    "xa_home": 0.45,
    "xa_away": 1.69
   },
+  "19715189": {
+   "mid": "GW5RxNhT",
+   "date": "2026-10-30",
+   "home": "Atlético San Luis",
+   "away": "Atlas",
+   "xg_home": 0.97,
+   "xg_away": 0.72,
+   "big_chances_home": 0.0,
+   "big_chances_away": 1.0,
+   "box_touches_home": 29.0,
+   "box_touches_away": 14.0,
+   "xgot_home": 1.0,
+   "xgot_away": 0.4,
+   "xa_home": 1.21,
+   "xa_away": 0.83
+  },
   "19715190": {
    "mid": "862JvqOG",
    "date": "2026-10-25",
@@ -17048,6 +17256,22 @@
    "xgot_away": 0.71,
    "xa_home": 1.81,
    "xa_away": 0.45
+  },
+  "19715193": {
+   "mid": "2k9HKNWp",
+   "date": "2026-10-25",
+   "home": "Atlas",
+   "away": "Puebla",
+   "xg_home": 1.28,
+   "xg_away": 0.99,
+   "big_chances_home": 5.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 24.0,
+   "box_touches_away": 26.0,
+   "xgot_home": 2.22,
+   "xgot_away": 1.64,
+   "xa_home": 0.79,
+   "xa_away": 0.62
   },
   "19715194": {
    "mid": "W6IoQq9N",
@@ -17609,6 +17833,22 @@
    "xa_home": 2.07,
    "xa_away": 0.46
   },
+  "19715233": {
+   "mid": "MHG9UqrJ",
+   "date": "2026-09-25",
+   "home": "Tijuana",
+   "away": "Atlas",
+   "xg_home": 2.62,
+   "xg_away": 2.54,
+   "big_chances_home": 5.0,
+   "big_chances_away": 2.0,
+   "box_touches_home": 14.0,
+   "box_touches_away": 34.0,
+   "xgot_home": 2.01,
+   "xgot_away": 2.1,
+   "xa_home": 1.36,
+   "xa_away": 1.04
+  },
   "19715234": {
    "mid": "l4I1W5D6",
    "date": "2026-09-25",
@@ -17928,6 +18168,22 @@
    "xgot_away": 1.65,
    "xa_home": 2.02,
    "xa_away": 1.25
+  },
+  "19715255": {
+   "mid": "MDll0sXA",
+   "date": "2026-09-05",
+   "home": "Atlas",
+   "away": "Atlante",
+   "xg_home": 1.18,
+   "xg_away": 1.93,
+   "big_chances_home": 1.0,
+   "big_chances_away": 4.0,
+   "box_touches_home": 17.0,
+   "box_touches_away": 14.0,
+   "xgot_home": 0.58,
+   "xgot_away": 1.71,
+   "xa_home": 0.93,
+   "xa_away": 0.49
   },
   "19715256": {
    "mid": "U5Wt232b",
