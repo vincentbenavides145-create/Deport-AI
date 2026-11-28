@@ -15561,6 +15561,22 @@
    "xa_home": 2.28,
    "xa_away": 0.46
   },
+  "19714585": {
+   "mid": "pjASQws2",
+   "date": "2026-11-22",
+   "home": "Sparta Rotterdam",
+   "away": "AZ Alkmaar",
+   "xg_home": 0.75,
+   "xg_away": 1.73,
+   "big_chances_home": 1.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 12.0,
+   "box_touches_away": 38.0,
+   "xgot_home": 0.32,
+   "xgot_away": 3.81,
+   "xa_home": 1.75,
+   "xa_away": 1.51
+  },
   "19714586": {
    "mid": "CxCKSaCk",
    "date": "2026-11-21",
@@ -15608,6 +15624,22 @@
    "xgot_away": 2.84,
    "xa_home": 1.84,
    "xa_away": 0.67
+  },
+  "19714589": {
+   "mid": "0GJYy4k3",
+   "date": "2026-11-21",
+   "home": "FC Utrecht",
+   "away": "SC Cambuur",
+   "xg_home": 1.85,
+   "xg_away": 1.37,
+   "big_chances_home": 2.0,
+   "big_chances_away": 3.0,
+   "box_touches_home": 28.0,
+   "box_touches_away": 29.0,
+   "xgot_home": 1.86,
+   "xgot_away": 2.88,
+   "xa_home": 1.92,
+   "xa_away": 0.98
   },
   "19714590": {
    "mid": "zwSnE0cd",
